@@ -20,21 +20,21 @@ flowchart LR
 
 ## Faz 0 — Ortam ve Proje İskeleti
 - [x] Go kurulumu (`/opt/homebrew/bin/go`)
-- [ ] Docker Desktop kurulumu ve çalıştığının doğrulanması
-- [ ] Git deposu başlat (`git init`, `.gitignore`: `.env`, `node_modules/`, `dist/`)
-- [ ] `docker-compose.yml` → PostgreSQL 16 servisi (port `5432`, volume, healthcheck)
-- [ ] `backend/` klasör yapısı (`cmd/api`, `internal/{config,controllers,middleware,models,repository,services}`, `pkg/{gemini,linkpreview}`)
-- [ ] `go mod init` + bağımlılıklar: `gin`, `gorm`, `gorm/driver/postgres`, `golang-jwt/jwt/v5`, `bcrypt`, `google/uuid`, `godotenv`
-- [ ] `.env.example` → `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, `PORT`, `CORS_ORIGIN`
-- [ ] `internal/config` → env okuma
-- [ ] `GET /health` endpoint'i
+- [x] Docker Desktop kurulumu ve çalıştığının doğrulanması (`v29.8.0`, `v5.5.1`)
+- [x] Git deposu başlat ve `.gitignore` yapılandır
+- [x] `docker-compose.yml` → PostgreSQL 17 servisi (port `5432`, volume, healthcheck - test edildi)
+- [x] `backend/` klasör yapısı (`cmd/api`, `internal/...`, `pkg/...`)
+- [x] `go mod init` + bağımlılıklar: `gin`, `gorm`, `postgres`, `jwt`, `bcrypt`, `uuid`, `godotenv`, `decimal`
+- [x] `.env.example` ve `.env` yapılandırması (`JWT_SECRET` üretildi)
+- [x] `internal/config` → env okuma (`config.go`)
+- [x] `cmd/api/main.go` ve `GET /health` endpoint'i
 
-**✅ Kabul:** `docker compose up -d` + `go run ./cmd/api` → `GET /health` 200 döner.
+**✅ Kabul:** `docker compose up -d` + `go run ./cmd/api` → `GET /health` 200 döner (Doğrulandı ✅).
 
 ---
 
 ## Faz 1 — Veritabanı Modelleri ve Migrasyon
-- [ ] `CREATE EXTENSION IF NOT EXISTS pgcrypto` (gen_random_uuid için)
+- [x] UUID desteği doğrulandı (PostgreSQL 17'de `gen_random_uuid()` yerleşiktir, pgcrypto gerekmez)
 - [ ] `models.User`
 - [ ] `models.Group` (`TargetUserID *uuid.UUID`, `TotalBudget decimal`)
 - [ ] `models.GroupMember` (UNIQUE `group_id,user_id`, CASCADE)
