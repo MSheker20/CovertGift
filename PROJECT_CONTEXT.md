@@ -1,7 +1,7 @@
-# PROJE TEKNİK ŞARTNAMESİ: GiftlyAI
+# PROJE TEKNİK ŞARTNAMESİ: CovertGift
 
 ## 1. Proje Özeti ve Rolün
-Sen **GiftlyAI** projesini geliştiren uzman bir full-stack yazılım mühendisisin.
+Sen **CovertGift** projesini geliştiren uzman bir full-stack yazılım mühendisisin.
 Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birleştirdiği, Gemini 3 Flash üzerinden yapay zekâ destekli semantik hediye önerileri aldığı, önerileri oyladığı (+1 / -1) ve hediye alınacak kişiden süreci gizlediği (Anti-Spoiler koruması) işbirlikçi bir web platformudur.
 
 ---
@@ -53,6 +53,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `source_type`: VARCHAR(20), varsayılan 'AI' ('AI' veya 'MANUAL')
 - `search_query`: VARCHAR(255), boş geçilemez -- Pazar yerleri için optimize edilmiş arama terimi
 - `image_url`: VARCHAR(500), opsiyonel
+- `product_url`: VARCHAR(1000), opsiyonel -- Sadece `MANUAL` önerilerde, kullanıcının yapıştırdığı linkin çözümlenmiş (final) ürün adresi. AI önerilerinde daima boştur.
 - `created_by`: UUID (Foreign Key -> `users.id`), boş geçilemez
 - `created_at`: TIMESTAMP, varsayılan now()
 
@@ -90,6 +91,22 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
    - Veritabanından grubun ilgi alanları, kalan bütçe limiti ve grupta daha önce negatif oy almış (`vote_type = -1`) ürünlerin başlıkları çekilir.
    - Tek bir JSON prompt'u ile Gemini'a iletilir ve 3-5 adet yeni öneri istenir.
 
+5. **Ürün Linki Önizleme (Link Preview / Manuel Öneri Zenginleştirme):**
+   - Kullanıcı manuel öneri eklerken bir ürün linki yapıştırabilir (Örn: Trendyol paylaşım linki `https://ty.gl/...`). Backend sayfayı çekip başlık, açıklama, görsel ve fiyatı otomatik doldurur.
+   - Bu link **kullanıcı tarafından sağlanır**; Gemini hâlâ URL üretmez (Kural 3 geçerliliğini korur).
+   - **İstek kimliği:** `User-Agent: WhatsApp/2.21.12.21 A` (sosyal medya önizleme botu) + `Accept-Language: tr-TR`. Çerez kavanozu (cookiejar) aktif, yönlendirmeler takip edilir, zaman aşımı 10 sn.
+   - **Takip (tracker) sayfası çözümleme:** Kısa linkler Adjust gibi ara sayfalarda (`*.adj.st`, `*.adjust.com`) `200 OK` ile durabilir. Bu sayfalardaki meta etiketleri (`adj_og_*`) jenerik pazarlama verisidir. Son URL bir tracker ise `adjust_redirect` sorgu parametresi decode edilip gerçek ürün sayfasına ikinci istek atılır.
+   - **Veri çıkarma önceliği:**
+     - Başlık: `og:title` -> `<title>`
+     - Görsel: `og:image`
+     - Açıklama: `og:description`
+     - Fiyat: `product:price:amount` -> JSON-LD (`schema.org/Offer`) `"price"` alanı
+   - **Jenerik görsel filtresi:** Görsel URL'si `discovery-web`, `banner`, `mrktng`, `/crm/`, `popup`, `automationimages` içeriyorsa ürün resmi sayılmaz ve `image_url` boş bırakılır.
+   - **Meta regex kuralı:** `content` değeri çift ve tek tırnak için ayrı kalıplarla ayrıştırılmalıdır (`content="..."` içinde `'` karakteri bulunabilir, Örn: "Trendyol'da").
+   - **`search_query` türetme:** Başlıktan marka/fiyat ekleri ("- Fiyatı", satıcı adı vb.) temizlenerek `search_query` üretilir; böylece manuel öneriler de Trendyol/Amazon dinamik arama linklerini destekler.
+   - **Güvenlik (SSRF koruması):** Sadece `http/https` şemaları kabul edilir; izinli alan adı listesi (allowlist: `ty.gl`, `trendyol.com`, `adj.st`, `amazon.com.tr`, `amzn.eu`, `hepsiburada.com` vb.) dışındaki hostlar ve özel/yerel IP aralıkları (`127.0.0.0/8`, `10.0.0.0/8`, `192.168.0.0/16`, `169.254.0.0/16`) reddedilir. Yanıt gövdesi en fazla 2 MB okunur, en fazla 10 yönlendirme takip edilir.
+   - Önizleme başarısız olursa hata fırlatılmaz; kullanıcı formu elle doldurmaya devam edebilir (`{"success": true, "data": {"partial": true, ...}}`).
+
 ---
 
 ## 5. REST API Uç Noktaları (REST Contract)
@@ -106,7 +123,8 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 
 ### Hediye Havuzu ve Oylama
 - `GET /api/v1/groups/:id/ideas` -> Hediyeleri toplam oy skoruyla birlikte çeker (`SUM(votes.vote_type)`)
-- `POST /api/v1/groups/:id/ideas` -> Manuel hediye önerisi ekler
+- `POST /api/v1/groups/:id/ideas` -> Manuel hediye önerisi ekler (opsiyonel `product_url` ile; link önizlemeden gelen veriler formu doldurur)
+- `POST /api/v1/groups/:id/ideas/preview-link` -> İstek: `{ url }` -> `200 OK` + `{ title, description, image_url, price, final_url, search_query }` (Veritabanına yazmaz, sadece önizleme döner; Anti-Spoiler korumalı)
 - `POST /api/v1/groups/:id/ideas/generate-ai` -> Gemini API'yi tetikler, yeni önerileri tabloya kaydeder ve döner
 - `POST /api/v1/ideas/:id/vote` -> Oy verir veya günceller `{ vote_type: 1 | -1 }` (Conflict durumunda güncelleme)
 - `DELETE /api/v1/ideas/:id` -> Hediyeyi kaldırır (Sadece öneren kişi veya grup admini silebilir)
@@ -127,6 +145,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
     │   ├── repository/
     │   └── services/
     ├── pkg/gemini/
+    ├── pkg/linkpreview/       # Ürün linki önizleme (OG / JSON-LD scraper)
     └── go.mod
     ```
   - Hata kontrolleri açıkça yapılmalıdır (`if err != nil`).
