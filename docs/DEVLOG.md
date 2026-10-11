@@ -136,6 +136,23 @@
 
 ---
 
+## 2026-10-11 — Faz 3: Grup İşlemleri ve Anti-Spoiler Koruması 🛡️
+
+**Yapılanlar**
+- İşbirlikçi hediye grupları ve şartnamedeki Anti-Spoiler koruması geliştirildi:
+  1. `repository/group_repo.go`: Atomik grup oluşturma ve kurucuyu `admin` yapma işlemi GORM Transaction (`db.Transaction`) ile bağlandı. `GetUserGroups` sorgusunda SQL seviyesinde `groups.target_user_id IS NULL OR groups.target_user_id != userID` filtresi uygulandı. `GetMemberCount` ile veritabanı seviyesinde `COUNT(*)` sağlandı.
+  2. `services/group_service.go`: Dinamik kişi başı bütçe formülü (Toplam Bütçe / Üye Sayısı) kuruş hassasiyetiyle (`decimal.Round(2)`) ve sıfıra bölme korumasıyla uygulandı. Hedef kişinin kendisi için grup açması engellendi. Gruba e-posta ile üye eklerken hedef kişinin üye yapılması engellendi (`ErrCannotAddTargetAsMember`).
+  3. `middleware/group_access.go`: Gruba özel tüm alt rotalar için (`/api/v1/groups/:id/*`) merkezi yetkilendirme ve Anti-Spoiler koruması yazıldı. İstek yapan kişi hedef kişiyse anında `403 Forbidden` (`{"error": "Erişim engellendi: Bu hediye grubu senin için oluşturulmuş bir sürprizdir."}`) fırlatıldı; grup üyesi olmayanlar engellendi; doğrulanan grup nesnesi context'e yazıldı.
+  4. `controllers/group_controller.go`: `POST /api/v1/groups`, `GET /api/v1/groups`, `GET /api/v1/groups/:id` ve `POST /api/v1/groups/:id/members` uç noktaları bağlandı. Boş grup listesi için `[]` dizi dönüşü garanti edildi.
+  5. `cmd/api/main.go`: İç içe rota grubu (`groupSpecific := protected.Group("/groups/:id")`) mimarisi ile `GroupAccess` middleware'i bağlandı.
+- `curl` testleriyle Faz 3 kabul kriterleri doğrulandı:
+  - Grup açan kullanıcı otomatik `admin` oldu.
+  - Hedef kişi (`target_user_id`) kendi gruplarını listelediğinde sürpriz grubu görmedi (`data: []`).
+  - Hedef kişi doğrudan grup ID'sine istek attığında `403 Forbidden` ile engellendi.
+  - Dinamik kişi başı bütçe başarıyla hesaplandı.
+
+---
+
 ## 🧭 Karar Kaydı (Özet)
 
 | # | Tarih | Karar | Gerekçe |
@@ -154,3 +171,6 @@
 | K12 | 10-11 | E-posta sorgularında `LOWER(email)` kullanılır | Büyük/küçük harf kaynaklı mükerrer kayıtları ve giriş hatalarını önlemek |
 | K13 | 10-11 | Giriş hatalarında şifre/kullanıcı ayrımı yapılmaz (`401`) | Kullanıcı sayımı (User Enumeration) saldırılarını engellemek |
 | K14 | 10-11 | Token süresi 24 saat, imzalama HMAC-SHA256 (`HS256`) | Güvenli ve taşınabilir kimlik doğrulama oturumu |
+| K15 | 10-11 | Grup oluşturma ve admin üyelik tek transaction içinde yapılır | Veritabanında sahipsiz/admini olmayan grup kalmasını engellemek |
+| K16 | 10-11 | Anti-Spoiler iki katmanlıdır: SQL filtreleme + `GroupAccess` Middleware | Hedef kişinin grubu ne listede ne de direkt linkle görmesini engellemek |
+| K17 | 10-11 | Hedef kişi gruba üye olarak eklenemez (`400 Bad Request`) | Sürpriz gizliliğini korumak |

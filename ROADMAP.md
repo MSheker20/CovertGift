@@ -60,16 +60,16 @@ flowchart LR
 ---
 
 ## Faz 3 — Grup İşlemleri ve Anti-Spoiler 🛡️
-- [ ] `middleware/group_access.go` → `:id` grubunu yükle;
-  - [ ] Kullanıcı `target_user_id` ise **403** + sürpriz mesajı
-  - [ ] Kullanıcı üye değilse **403/404**
-  - [ ] Grubu ve rolü context'e yaz
-- [ ] `POST /api/v1/groups` (transaction: grup + oluşturan `admin` üye)
-- [ ] `GET /api/v1/groups` (hedef kişi olduğu gruplar filtrelenir)
-- [ ] `GET /api/v1/groups/:id` → `member_count`, `per_person_budget` (anlık hesap, 0'a bölme kontrolü)
-- [ ] `POST /api/v1/groups/:id/members` (e-posta ile; hedef kişi üye **eklenemez**; zaten üyeyse 409)
+- [x] `middleware/group_access.go` → `:id` grubunu yükle;
+  - [x] Kullanıcı `target_user_id` ise **403** + sürpriz mesajı
+  - [x] Kullanıcı üye değilse **403/404**
+  - [x] Grubu ve rolü context'e yaz
+- [x] `POST /api/v1/groups` (transaction: grup + oluşturan `admin` üye)
+- [x] `GET /api/v1/groups` (hedef kişi olduğu gruplar filtrelenir)
+- [x] `GET /api/v1/groups/:id` → `member_count`, `per_person_budget` (anlık hesap, 0'a bölme kontrolü)
+- [x] `POST /api/v1/groups/:id/members` (e-posta ile; hedef kişi üye **eklenemez**; zaten üyeyse 409)
 
-**✅ Kabul:** Hedef kullanıcı tüm `/groups/:id/*` uçlarında 403 alır; listede grubu görmez.
+**✅ Kabul:** Hedef kullanıcı tüm `/groups/:id/*` uçlarında 403 alır; listede grubu görmez (Doğrulandı ✅).
 
 ---
 
@@ -149,6 +149,7 @@ flowchart LR
 ---
 
 ## 💡 Gelecek Fikirler (Backlog)
+- [ ] **Grup Modları:** Tek kişiye sürpriz modu (`SINGLE_TARGET`) vs. Herkes için ortak havuz / çekiliş modu (`ALL_MEMBERS`)
 - [ ] E-posta ile davet linki (kayıtlı olmayan kullanıcılar için)
 - [ ] Bireysel katkı takibi (kim ne kadar ödedi)
 - [ ] Hediye "kazanan" seçimi ve grubu kapatma

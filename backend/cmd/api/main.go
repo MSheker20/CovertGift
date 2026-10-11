@@ -51,8 +51,13 @@ func main() {
 
 	// 5. Katmanları Başlat (Dependency Injection)
 	userRepo := repository.NewUserRepository(db)
+	groupRepo := repository.NewGroupRepository(db)
+
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
+	groupService := services.NewGroupService(groupRepo, userRepo)
+
 	authController := controllers.NewAuthController(authService)
+	groupController := controllers.NewGroupController(groupService)
 
 	// 6. Gin web motorunu başlat
 	r := gin.Default()
@@ -85,6 +90,18 @@ func main() {
 		protected.Use(middleware.Auth(cfg.JWTSecret))
 		{
 			protected.GET("/me", authController.Me)
+
+			// Genel Grup İşlemleri
+			protected.POST("/groups", groupController.CreateGroup)
+			protected.GET("/groups", groupController.GetUserGroups)
+
+			// Belirli Bir Gruba Ait Rotalar (Anti-Spoiler + Üyelik Denetimli)
+			groupSpecific := protected.Group("/groups/:id")
+			groupSpecific.Use(middleware.GroupAccess(groupRepo))
+			{
+				groupSpecific.GET("", groupController.GetGroupDetail)
+				groupSpecific.POST("/members", groupController.AddMember)
+			}
 		}
 	}
 
