@@ -35,11 +35,11 @@ flowchart LR
 
 ## Faz 1 — Veritabanı Modelleri ve Migrasyon
 - [x] UUID desteği doğrulandı (PostgreSQL 17'de `gen_random_uuid()` yerleşiktir, pgcrypto gerekmez)
-- [ ] `models.User`
-- [ ] `models.Group` (`TargetUserID *uuid.UUID`, `TotalBudget decimal`)
-- [ ] `models.GroupMember` (UNIQUE `group_id,user_id`, CASCADE)
-- [ ] `models.GiftIdea` (`product_url` dahil, CASCADE)
-- [ ] `models.Vote` (UNIQUE `gift_idea_id,user_id`, CASCADE, `vote_type` CHECK IN (-1,1))
+- [x] `models.User`
+- [x] `models.Group` (`TargetUserID *uuid.UUID`, `TotalBudget decimal`)
+- [x] `models.GroupMember` (UNIQUE `group_id,user_id`, CASCADE)
+- [x] `models.GiftIdea` (`product_url` dahil, CASCADE)
+- [x] `models.Vote` (UNIQUE `gift_idea_id,user_id`, CASCADE, `vote_type` CHECK IN (-1,1))
 - [ ] `AutoMigrate` çağrısı + bağlantı havuzu ayarları
 - [ ] Standart yanıt yardımcıları: `respondOK(c, data)`, `respondErr(c, status, msg)`
 
