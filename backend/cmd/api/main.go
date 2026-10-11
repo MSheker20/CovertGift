@@ -52,12 +52,15 @@ func main() {
 	// 5. Katmanları Başlat (Dependency Injection)
 	userRepo := repository.NewUserRepository(db)
 	groupRepo := repository.NewGroupRepository(db)
+	ideaRepo := repository.NewIdeaRepository(db)
 
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
 	groupService := services.NewGroupService(groupRepo, userRepo)
+	ideaService := services.NewIdeaService(ideaRepo, groupRepo)
 
 	authController := controllers.NewAuthController(authService)
 	groupController := controllers.NewGroupController(groupService)
+	ideaController := controllers.NewIdeaController(ideaService)
 
 	// 6. Gin web motorunu başlat
 	r := gin.Default()
@@ -101,6 +104,17 @@ func main() {
 			{
 				groupSpecific.GET("", groupController.GetGroupDetail)
 				groupSpecific.POST("/members", groupController.AddMember)
+
+				// Hediye Havuzu Rotaları
+				groupSpecific.POST("/ideas", ideaController.AddIdea)
+				groupSpecific.GET("/ideas", ideaController.GetIdeas)
+			}
+
+			// Fikir ve Oylama Rotaları
+			ideasGroup := protected.Group("/ideas/:id")
+			{
+				ideasGroup.POST("/vote", ideaController.Vote)
+				ideasGroup.DELETE("", ideaController.DeleteIdea)
 			}
 		}
 	}

@@ -174,3 +174,47 @@
 | K15 | 10-11 | Grup oluşturma ve admin üyelik tek transaction içinde yapılır | Veritabanında sahipsiz/admini olmayan grup kalmasını engellemek |
 | K16 | 10-11 | Anti-Spoiler iki katmanlıdır: SQL filtreleme + `GroupAccess` Middleware | Hedef kişinin grubu ne listede ne de direkt linkle görmesini engellemek |
 | K17 | 10-11 | Hedef kişi gruba üye olarak eklenemez (`400 Bad Request`) | Sürpriz gizliliğini korumak |
+
+---
+
+## 2026-10-11 — Faz 4: Hediye Havuzu ve Oylama (+1 / -1) 🎁
+
+**Yapılanlar**
+- Hediye havuzu yönetimi, anlık skor hesaplama ve oy verme modülü geliştirildi:
+  1. `repository/idea_repo.go`: `CreateIdea`, `GetIdeasWithScores`, `GetIdeaByID`, `Vote` ve `DeleteIdea` metodları yazıldı. Gruptaki hediyelerin anlık skoru `COALESCE(SUM(votes.vote_type), 0)` ve kullanıcının kendi oyu `my_vote` tek bir optimize SQL sorgusuyla çekildi. Mükerrer oyları engellemek ve mevcut oyu güncellemek için PostgreSQL Upsert (`clause.OnConflict`) uygulandı.
+  2. `services/idea_service.go`: Manuel öneri ekleme (`AddManualIdea`), skorlu liste getirme (`GetGroupIdeas`), oylama (`VoteIdea`) ve yetkili silme (`DeleteIdea`) iş kuralları yazıldı. Oy tipinin sadece `+1` ve `-1` olabileceği doğrulandı. Hediyeyi sadece öneren kullanıcının veya grup admininin silebilmesi kuralı (`ErrUnauthorizedDelete`) uygulandı. `/ideas/:id/*` uç noktalarında hediyenin grubuna ulaşılarak hedef kişi için Anti-Spoiler koruması (`ErrAntiSpoilerTriggered`) sağlandı.
+  3. `controllers/idea_controller.go`: `POST /api/v1/groups/:id/ideas`, `GET /api/v1/groups/:id/ideas`, `POST /api/v1/ideas/:id/vote` ve `DELETE /api/v1/ideas/:id` uç noktaları bağlandı.
+  4. `cmd/api/main.go`: Hediye ve oylama rotaları korumalı rota ağacına entegre edildi.
+- `curl` testleriyle Faz 4 kabul kriterleri uçtan uca doğrulandı:
+  - Manuel hediye başarıyla eklendi (`201 Created`).
+  - İlk oyda (`+1`) skor `1` ve `my_vote: 1` oldu.
+  - İkinci oyda (`-1`) kayıt çoğalmadı; var olan oy güncellendi ve skor anında `-1`, `my_vote: -1` oldu (Upsert doğrulandı).
+  - Hedef kişi hediye havuzunu listelemeye veya hediyeye oy vermeye çalıştığında `403 Forbidden` aldı.
+  - Yetkisiz silme denemesi `403 Forbidden` ile engellendi; kurucu/admin başarıyla sildi (`200 OK`).
+
+---
+
+## 🧭 Karar Kaydı (Özet)
+
+| # | Tarih | Karar | Gerekçe |
+|---|---|---|---|
+| K1 | 10-03 | Gemini **asla URL üretmez**, sadece `search_query` üretir | Uydurma/kırık linkleri ve bot engellerini önlemek |
+| K2 | 10-03 | Kişi başı bütçe DB'de tutulmaz, anlık hesaplanır | Üye sayısı değiştiğinde tutarsızlık olmasın |
+| K3 | 10-03 | AI prompt'u sohbet geçmişi değil, DB durumundan üretilir | Token tasarrufu, deterministik bağlam |
+| K4 | 10-06 | Link önizlemede `User-Agent: WhatsApp/...` kullanılır | Siteler sosyal medya botlarına OG etiketli sade HTML döner |
+| K5 | 10-06 | Adjust tracker sayfaları `adjust_redirect` ile çözülür | Tracker sayfası `200` döndüğü için HTTP redirect takibi yetmiyor |
+| K6 | 10-06 | `GiftIdea.product_url` sadece MANUAL önerilerde dolu | K1 ile çelişmemek: link kullanıcıdan gelir, AI'dan değil |
+| K7 | 10-06 | Link önizlemede SSRF koruması zorunlu | Backend kullanıcı kontrollü URL'ye istek atıyor |
+| K8 | 10-06 | Proje adı **CovertGift** | Telif/marka riski |
+| K9 | 10-06 | `pgcrypto` kullanılmaz | PG13+ `gen_random_uuid()` yerleşik |
+| K10 | 10-06 | Faz 0 elle kurulur, asistan dokümante eder | Geliştiricinin altyapıyı öğrenmesi |
+| K11 | 10-11 | UUID için `google/uuid` paketi kullanılır | Go seviyesinde katı tip güvenliği (Type Safety) |
+| K12 | 10-11 | E-posta sorgularında `LOWER(email)` kullanılır | Büyük/küçük harf kaynaklı mükerrer kayıtları ve giriş hatalarını önlemek |
+| K13 | 10-11 | Giriş hatalarında şifre/kullanıcı ayrımı yapılmaz (`401`) | Kullanıcı sayımı (User Enumeration) saldırılarını engellemek |
+| K14 | 10-11 | Token süresi 24 saat, imzalama HMAC-SHA256 (`HS256`) | Güvenli ve taşınabilir kimlik doğrulama oturumu |
+| K15 | 10-11 | Grup oluşturma ve admin üyelik tek transaction içinde yapılır | Veritabanında sahipsiz/admini olmayan grup kalmasını engellemek |
+| K16 | 10-11 | Anti-Spoiler iki katmanlıdır: SQL filtreleme + `GroupAccess` Middleware | Hedef kişinin grubu ne listede ne de direkt linkle görmesini engellemek |
+| K17 | 10-11 | Hedef kişi gruba üye olarak eklenemez (`400 Bad Request`) | Sürpriz gizliliğini korumak |
+| K18 | 10-11 | Oylamada GORM `clause.OnConflict` (Upsert) kullanılır | Aynı kullanıcının mükerrer oy atmasını önlemek ve oyunu güncellemesini sağlamak |
+| K19 | 10-11 | Hediye silme yetkisi sadece öneren kişi ve grup adminine aittir | Hediye havuzunun bütünlüğünü korumak |
+| K20 | 10-11 | `/ideas/:id/*` uçlarında grubun hedef kişisi izole edilir | Grup dışındaki bağımsız uçlarda da Anti-Spoiler garantisi |

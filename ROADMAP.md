@@ -74,13 +74,13 @@ flowchart LR
 ---
 
 ## Faz 4 — Hediye Havuzu ve Oylama
-- [ ] `GET /api/v1/groups/:id/ideas` → `score = COALESCE(SUM(vote_type),0)`, `my_vote`, skora göre sıralı
-- [ ] `POST /api/v1/groups/:id/ideas` → manuel öneri (`source_type = MANUAL`)
-- [ ] `POST /api/v1/ideas/:id/vote` → `ON CONFLICT (gift_idea_id,user_id) DO UPDATE` (GORM `clause.OnConflict`)
-- [ ] `DELETE /api/v1/ideas/:id` → sadece öneren veya grup admini
-- [ ] ⚠️ `/ideas/:id/*` uçlarında da **Anti-Spoiler**: fikrin grubunu bulup aynı kontrolü uygula
+- [x] `GET /api/v1/groups/:id/ideas` → `score = COALESCE(SUM(vote_type),0)`, `my_vote`, skora göre sıralı
+- [x] `POST /api/v1/groups/:id/ideas` → manuel öneri (`source_type = MANUAL`)
+- [x] `POST /api/v1/ideas/:id/vote` → `ON CONFLICT (gift_idea_id,user_id) DO UPDATE` (GORM `clause.OnConflict`)
+- [x] `DELETE /api/v1/ideas/:id` → sadece öneren veya grup admini
+- [x] ⚠️ `/ideas/:id/*` uçlarında da **Anti-Spoiler**: fikrin grubunu bulup aynı kontrolü uygula
 
-**✅ Kabul:** Aynı kullanıcı iki kez oy verince kayıt güncellenir (çoğalmaz); yetkisiz silme 403.
+**✅ Kabul:** Aynı kullanıcı iki kez oy verince kayıt güncellenir (çoğalmaz); yetkisiz silme 403 (Doğrulandı ✅).
 
 ---
 
