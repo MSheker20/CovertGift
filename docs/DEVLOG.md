@@ -123,6 +123,19 @@
 
 ---
 
+## 2026-10-11 — Faz 2: Kimlik Doğrulama (Auth) ve JWT Altyapısı
+
+**Yapılanlar**
+- Katmanlı mimari desenine uygun olarak kimlik doğrulama modülü geliştirildi:
+  1. `repository/user_repo.go`: `Create`, `FindByEmail`, `FindByID` sorguları. E-posta aramalarında büyük/küçük harf çakışmalarını önlemek için `LOWER(email)` kullanıldı. Kayıt bulunamadığında `nil, nil` dönülerek temiz servis kontrolü sağlandı.
+  2. `services/auth_service.go`: Şifreler `bcrypt` (maliyet: 10) ile güvenli biçimde hash'lendi. Kullanıcı sayımı (User Enumeration) saldırılarına karşı giriş hatalarında yeknesak hata (`ErrInvalidCredentials`) fırlatıldı. 24 saat geçerli imzalı JWT token üretildi (`HS256`, özel `JWTClaims` ile `user_id` ve `email`).
+  3. `middleware/auth.go`: `Authorization: Bearer <token>` başlığını doğrulayan Gin middleware'i yazıldı. Algorithm Confusion saldırılarına karşı `SigningMethodHMAC` kontrolü yapıldı, geçerli kullanıcının UUID'si context'e (`userID`) yazıldı.
+  4. `controllers/auth_controller.go`: `POST /api/v1/auth/register`, `POST /api/v1/auth/login` ve `GET /api/v1/me` uç noktaları eklendi. Gelen istekler `validator/v10` (`binding:"required,email,min=6"`) ile doğrulandı. E-posta çakışmasında `409 Conflict`, şifre/kullanıcı hatalarında `401 Unauthorized`, başarılı kayıtta `201 Created` dönüldü.
+  5. `cmd/api/main.go`: Dependency Injection ile Repository -> Service -> Controller katmanları birbirine bağlandı, rotalar açık (public) ve korumalı (protected) gruplara ayrıldı.
+- `curl` testleriyle 5 kabul kriteri doğrulandı: Kayıt (201), mükerrer kayıt (409), giriş ve JWT üretimi (200), tokensız erişim reddi (401), tokenlı profil sorgusu (200). `models.User` içindeki `json:"-"` sayesinde şifre hash'inin API yanıtlarında asla sızmadığı teyit edildi.
+
+---
+
 ## 🧭 Karar Kaydı (Özet)
 
 | # | Tarih | Karar | Gerekçe |
@@ -138,3 +151,6 @@
 | K9 | 10-06 | `pgcrypto` kullanılmaz | PG13+ `gen_random_uuid()` yerleşik |
 | K10 | 10-06 | Faz 0 elle kurulur, asistan dokümante eder | Geliştiricinin altyapıyı öğrenmesi |
 | K11 | 10-11 | UUID için `google/uuid` paketi kullanılır | Go seviyesinde katı tip güvenliği (Type Safety) |
+| K12 | 10-11 | E-posta sorgularında `LOWER(email)` kullanılır | Büyük/küçük harf kaynaklı mükerrer kayıtları ve giriş hatalarını önlemek |
+| K13 | 10-11 | Giriş hatalarında şifre/kullanıcı ayrımı yapılmaz (`401`) | Kullanıcı sayımı (User Enumeration) saldırılarını engellemek |
+| K14 | 10-11 | Token süresi 24 saat, imzalama HMAC-SHA256 (`HS256`) | Güvenli ve taşınabilir kimlik doğrulama oturumu |

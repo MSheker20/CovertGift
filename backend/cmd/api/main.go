@@ -6,17 +6,21 @@ import (
 	"time"
 
 	"github.com/MSheker20/CovertGift/backend/internal/config"
+	"github.com/MSheker20/CovertGift/backend/internal/controllers"
+	"github.com/MSheker20/CovertGift/backend/internal/middleware"
 	"github.com/MSheker20/CovertGift/backend/internal/models"
+	"github.com/MSheker20/CovertGift/backend/internal/repository"
+	"github.com/MSheker20/CovertGift/backend/internal/services"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 func main() {
-	// 1. Ayarları yükle (.env)
+	// 1. Ortam ayarlarını yükle (.env)
 	cfg := config.Load()
 
-	// 2. PostgreSQL'e bağlan
+	// 2. PostgreSQL veritabanına bağlan
 	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("❌ Veritabanına bağlanılamadı: %v", err)
@@ -31,7 +35,7 @@ func main() {
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	// 4. Veritabanı Migrasyonu (AutoMigrate)
+	// 4. Veritabanı Tablolarını Senkronize Et (AutoMigrate)
 	log.Println("🔄 Veritabanı tabloları senkronize ediliyor (AutoMigrate)...")
 	err = db.AutoMigrate(
 		&models.User{},
@@ -45,29 +49,46 @@ func main() {
 	}
 	log.Println("✅ 5 temel tablo ve ilişkiler başarıyla senkronize edildi!")
 
-	// 5. Gin web motorunu başlat
+	// 5. Katmanları Başlat (Dependency Injection)
+	userRepo := repository.NewUserRepository(db)
+	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
+	authController := controllers.NewAuthController(authService)
+
+	// 6. Gin web motorunu başlat
 	r := gin.Default()
 
-	// 6. Sağlık kontrolü (Healthcheck) endpoint'i
+	// 7. Sağlık Kontrolü (Healthcheck) Endpoint'i
 	r.GET("/health", func(c *gin.Context) {
 		if sqlDB.Ping() != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"success": false,
-				"error":   "veritabanı erişilemez",
-			})
+			controllers.RespondErr(c, http.StatusServiceUnavailable, "veritabanı erişilemez")
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"data": gin.H{
-				"status": "ok",
-				"db":     "up",
-			},
+		controllers.RespondOK(c, gin.H{
+			"status": "ok",
+			"db":     "up",
 		})
 	})
 
-	// 7. Sunucuyu ayağa kaldır
+	// 8. API v1 Rotaları
+	apiV1 := r.Group("/api/v1")
+	{
+		// Açık Rotalar (Kimlik Doğrulama)
+		authRoutes := apiV1.Group("/auth")
+		{
+			authRoutes.POST("/register", authController.Register)
+			authRoutes.POST("/login", authController.Login)
+		}
+
+		// Korumalı Rotalar (JWT Token Zorunlu)
+		protected := apiV1.Group("")
+		protected.Use(middleware.Auth(cfg.JWTSecret))
+		{
+			protected.GET("/me", authController.Me)
+		}
+	}
+
+	// 9. Sunucuyu ayağa kaldır
 	log.Printf("🚀 CovertGift API :%s portunda çalışıyor", cfg.Port)
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("❌ Sunucu başlatılamadı: %v", err)

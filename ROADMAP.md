@@ -48,14 +48,14 @@ flowchart LR
 ---
 
 ## Faz 2 — Kimlik Doğrulama (Auth)
-- [ ] `repository/user_repo.go` (Create, FindByEmail, FindByID)
-- [ ] `services/auth_service.go` (bcrypt hash, JWT üretimi — 24 saat geçerlilik)
-- [ ] `POST /api/v1/auth/register` → 201 (e-posta çakışmasında 409)
-- [ ] `POST /api/v1/auth/login` → `{ token, user }` (şifre hash'i asla dönmez)
-- [ ] `middleware/auth.go` → `Authorization: Bearer` doğrula, `userID` context'e yaz
-- [ ] `GET /api/v1/me` (opsiyonel, frontend için faydalı)
+- [x] `repository/user_repo.go` (Create, FindByEmail, FindByID)
+- [x] `services/auth_service.go` (bcrypt hash, JWT üretimi — 24 saat geçerlilik)
+- [x] `POST /api/v1/auth/register` → 201 (e-posta çakışmasında 409)
+- [x] `POST /api/v1/auth/login` → `{ token, user }` (şifre hash'i asla dönmez)
+- [x] `middleware/auth.go` → `Authorization: Bearer` doğrula, `userID` context'e yaz
+- [x] `GET /api/v1/me` (opsiyonel, frontend için faydalı)
 
-**✅ Kabul:** Kayıt → giriş → token ile korumalı endpoint 200; tokensız 401.
+**✅ Kabul:** Kayıt → giriş → token ile korumalı endpoint 200; tokensız 401 (Doğrulandı ✅).
 
 ---
 
