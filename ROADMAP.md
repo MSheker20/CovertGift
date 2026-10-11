@@ -40,10 +40,10 @@ flowchart LR
 - [x] `models.GroupMember` (UNIQUE `group_id,user_id`, CASCADE)
 - [x] `models.GiftIdea` (`product_url` dahil, CASCADE)
 - [x] `models.Vote` (UNIQUE `gift_idea_id,user_id`, CASCADE, `vote_type` CHECK IN (-1,1))
-- [ ] `AutoMigrate` çağrısı + bağlantı havuzu ayarları
-- [ ] Standart yanıt yardımcıları: `respondOK(c, data)`, `respondErr(c, status, msg)`
+- [x] `AutoMigrate` çağrısı + bağlantı havuzu ayarları (Doğrulandı ✅)
+- [x] Standart yanıt yardımcıları: `RespondOK(c, data)`, `RespondErr(c, status, msg)`
 
-**✅ Kabul:** `psql` ile `\d` → 5 tablo, tüm FK/UNIQUE kısıtları görünür.
+**✅ Kabul:** `psql` ile `\dt` → 5 tablo (`gift_ideas`, `group_members`, `groups`, `users`, `votes`) doğrulandı ✅.
 
 ---
 

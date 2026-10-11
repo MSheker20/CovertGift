@@ -15,8 +15,9 @@ Arkadaş gruplarının **ortak hediye** organize ettiği, bütçeyi birleştirdi
 | Link önizleme prototipi | ✅ Çalışıyor — [prototypes/linkpreview](prototypes/linkpreview/) |
 | Geliştirme ortamı (Go, Docker) | ✅ Kurulu |
 | **Faz 0 — Proje iskeleti** | ✅ Tamamlandı (`/health` 200 OK) |
-| **Faz 1 — Veritabanı Modelleri** | ⏳ Sırada |
-| Backend API & Servisler | ⬜ Başlanmadı |
+| **Faz 1 — Veritabanı Modelleri** | ✅ Tamamlandı (AutoMigrate 5 tablo aktif) |
+| **Faz 2 — Kimlik Doğrulama (Auth)** | ⏳ Sırada |
+| Gruplar, Hediye Havuzu, AI | ⬜ Başlanmadı |
 | Frontend | ⬜ Başlanmadı |
 
 ---
