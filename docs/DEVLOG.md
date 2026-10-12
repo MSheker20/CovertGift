@@ -218,3 +218,18 @@
 | K18 | 10-11 | Oylamada GORM `clause.OnConflict` (Upsert) kullanılır | Aynı kullanıcının mükerrer oy atmasını önlemek ve oyunu güncellemesini sağlamak |
 | K19 | 10-11 | Hediye silme yetkisi sadece öneren kişi ve grup adminine aittir | Hediye havuzunun bütünlüğünü korumak |
 | K20 | 10-11 | `/ideas/:id/*` uçlarında grubun hedef kişisi izole edilir | Grup dışındaki bağımsız uçlarda da Anti-Spoiler garantisi |
+| K21 | 10-12 | `Group.target_interests` alanı eklendi | Gemini AI hediye üretiminde hedef kişinin hobilerini ve ilgi alanlarını semantik girdi olarak kullanmak |
+
+---
+
+## 2026-10-12 — Grup Modeline `target_interests` Alanının Eklenmesi 🎁
+
+**Gerekçe**
+- Faz 6'da Gemini AI ile semantik hediye önerileri üretirken, sadece grup başlığı ve açıklaması hedef kişinin zevklerini yansıtmakta yetersiz kalıyordu. Kural 4 gereğince yapay zekânın isabetli öneriler yapabilmesi için hedef kişinin ilgi alanları ve hobilerinin modele dahil edilmesi kararlaştırıldı.
+
+**Yapılanlar**
+- `models.Group`: `TargetInterests string gorm:"type:text" json:"target_interests,omitempty"` alanı eklendi. GORM AutoMigrate veriyi kaybetmeden PostgreSQL tablosuna sütunu ekledi.
+- `services.GroupService`: `CreateGroup` fonksiyonuna `targetInterests` parametresi eklendi.
+- `controllers.GroupController`: `CreateGroupRequest` DTO'suna `target_interests` alanı eklendi.
+- `PROJECT_CONTEXT.md` ve `README.md` güncellendi.
+- `backend` sıfır hatayla derlendi (`go build ./...`).

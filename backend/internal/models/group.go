@@ -13,6 +13,7 @@ type Group struct {
 	Title            string          `gorm:"type:varchar(150);not null" json:"title"`
 	Description      string          `gorm:"type:text" json:"description,omitempty"`
 	TargetPersonName string          `gorm:"type:varchar(100);not null" json:"target_person_name"`
+	TargetInterests  string          `gorm:"type:text" json:"target_interests,omitempty"` // Gemini AI için ilgi alanları ve hobiler
 	TargetUserID     *uuid.UUID      `gorm:"type:uuid;index" json:"target_user_id,omitempty"` // Anti-Spoiler için kritik alan (NULL olabilir)
 	TotalBudget      decimal.Decimal `gorm:"type:numeric(10,2);not null;default:0.00" json:"total_budget"`
 	CreatorID        uuid.UUID       `gorm:"type:uuid;not null;index" json:"creator_id"`

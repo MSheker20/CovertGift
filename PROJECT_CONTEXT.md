@@ -31,6 +31,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `title`: VARCHAR(150), boş geçilemez
 - `description`: TEXT
 - `target_person_name`: VARCHAR(100), boş geçilemez
+- `target_interests`: TEXT -- Hedef kişinin hobileri ve ilgi alanları (Gemini AI hediye önerileri için bağlam)
 - `target_user_id`: UUID (Opsiyonel, Foreign Key -> `users.id`) -- Anti-Spoiler kontrolü için kullanılır
 - `total_budget`: NUMERIC(10, 2), varsayılan 0.00
 - `creator_id`: UUID (Foreign Key -> `users.id`), boş geçilemez

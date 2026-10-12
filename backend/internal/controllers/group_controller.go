@@ -26,6 +26,7 @@ type CreateGroupRequest struct {
 	Title            string          `json:"title" binding:"required,min=2,max=150"`
 	Description      string          `json:"description"`
 	TargetPersonName string          `json:"target_person_name" binding:"required,min=2,max=100"`
+	TargetInterests  string          `json:"target_interests"` // Gemini AI için ilgi alanları ve hobiler
 	TargetUserID     *uuid.UUID      `json:"target_user_id,omitempty"`
 	TotalBudget      decimal.Decimal `json:"total_budget"`
 }
@@ -54,6 +55,7 @@ func (ctl *GroupController) CreateGroup(c *gin.Context) {
 		req.Title,
 		req.Description,
 		req.TargetPersonName,
+		req.TargetInterests,
 		req.TargetUserID,
 		req.TotalBudget,
 	)

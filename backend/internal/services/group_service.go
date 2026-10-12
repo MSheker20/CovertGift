@@ -30,7 +30,7 @@ type GroupDetailResponse struct {
 
 // GroupService grup iş mantığını tanımlayan arayüzdür
 type GroupService interface {
-	CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName string, targetUserID *uuid.UUID, totalBudget decimal.Decimal) (*models.Group, error)
+	CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, totalBudget decimal.Decimal) (*models.Group, error)
 	GetUserGroups(userID uuid.UUID) ([]models.Group, error)
 	GetGroupDetail(groupID, userID uuid.UUID) (*GroupDetailResponse, error)
 	AddMemberByEmail(groupID, currentUserID uuid.UUID, email string) (*models.GroupMember, error)
@@ -50,7 +50,7 @@ func NewGroupService(groupRepo repository.GroupRepository, userRepo repository.U
 }
 
 // CreateGroup yeni grup oluşturur ve oluşturan kişiyi admin üye yapar
-func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName string, targetUserID *uuid.UUID, totalBudget decimal.Decimal) (*models.Group, error) {
+func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, totalBudget decimal.Decimal) (*models.Group, error) {
 	// Mantık kontrolü: Kullanıcı kendine sürpriz grubu açamaz
 	if targetUserID != nil && *targetUserID == creatorID {
 		return nil, ErrSelfTarget
@@ -60,6 +60,7 @@ func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPerso
 		Title:            title,
 		Description:      desc,
 		TargetPersonName: targetPersonName,
+		TargetInterests:  targetInterests,
 		TargetUserID:     targetUserID,
 		TotalBudget:      totalBudget,
 		CreatorID:        creatorID,
