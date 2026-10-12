@@ -6,6 +6,7 @@ import (
 
 	"github.com/MSheker20/CovertGift/backend/internal/repository"
 	"github.com/MSheker20/CovertGift/backend/internal/services"
+	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -212,3 +213,86 @@ func (ctl *IdeaController) DeleteIdea(c *gin.Context) {
 		"message": "Hediye önerisi başarıyla silindi",
 	})
 }
+
+// GenerateAI yapay zeka ile gruba hediye önerileri üretir (POST /api/v1/groups/:id/ideas/generate-ai)
+func (ctl *IdeaController) GenerateAI(c *gin.Context) {
+	groupIDStr := c.Param("id")
+	groupID, err := uuid.Parse(groupIDStr)
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+		return
+	}
+
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+
+	ideas, err := ctl.ideaService.GenerateAIIdeas(c.Request.Context(), groupID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrAntiSpoilerTriggered) {
+			RespondErr(c, http.StatusForbidden, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrNotGroupMember) {
+			RespondErr(c, http.StatusForbidden, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrGroupNotFound) {
+			RespondErr(c, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, gemini.ErrAPIKeyMissing) {
+			RespondErr(c, http.StatusServiceUnavailable, "Gemini API anahtarı yapılandırılmamış")
+			return
+		}
+		if errors.Is(err, services.ErrNoAIIdeasGenerated) {
+			RespondErr(c, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		RespondErr(c, http.StatusInternalServerError, "Yapay zeka hediye önerisi üretirken bir hata oluştu: "+err.Error())
+		return
+	}
+
+	RespondCreated(c, ideas)
+}
+
+// RejectIdea grup yöneticisinin bir hediye fikrini veto etmesini sağlar (POST /api/v1/ideas/:id/reject)
+func (ctl *IdeaController) RejectIdea(c *gin.Context) {
+	ideaIDStr := c.Param("id")
+	ideaID, err := uuid.Parse(ideaIDStr)
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz hediye kimliği")
+		return
+	}
+
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+
+	err = ctl.ideaService.RejectIdea(ideaID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrIdeaNotFound) {
+			RespondErr(c, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrUnauthorizedVeto) {
+			RespondErr(c, http.StatusForbidden, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrNotGroupMember) {
+			RespondErr(c, http.StatusForbidden, err.Error())
+			return
+		}
+		RespondErr(c, http.StatusInternalServerError, "Hediye önerisi veto edilirken bir hata oluştu")
+		return
+	}
+
+	RespondOK(c, gin.H{
+		"message": "Hediye önerisi başarıyla veto edildi (reddedildi)",
+	})
+}
+

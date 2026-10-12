@@ -13,6 +13,7 @@ type Config struct {
 	DatabaseURL string
 	JWTSecret   string
 	GeminiKey   string
+	GeminiModel string
 	CORSOrigin  string
 }
 
@@ -28,6 +29,7 @@ func Load() *Config {
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		JWTSecret:   os.Getenv("JWT_SECRET"),
 		GeminiKey:   os.Getenv("GEMINI_API_KEY"),
+		GeminiModel: getEnv("GEMINI_MODEL", "gemini-3.8-flash"),
 		CORSOrigin:  getEnv("CORS_ORIGIN", "http://localhost:5173"),
 	}
 

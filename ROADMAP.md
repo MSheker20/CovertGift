@@ -104,14 +104,17 @@ flowchart LR
 ---
 
 ## Faz 6 — Gemini AI Önerileri 🤖
-- [ ] `pkg/gemini` istemcisi (`google.golang.org/genai`, model: Gemini 3 Flash)
-- [ ] `response_schema` → `[{ title, description, estimated_price, search_query }]` (URL alanı **yok**)
-- [ ] State-based prompt: grup açıklaması/ilgi alanları + kişi başı/kalan bütçe + `-1` oylu başlıklar + mevcut başlıklar (tekrarı önlemek için)
-- [ ] `POST /api/v1/groups/:id/ideas/generate-ai` → 3-5 öneri, `source_type = AI`, transaction ile kaydet
-- [ ] Hata/kota (429) yönetimi + basit rate limit (grup başına dakikada 1 istek)
-- [ ] Bütçe üstü önerileri sunucu tarafında filtrele
+- [x] `pkg/gemini` istemcisi (`google.golang.org/genai`, model: `gemini-3.8-flash` + `gemini-3.5-flash-lite` resilient fallback)
+- [x] `response_schema` → `[{ title, description, estimated_price, search_query }]` (URL alanı **yok** - Kural 3: Sıfır Kırık Link Kuralı)
+- [x] State-based prompt: `target_interests` + bütçe + mevcut başlıklar + reddedilen/veto edilen başlıklar (Kural 4)
+- [x] `POST /api/v1/groups/:id/ideas/generate-ai` → 3-5 öneri, `source_type = AI`, batch insert
+- [x] Hata/kota (503/429) yönetimi + otomatik yedek model geçişi (`gemini-3.5-flash-lite`)
+- [x] Bütçe üstü önerileri sunucu tarafında filtreleme
+- [x] 👑 **Admin Vetosu:** `POST /api/v1/ideas/:id/reject` → Sadece grup yöneticisi tek tıkla reddeder (`status = REJECTED`)
+- [x] 🗳️ **Demokrasi Vetosu:** Fikre verilen downvote sayısı üye sayısının yarısını geçerse ($downvotes > N/2$) otomatik `status = REJECTED`
+- [x] 🔄 **Negatif Prompt Beslemesi:** Reddedilen fikirler silinmez, sonraki AI prompt'larına negatif kısıt olarak verilir
 
-**✅ Kabul:** Butona basınca 3-5 geçerli öneri DB'ye yazılır; downvote alan ürünler tekrar önerilmez.
+**✅ Kabul:** Butona basınca 3-5 geçerli öneri DB'ye yazılır; admin vetosu ve çoğunluk downvote ile reddedilen ürünler bir sonraki AI çağrısında asla tekrar önerilmez (Doğrulandı ✅).
 
 ---
 

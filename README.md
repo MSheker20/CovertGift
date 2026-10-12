@@ -19,7 +19,8 @@ Arkadaş gruplarının **ortak hediye** organize ettiği, bütçeyi birleştirdi
 | **Faz 2 — Kimlik Doğrulama (Auth)** | ✅ Tamamlandı (JWT, bcrypt, `/me`) |
 | **Faz 3 — Gruplar & Anti-Spoiler** | ✅ Tamamlandı (Dinamik bütçe, 403 kalkanı) |
 | **Faz 4 — Hediye Havuzu & Oylama** | ✅ Tamamlandı (Upsert oylama, yetkili silme) |
-| **Faz 5 — Link Önizleme / Faz 6 — AI** | ⏳ Sırada |
+| **Faz 6 — Gemini AI Hediye Önerileri** | ✅ Tamamlandı (Gemini 3.8 Flash, Admin Veto, Demokrasi Vetosu) |
+| **Faz 5 — Link Önizleme** | ⏳ Sırada |
 | **Faz 7 — Frontend** | ⬜ Başlanmadı |
 
 ---

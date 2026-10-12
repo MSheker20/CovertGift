@@ -1,11 +1,14 @@
 package services
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/MSheker20/CovertGift/backend/internal/models"
 	"github.com/MSheker20/CovertGift/backend/internal/repository"
+	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -15,6 +18,8 @@ var (
 	ErrIdeaNotFound       = errors.New("hediye önerisi bulunamadı")
 	ErrInvalidVoteType    = errors.New("geçersiz oy türü (+1 veya -1 olmalıdır)")
 	ErrUnauthorizedDelete = errors.New("bu hediye önerisini silme yetkiniz yok (sadece öneren veya grup admini silebilir)")
+	ErrUnauthorizedVeto   = errors.New("bu hediye önerisini sadece grup yöneticisi (admin) veto edebilir")
+	ErrNoAIIdeasGenerated = errors.New("yapay zeka kriterlere uygun yeni bir hediye önerisi üretemedi")
 )
 
 // IdeaService hediye havuzu ve oylama iş mantığı arayüzüdür
@@ -23,18 +28,22 @@ type IdeaService interface {
 	GetGroupIdeas(groupID, currentUserID uuid.UUID) ([]repository.IdeaWithScore, error)
 	VoteIdea(ideaID, currentUserID uuid.UUID, voteType int8) error
 	DeleteIdea(ideaID, currentUserID uuid.UUID) error
+	RejectIdea(ideaID, currentUserID uuid.UUID) error
+	GenerateAIIdeas(ctx context.Context, groupID, currentUserID uuid.UUID) ([]models.GiftIdea, error)
 }
 
 type ideaService struct {
-	ideaRepo  repository.IdeaRepository
-	groupRepo repository.GroupRepository
+	ideaRepo     repository.IdeaRepository
+	groupRepo    repository.GroupRepository
+	geminiClient *gemini.Client
 }
 
 // NewIdeaService yeni bir IdeaService örneği oluşturur
-func NewIdeaService(ideaRepo repository.IdeaRepository, groupRepo repository.GroupRepository) IdeaService {
+func NewIdeaService(ideaRepo repository.IdeaRepository, groupRepo repository.GroupRepository, geminiClient *gemini.Client) IdeaService {
 	return &ideaService{
-		ideaRepo:  ideaRepo,
-		groupRepo: groupRepo,
+		ideaRepo:     ideaRepo,
+		groupRepo:    groupRepo,
+		geminiClient: geminiClient,
 	}
 }
 
@@ -75,6 +84,7 @@ func (s *ideaService) AddManualIdea(groupID, userID uuid.UUID, title, descriptio
 		Description:    description,
 		EstimatedPrice: price,
 		SourceType:     "MANUAL",
+		Status:         "ACTIVE",
 		SearchQuery:    cleanQuery,
 		ProductURL:     productURL,
 		ImageURL:       imageURL,
@@ -116,7 +126,7 @@ func (s *ideaService) GetGroupIdeas(groupID, currentUserID uuid.UUID) ([]reposit
 	return s.ideaRepo.GetIdeasWithScores(groupID, currentUserID)
 }
 
-// VoteIdea bir hediye fikrine oy verir (+1 veya -1)
+// VoteIdea bir hediye fikrine oy verir (+1 veya -1) ve gerekirse demokrasi vetosunu işletir
 func (s *ideaService) VoteIdea(ideaID, currentUserID uuid.UUID, voteType int8) error {
 	// 1. Oy geçerli mi kontrol et
 	if voteType != 1 && voteType != -1 {
@@ -126,7 +136,7 @@ func (s *ideaService) VoteIdea(ideaID, currentUserID uuid.UUID, voteType int8) e
 	// 2. Hediye fikrini bul
 	idea, err := s.ideaRepo.GetIdeaByID(ideaID)
 	if err != nil {
-		return nil
+		return err
 	}
 	if idea == nil {
 		return ErrIdeaNotFound
@@ -162,7 +172,54 @@ func (s *ideaService) VoteIdea(ideaID, currentUserID uuid.UUID, voteType int8) e
 		VoteType:   voteType,
 	}
 
-	return s.ideaRepo.Vote(vote)
+	if err := s.ideaRepo.Vote(vote); err != nil {
+		return err
+	}
+
+	// 7. Demokrasi Vetosu Kontrolü (Downvote verilmişse):
+	// Eğer toplam downvote sayısı gruptaki toplam üye sayısının yarısından fazlaysa otomatik REJECTED yap
+	if voteType == -1 {
+		downvotes, err := s.ideaRepo.GetDownvoteCount(ideaID)
+		if err == nil {
+			memberCount, err := s.groupRepo.GetMemberCount(idea.GroupID)
+			if err == nil && memberCount > 0 {
+				if downvotes > memberCount/2 {
+					_ = s.ideaRepo.UpdateStatus(ideaID, "REJECTED")
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// RejectIdea grup yöneticisinin bir hediye fikrini doğrudan veto etmesini sağlar
+func (s *ideaService) RejectIdea(ideaID, currentUserID uuid.UUID) error {
+	// 1. Hediyeyi bul
+	idea, err := s.ideaRepo.GetIdeaByID(ideaID)
+	if err != nil {
+		return err
+	}
+	if idea == nil {
+		return ErrIdeaNotFound
+	}
+
+	// 2. Kullanıcının gruptaki rolünü kontrol et
+	member, err := s.groupRepo.GetMember(idea.GroupID, currentUserID)
+	if err != nil {
+		return err
+	}
+	if member == nil {
+		return ErrNotGroupMember
+	}
+
+	// 3. YETKİ KONTROLÜ: Sadece grup admini doğrudan veto edebilir!
+	if member.Role != "admin" {
+		return ErrUnauthorizedVeto
+	}
+
+	// 4. Durumu 'REJECTED' olarak güncelle
+	return s.ideaRepo.UpdateStatus(ideaID, "REJECTED")
 }
 
 // DeleteIdea hediye fikrini siler (sadece öneren kişi veya grup admini)
@@ -194,4 +251,136 @@ func (s *ideaService) DeleteIdea(ideaID, currentUserID uuid.UUID) error {
 	}
 
 	return s.ideaRepo.DeleteIdea(ideaID)
+}
+
+// GenerateAIIdeas Gemini AI kullanarak gruba yeni hediye önerileri üretir ve havuza ekler
+func (s *ideaService) GenerateAIIdeas(ctx context.Context, groupID, currentUserID uuid.UUID) ([]models.GiftIdea, error) {
+	if s.geminiClient == nil {
+		return nil, gemini.ErrAPIKeyMissing
+	}
+
+	// 1. Grubu getir
+	group, err := s.groupRepo.GetGroupByID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	if group == nil {
+		return nil, ErrGroupNotFound
+	}
+
+	// 2. Anti-Spoiler: Hedef kişi asla AI önerisi tetikleyemez!
+	if group.TargetUserID != nil && *group.TargetUserID == currentUserID {
+		return nil, ErrAntiSpoilerTriggered
+	}
+
+	// 3. Üyelik kontrolü: Sadece grup üyeleri AI önerisi tetikleyebilir
+	member, err := s.groupRepo.GetMember(groupID, currentUserID)
+	if err != nil {
+		return nil, err
+	}
+	if member == nil {
+		return nil, ErrNotGroupMember
+	}
+
+	// 4. State-Based Context: Mevcut ve reddedilmiş hediye başlıklarını DB'den al
+	existingTitles, rejectedTitles, err := s.ideaRepo.GetGroupIdeaTitlesByStatus(groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 5. Dinamik Prompt İnşası
+	prompt := s.buildAIPrompt(group, existingTitles, rejectedTitles)
+
+	// 6. Gemini API Çağrısı (Structured JSON)
+	suggestions, err := s.geminiClient.GenerateGiftIdeas(ctx, prompt)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(suggestions) == 0 {
+		return nil, ErrNoAIIdeasGenerated
+	}
+
+	// 7. Sunucu Tarafı Bütçe & Kalite Filtresi
+	var newIdeas []models.GiftIdea
+	for _, item := range suggestions {
+		title := strings.TrimSpace(item.Title)
+		if title == "" {
+			continue
+		}
+
+		// Bütçe koruması: Bütçe pozitif bir değerse ve önerilen fiyat bütçeyi aşıyorsa atla
+		if group.TotalBudget.GreaterThan(decimal.Zero) && item.EstimatedPrice.GreaterThan(group.TotalBudget) {
+			continue
+		}
+
+		searchQuery := strings.TrimSpace(item.SearchQuery)
+		if searchQuery == "" {
+			searchQuery = title
+		}
+
+		idea := models.GiftIdea{
+			GroupID:        groupID,
+			Title:          title,
+			Description:    item.Description,
+			EstimatedPrice: item.EstimatedPrice,
+			SourceType:     "AI",
+			Status:         "ACTIVE",
+			SearchQuery:    searchQuery,
+			CreatedBy:      currentUserID,
+		}
+		newIdeas = append(newIdeas, idea)
+	}
+
+	if len(newIdeas) == 0 {
+		return nil, ErrNoAIIdeasGenerated
+	}
+
+	// 8. Önerileri veritabanına topluca kaydet
+	if err := s.ideaRepo.CreateIdeasBatch(newIdeas); err != nil {
+		return nil, err
+	}
+
+	return newIdeas, nil
+}
+
+// buildAIPrompt hedef kişi bilgileri ve state kısıtlarından dinamik prompt üretir
+func (s *ideaService) buildAIPrompt(group *models.Group, existingTitles, rejectedTitles []string) string {
+	var sb strings.Builder
+
+	sb.WriteString("Sen profesyonel, yaratıcı ve zevkli bir hediye danışmanısın. ")
+	sb.WriteString("Bir grup arkadaş, sevdikleri bir kişi için sürpriz hediye seçecek.\n\n")
+
+	sb.WriteString("HEDEF KİŞİ BİLGİLERİ:\n")
+	sb.WriteString(fmt.Sprintf("- İsim: %s\n", group.TargetPersonName))
+
+	if strings.TrimSpace(group.TargetInterests) != "" {
+		sb.WriteString(fmt.Sprintf("- İlgi Alanları ve Hobileri: %s\n", group.TargetInterests))
+	} else {
+		sb.WriteString("- İlgi Alanları: Belirtilmemiş (Genel, kullanışlı ve modern hediyeler öner)\n")
+	}
+
+	if strings.TrimSpace(group.Description) != "" {
+		sb.WriteString(fmt.Sprintf("- Grup/Kutlama Amacı: %s\n", group.Description))
+	}
+
+	if group.TotalBudget.GreaterThan(decimal.Zero) {
+		sb.WriteString(fmt.Sprintf("- Toplam Bütçe Sınırı: %s TL\n", group.TotalBudget.StringFixed(2)))
+	}
+
+	sb.WriteString("\nÖNEMLİ KURALLAR VE KISITLAR:\n")
+
+	if len(existingTitles) > 0 {
+		sb.WriteString(fmt.Sprintf("1. HAVUZDA ZATEN MEVCUT OLAN HEDİYELER (BUNLARI ASLA TEKRAR ETME): %s\n", strings.Join(existingTitles, ", ")))
+	}
+
+	if len(rejectedTitles) > 0 {
+		sb.WriteString(fmt.Sprintf("2. GRUBUN REDDETTİĞİ / VETO ETTİĞİ HEDİYELER (BU HEDİYELERİ GRUP BEĞENMEDİ, KESİNLİKLE BUNLARA BENZER BİR ŞEY ÖNERME): %s\n", strings.Join(rejectedTitles, ", ")))
+	}
+
+	sb.WriteString("3. SIFIR KIRIK LİNK KURALI: Asla web sitesi linki veya URL üretme. Sadece Türkiye'deki pazaryerlerinde (Trendyol, Hepsiburada, Amazon TR) aratıldığında doğrudan ürünü çıkaracak temiz, spesifik 'search_query' kelimesi oluştur.\n")
+	sb.WriteString("4. FİYAT: Her hediyenin tahmini Türk Lirası fiyatını gerçekçi belirle ve toplam bütçeyi kesinlikle aşma.\n")
+	sb.WriteString("5. ADET: Hedef kişinin zevkine tam hitap eden 3 ile 5 adet arasında birbirinden farklı, orijinal öneri üret.")
+
+	return sb.String()
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/MSheker20/CovertGift/backend/internal/models"
 	"github.com/MSheker20/CovertGift/backend/internal/repository"
 	"github.com/MSheker20/CovertGift/backend/internal/services"
+	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -54,9 +55,23 @@ func main() {
 	groupRepo := repository.NewGroupRepository(db)
 	ideaRepo := repository.NewIdeaRepository(db)
 
+	// Gemini AI İstemcisi Başlatma (Fail-Safe)
+	var geminiClient *gemini.Client
+	if cfg.GeminiKey != "" {
+		client, err := gemini.NewClient(cfg.GeminiKey, cfg.GeminiModel)
+		if err != nil {
+			log.Printf("⚠️  Gemini istemcisi başlatılamadı: %v", err)
+		} else {
+			geminiClient = client
+			log.Printf("🤖 Gemini AI istemcisi aktif! (Model: %s)", cfg.GeminiModel)
+		}
+	} else {
+		log.Println("⚠️  GEMINI_API_KEY tanımlı değil; AI hediye üretimi devre dışı.")
+	}
+
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
 	groupService := services.NewGroupService(groupRepo, userRepo)
-	ideaService := services.NewIdeaService(ideaRepo, groupRepo)
+	ideaService := services.NewIdeaService(ideaRepo, groupRepo, geminiClient)
 
 	authController := controllers.NewAuthController(authService)
 	groupController := controllers.NewGroupController(groupService)
@@ -108,12 +123,14 @@ func main() {
 				// Hediye Havuzu Rotaları
 				groupSpecific.POST("/ideas", ideaController.AddIdea)
 				groupSpecific.GET("/ideas", ideaController.GetIdeas)
+				groupSpecific.POST("/ideas/generate-ai", ideaController.GenerateAI)
 			}
 
 			// Fikir ve Oylama Rotaları
 			ideasGroup := protected.Group("/ideas/:id")
 			{
 				ideasGroup.POST("/vote", ideaController.Vote)
+				ideasGroup.POST("/reject", ideaController.RejectIdea)
 				ideasGroup.DELETE("", ideaController.DeleteIdea)
 			}
 		}

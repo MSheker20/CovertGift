@@ -194,6 +194,30 @@
 
 ---
 
+## 2026-10-12 — Faz 6: Gemini AI Hediye Önerileri, Admin & Demokrasi Vetosu 🤖
+
+**Yapılanlar**
+- Google GenAI SDK (`google.golang.org/genai v1.73.0`) projeye entegre edildi:
+  1. `models.GiftIdea`: `Status string gorm:"type:varchar(20);not null;default:'ACTIVE'"` alanı eklendi (`'ACTIVE'`, `'REJECTED'`, `'SELECTED'`).
+  2. `pkg/gemini/client.go`: `gemini-3.8-flash` modeli ile Structured JSON Schema çıktısı yapılandırıldı (`title`, `description`, `estimated_price`, `search_query`). Kural 3 (Sıfır Kırık Link Kuralı) ile URL üretimi yasaklandı; sadece e-ticaret siteleri için arama terimi alındı. Geçici 503 yüksek talep hatalarında `gemini-3.5-flash-lite` modeline esnek geri çekilme (Resilient Fallback) mekanizması kuruldu.
+  3. `repository/idea_repo.go`: `CreateIdeasBatch`, `UpdateStatus`, `GetGroupIdeaTitlesByStatus` ve `GetDownvoteCount` metodları eklendi.
+  4. `services/idea_service.go`:
+     - **Admin Vetosu (`RejectIdea`):** Sadece grup yöneticisi tek tıkla hediyeyi veto edebilir (`status = 'REJECTED'`). Normal üyeler engellenir (`403`).
+     - **Demokrasi Vetosu (`VoteIdea`):** Grup üyelerinin çoğunluğu bir hediyeye downvote verirse ($downvotes > N/2$), sistem hediyeyi otomatik olarak `REJECTED` durumuna çeker.
+     - **State-Based Context Prompt (`GenerateAIIdeas`):** Hedef kişinin adı, hobileri (`target_interests`), bütçesi, havuzdaki mevcut hediyeler ve **reddedilen/veto edilen hediyeler** dinamik prompt'a dönüştürülür. Gemini'ye *"Şu hediyeleri grup reddetti, kesinlikle bunlara benzer bir şey önerme"* uyarısı verilir.
+     - **Anti-Spoiler Kalkanı:** Hedef kişi `/generate-ai` isteği attığında `403 Forbidden` ile sürpriz gizliliği korunur.
+     - **Sunucu Tarafı Bütçe Filtresi:** Toplam bütçeyi aşan öneriler backend seviyesinde elenir.
+  5. `controllers/idea_controller.go`: `POST /api/v1/groups/:id/ideas/generate-ai` ve `POST /api/v1/ideas/:id/reject` uç noktaları bağlandı.
+  6. `cmd/api/main.go`: Gemini istemcisi Fail-Safe yaklaşımla (`GEMINI_API_KEY` kontrolü ile) bağımlılık enjeksiyonuna bağlandı.
+- Otomatik test scripti (`scratch/test_faz6.sh`) ile tüm uç noktalar test edildi:
+  - Anti-spoiler kalkanı hedef kişinin AI öneri isteğini başarıyla 403 ile engelledi.
+  - Gemini 3.8 Flash hedef kişinin ilgi alanlarına (kamp, kahve demleme, trekking) nokta atışı uygun 3 hediye üretti.
+  - Üyenin veto denemesi 403 ile engellendi; admin vetosuyla hediye başarıyla `REJECTED` oldu.
+  - Demokrasi vetosuyla 2 downvote alan hediye anında `REJECTED` oldu.
+  - İkinci AI çağrısında reddedilen hediye türleri ve mevcut havuzdaki hediyeler prompt negatif kısıtı sayesinde asla tekrarlanmadı; tamamen yeni ve orijinal öneriler üretildi.
+
+---
+
 ## 🧭 Karar Kaydı (Özet)
 
 | # | Tarih | Karar | Gerekçe |
@@ -219,6 +243,10 @@
 | K19 | 10-11 | Hediye silme yetkisi sadece öneren kişi ve grup adminine aittir | Hediye havuzunun bütünlüğünü korumak |
 | K20 | 10-11 | `/ideas/:id/*` uçlarında grubun hedef kişisi izole edilir | Grup dışındaki bağımsız uçlarda da Anti-Spoiler garantisi |
 | K21 | 10-12 | `Group.target_interests` alanı eklendi | Gemini AI hediye üretiminde hedef kişinin hobilerini ve ilgi alanlarını semantik girdi olarak kullanmak |
+| K22 | 10-12 | `GiftIdea.status` alanı (`ACTIVE`, `REJECTED`, `SELECTED`) eklendi | Reddedilen fikirleri fiziksel olarak silmeyip AI prompt'una negatif kısıt olarak beslemek |
+| K23 | 10-12 | Model olarak `gemini-3.8-flash` + `gemini-3.5-flash-lite` fallback kullanıldı | Güncel Google GenAI mimarisi ve yüksek talep (503) anlarında kesintisiz çalışma |
+| K24 | 10-12 | Admin Veto (`POST /ideas/:id/reject`) ve Demokrasi Vetosu ($downvotes > N/2$) ayrımı yapıldı | Grup yöneticisinin karar hakkı ile topluluk oylaması dengesi |
+
 
 ---
 

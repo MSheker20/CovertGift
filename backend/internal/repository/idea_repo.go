@@ -19,10 +19,14 @@ type IdeaWithScore struct {
 // IdeaRepository hediye ve oy veritabanı işlemlerini tanımlayan arayüzdür
 type IdeaRepository interface {
 	CreateIdea(idea *models.GiftIdea) error
+	CreateIdeasBatch(ideas []models.GiftIdea) error
 	GetIdeasWithScores(groupID, currentUserID uuid.UUID) ([]IdeaWithScore, error)
 	GetIdeaByID(ideaID uuid.UUID) (*models.GiftIdea, error)
 	Vote(vote *models.Vote) error
 	DeleteIdea(ideaID uuid.UUID) error
+	UpdateStatus(ideaID uuid.UUID, status string) error
+	GetGroupIdeaTitlesByStatus(groupID uuid.UUID) ([]string, []string, error)
+	GetDownvoteCount(ideaID uuid.UUID) (int64, error)
 }
 
 type ideaRepository struct {
@@ -100,3 +104,54 @@ func (r *ideaRepository) Vote(vote *models.Vote) error {
 func (r *ideaRepository) DeleteIdea(ideaID uuid.UUID) error {
 	return r.db.Delete(&models.GiftIdea{}, "id = ?", ideaID).Error
 }
+
+// CreateIdeasBatch birden fazla hediye önerisini tek seferde veritabanına ekler
+func (r *ideaRepository) CreateIdeasBatch(ideas []models.GiftIdea) error {
+	if len(ideas) == 0 {
+		return nil
+	}
+	return r.db.Create(&ideas).Error
+}
+
+// UpdateStatus hediye fikrinin durumunu günceller ('ACTIVE', 'REJECTED', 'SELECTED')
+func (r *ideaRepository) UpdateStatus(ideaID uuid.UUID, status string) error {
+	return r.db.Model(&models.GiftIdea{}).Where("id = ?", ideaID).Update("status", status).Error
+}
+
+type ideaTitleStatus struct {
+	Title  string `gorm:"column:title"`
+	Status string `gorm:"column:status"`
+}
+
+// GetGroupIdeaTitlesByStatus gruptaki mevcut ve reddedilmiş hediye başlıklarını iki ayrı liste olarak döner
+func (r *ideaRepository) GetGroupIdeaTitlesByStatus(groupID uuid.UUID) ([]string, []string, error) {
+	var results []ideaTitleStatus
+	err := r.db.Model(&models.GiftIdea{}).
+		Select("title, status").
+		Where("group_id = ?", groupID).
+		Scan(&results).Error
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var existing []string
+	var rejected []string
+	for _, item := range results {
+		if item.Status == "REJECTED" {
+			rejected = append(rejected, item.Title)
+		} else {
+			existing = append(existing, item.Title)
+		}
+	}
+	return existing, rejected, nil
+}
+
+// GetDownvoteCount bir hediyeye verilen toplam negatif oyların (-1) sayısını döner
+func (r *ideaRepository) GetDownvoteCount(ideaID uuid.UUID) (int64, error) {
+	var count int64
+	err := r.db.Model(&models.Vote{}).
+		Where("gift_idea_id = ? AND vote_type = -1", ideaID).
+		Count(&count).Error
+	return count, err
+}
+
