@@ -1,61 +1,83 @@
 # 🔗 Prototip: Ürün Linki Önizleme
 
-> Durum: **Deneme script'i** — üretim kodu değil. Faz 5'te `backend/pkg/linkpreview/` paketine taşınacak.
+> Durum: **Prototip Başarıyla Tamamlandı & Üretime Taşındı ✅**
+> Bu laboratuvar çalışması Faz 5 kapsamında `backend/pkg/linkpreview/` paketine taşınmış, birim testleri eklenmiş ve `POST /api/v1/groups/:id/ideas/preview-link` uç noktasına bağlanmıştır.
 > Kural seti: [PROJECT_CONTEXT.md → İş Kuralı 5](../../PROJECT_CONTEXT.md)
 
 ## Ne işe yarar?
-Kullanıcının yapıştırdığı bir ürün linkinden (ör. Trendyol paylaşım linki `https://ty.gl/...`) **başlık, açıklama, görsel ve fiyatı** çeker. Amaç: Manuel hediye önerisi eklerken formu otomatik doldurmak.
+Kullanıcının yapıştırdığı bir ürün linkinden (Trendyol `ty.gl/...`, Amazon `amzn.eu/d/...`, Hepsiburada) **başlık, açıklama, görsel ve fiyatı** çeker. Amaç: Manuel hediye önerisi eklerken formu otomatik doldurmak.
 
 ## Nasıl çalıştırılır?
 ```bash
 cd prototypes/linkpreview
-go run main.go "https://ty.gl/gkyyduf4wm8u3"
-```
-> `go.mod` gerekmez; sadece standart kütüphane kullanılır.
+go run *.go "https://ty.gl/gkyyduf4wm8u3" "https://amzn.eu/d/08B1hxDx"
 
-## Nasıl çalışır? (Akış)
+# HTML'i kaydet (inceleme / test fixture'ı için)
+LINKPREVIEW_DUMP=/tmp go run *.go "<URL>"
+```
+> `go.mod` gerekmez; sadece standart kütüphane. Kökteki `go.work` yüzünden `go run .` değil `go run *.go` kullanın.
+
+## Dosya yapısı
+| Dosya | Görevi |
+|---|---|
+| `main.go` | CLI: birden çok URL alır, özet + API JSON gövdesini basar |
+| `preview.go` | `Preview` modeli, `Extractor` arayüzü, site kaydı (`extractors`), `Fetch(ctx, url)`, `finalize` |
+| `fetch.go` | HTTP katmanı: WhatsApp UA, cookie jar, SSRF (allowlist + dial seviyesinde özel IP engeli), 2 MB limit, max 10 redirect, Adjust tracker çözümleme |
+| `extract.go` | Ortak ayrıştırıcılar: meta (attribute bazlı), `<title>`, JSON-LD (gerçek JSON), entity decode, fiyat normalizasyonu, `search_query`, jenerik görsel filtresi |
+| `generic.go` | Her site için temel katman: OG → JSON-LD → `<title>` |
+| `trendyol.go` / `amazon.go` / `hepsiburada.go` | Siteye özgü `Refine` — generic sonucun üzerine yazar |
+
+**Yeni site eklemek:** `xyz.go` içinde `Name/Hosts/Refine` yaz → `preview.go`'daki `extractors` listesine ekle. `Hosts()` aynı zamanda SSRF allowlist'ine girer.
+
+## Akış
 ```mermaid
 flowchart TD
-    A["Kullanıcı linki: ty.gl/..."] --> B["GET (User-Agent: WhatsApp)"]
+    A["URL"] --> V{"http/https + allowlist?"}
+    V -- Hayır --> X["partial: true"]
+    V -- Evet --> B["GET (WhatsApp UA, gzip, cookie jar)"]
     B --> C{"Son URL adj.st mi?"}
-    C -- Evet --> D["adjust_redirect parametresini decode et"]
-    D --> E["Gerçek ürün sayfasına 2. GET"]
-    C -- Hayır --> F["HTML'i ayrıştır"]
-    E --> F
-    F --> G["og:title / og:image / og:description"]
-    F --> H["Fiyat: product:price:amount, yoksa JSON-LD price"]
-    G --> I{"Görsel jenerik mi? (mrktng, popup, banner...)"}
-    I -- Evet --> J["Uyarı ver"]
+    C -- Evet --> D["adjust_redirect → 2. GET"]
+    C -- Hayır --> G["applyGeneric: OG → JSON-LD → title"]
+    D --> G
+    G --> S{"Host kayıtlı site mi?"}
+    S -- Evet --> R["site.Refine (trendyol / amazon / hepsiburada)"]
+    S -- Hayır --> F
+    R --> F["finalize: fiyat normalize, jenerik görsel at, search_query, partial"]
 ```
 
-| Fonksiyon | Görevi |
-|---|---|
-| `fetch` | İsteği atar (WhatsApp UA, cookie jar, 10 sn timeout), HTML + son URL döner |
-| `resolveTrackerRedirect` | Adjust takip sayfasındaysa gömülü gerçek ürün URL'sini bulur |
-| `extractMeta` / `extractTitle` | Meta etiketlerini ve `<title>`'ı regex ile çeker |
-| `extractJSONLDPrice` | schema.org JSON-LD içinden fiyatı çeker |
-| `isGenericImage` | Görselin reklam/pazarlama görseli olup olmadığını kontrol eder |
+## Site notları (test: 2026-10-12)
 
-## Test sonuçları (2026-10-06, `ty.gl/gkyyduf4wm8u3`)
-
-| Alan | Deneme 1 (ham) | Deneme 2 (düzeltilmiş) |
-|---|---|---|
-| Son URL | `p8zh.adj.st/...` ❌ | `www.trendyol.com/shomi/...-p-1157128859` ✅ |
-| Başlık | Kesik | "shomi MD-1832 Şarjlı Yoğurmalı Boyun Ve Sırt Masaj Aleti - Isıtmalı Kulunç Ve Masaj Cihazı - Fiyatı" ✅ |
-| Görsel | Pazarlama popup'ı ❌ | Gerçek ürün görseli (`/prod/...1_org_zoom.jpg`) ✅ |
-| Fiyat | Yok ❌ | `699.00` ✅ |
+| | Trendyol (`ty.gl/gkyyduf4wm8u3`) | Amazon (`amzn.eu/d/08B1hxDx`) | Hepsiburada (`...-p-HBCV00009BDBJM`) |
+|---|---|---|---|
+| Yönlendirme | `ty.gl` → `adj.st` (200, tracker) → trendyol.com (+3 redirect) | `amzn.eu` → `amazon.com.tr/dp/<ASIN>` (HTTP redirect) | Doğrudan |
+| Başlık | JSON-LD `WebPage.name` (og:title'da "- Fiyatı" eki var) | `og:title` | JSON-LD `WebPage.name` (`Product.name` **kesik**) |
+| Görsel | `og:image` (`1_org_zoom.jpg`) | `"hiRes"` — `og:image` puan basılmış **paylaşım kartı** | JSON-LD `Product.image` → `/s/777/1500/...jpg`'ye yükseltilir |
+| Fiyat | JSON-LD'de Product **yok** → state JSON `discountedPrice.value` = `699.00` | OG/JSON-LD'de yok → buybox `"priceAmount"` = `1553.94` | JSON-LD `Offer.price` = `1345.00` |
+| Açıklama | `og:description` | `og:description` | SEO kalıbı ("...satın alın!") → boş bırakılır |
+| Dikkat | — | Captcha sayfası 200 dönebilir → uyarı | **Akamai:** `Accept-Encoding` yoksa 403. Go'nun otomatik gzip başlığı yeterli; elle set etmeyin |
 
 ## Öğrenilenler
 1. **Kısa linkler her zaman HTTP redirect ile bitmez.** Adjust gibi tracker'lar `200 OK` + HTML döner; gerçek hedef URL parametresinde saklıdır.
 2. **Tracker sayfasının OG etiketleri güvenilmez** — paylaşım anında üretilmiş jenerik pazarlama verisidir.
-3. **Trendyol fiyatı OG'de değil, JSON-LD'de** veriyor.
-4. Trendyol URL slug'ını kanonik hale getirmek için kendi içinde 2-3 redirect daha yapıyor (cookie jar bu yüzden önemli).
+3. **Fiyat için evrensel bir kaynak yok.** Hiçbir site `product:price:amount` vermiyor; Hepsiburada JSON-LD Offer, Trendyol ve Amazon gömülü state JSON kullanıyor. Site bazlı dosyaların varlık sebebi bu.
+4. **06.10 prototipindeki Trendyol fiyatı tesadüfmüş:** Sayfadaki *ilk* `"price"` eşleşmesini alıyordu; Trendyol JSON-LD'den Product'ı kaldırınca (stokta olmayan ürün olabilir) bu kırıldı.
+5. **`og:image` her zaman ürün resmi değil** (Amazon paylaşım kartı). Site katmanı daha iyi kaynağı tercih etmeli.
+6. Trendyol slug kanonikleştirmesi için 2-3 redirect daha yapıyor (cookie jar bu yüzden önemli).
 
-## Bilinen eksikler (Faz 5'te çözülecek)
-- [ ] 🐞 Tek tırnak hatası: `content="...Trendyol'da..."` → `'` karakterinde kesiliyor. Çift/tek tırnak için ayrı regex kalıpları gerekli.
-- [ ] HTML entity decode yok (`&amp;`, `&#39;`).
-- [ ] Jenerik görsel tespit edilince sadece uyarı veriyor; üretimde `image_url` boş bırakılmalı.
-- [ ] **SSRF koruması yok** — üretimde domain allowlist + özel IP engeli şart.
-- [ ] Yanıt boyutu limiti yok (`io.ReadAll` → `io.LimitReader` 2 MB).
-- [ ] JSON-LD fiyat regex'i sayfadaki *ilk* `"price"` alanını alıyor; gerçek JSON ayrıştırma daha güvenilir.
-- [ ] Amazon TR / Hepsiburada henüz test edilmedi.
+## Çözülen eksikler (06.10 → 12.10)
+- [x] 🐞 Tek tırnak hatası — meta etiketleri attribute bazlı ayrıştırılıyor (`content="..."` / `content='...'` ayrı kalıp)
+- [x] HTML entity decode (`html.UnescapeString`; Amazon'un `&imath;` `&scedil;` dahil)
+- [x] Jenerik görsel → `image_url` boşaltılıyor
+- [x] SSRF: şema kontrolü, allowlist (`Hosts()`'tan), dial seviyesinde özel/yerel IP engeli, proxy kapalı
+- [x] Yanıt limiti 2 MB, max 10 redirect
+- [x] JSON-LD gerçek JSON olarak ayrıştırılıyor (`@graph`, dizi, `itemReviewed` dahil; en dolu Product seçilir)
+- [x] `search_query` türetme
+- [x] Amazon TR / Hepsiburada
+
+## Faz 5 Üretim Durumu (Tamamlananlar ✅)
+- [x] Üretim paketine taşındı: `backend/pkg/linkpreview/` (`preview.go`, `fetch.go`, `extract.go`, `generic.go`, `trendyol.go`, `amazon.go`, `hepsiburada.go`)
+- [x] Çevrimdışı birim testleri eklendi: `backend/pkg/linkpreview/linkpreview_test.go` (`go test -v ./pkg/linkpreview` %100 başarılı)
+- [x] API Uç noktası bağlandı: `POST /api/v1/groups/:id/ideas/preview-link` (Anti-Spoiler korumalı, `middleware.GroupAccess`)
+- [x] SSRF Kalkanı dial seviyesinde devrede (`127.0.0.1`, özel IP'ler ve bilinmeyen hostlar engellenir, `partial: true` fail-safe döner)
+- [x] Trendyol, Amazon TR ve Hepsiburada canlı testleri doğrulandı
+- [x] Akademik sunum script'ine entegre edildi: `scripts/demo_presentation.sh` (Adım [5/9])

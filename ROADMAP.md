@@ -85,21 +85,22 @@ flowchart LR
 ---
 
 ## Faz 5 — Ürün Linki Önizleme (`pkg/linkpreview`) 🔗
-> Prototip: `scratch/ogtest/main.go` — `ty.gl` linkinde başlık, ürün görseli ve fiyat (699.00) başarıyla çekildi.
+> Prototip: `prototypes/linkpreview/` — Modüler ayrıştırıcı mimarisi (Trendyol, Amazon TR, Hepsiburada, Generic fallback).
+> Backend Paketi: `backend/pkg/linkpreview/` — Tamamen entegre edildi ve birim testleri ile doğrulandı.
 
-- [ ] Prototipi pakete taşı: `linkpreview.Fetch(ctx, url) (*Preview, error)`
-- [ ] Adjust tracker çözümleme (`adjust_redirect`)
-- [ ] Fiyat: `product:price:amount` → JSON-LD fallback
-- [ ] Jenerik görsel filtresi (`mrktng`, `/crm/`, `popup`, `banner`…)
-- [ ] 🐞 Tek/çift tırnak regex hatasını düzelt (`og:description` "Trendyol'da"da kesiliyor)
-- [ ] HTML entity decode (`&amp;`, `&#39;` vb.)
-- [ ] Başlıktan `search_query` türet ("- Fiyatı", satıcı adı temizliği)
-- [ ] 🔒 SSRF koruması: domain allowlist + özel IP engeli + 2 MB limit + max 10 redirect
-- [ ] `POST /api/v1/groups/:id/ideas/preview-link` endpoint'i
-- [ ] Birim testleri (kaydedilmiş HTML fixture'ları ile, ağ olmadan)
-- [ ] (Opsiyonel) Amazon TR / Hepsiburada testleri
+- [x] Prototipi pakete taşı: `linkpreview.Fetch(ctx, url) (*Preview, error)`
+- [x] Adjust tracker çözümleme (`adjust_redirect`)
+- [x] Fiyat: `product:price:amount` → JSON-LD Offer fallback → state JSON
+- [x] Jenerik görsel filtresi (`mrktng`, `/crm/`, `popup`, `banner`…)
+- [x] 🐞 Tek/çift tırnak regex hatasını düzelt (`og:description` "Trendyol'da"da kesilmez)
+- [x] HTML entity decode (`&amp;`, `&#39;`, `&imath;`, `&scedil;` vb.)
+- [x] Başlıktan `search_query` türet ("- Fiyatı", satıcı adı temizliği)
+- [x] 🔒 SSRF koruması: domain allowlist + dial-seviyesi özel IP engeli + 2 MB limit + max 10 redirect
+- [x] `POST /api/v1/groups/:id/ideas/preview-link` endpoint'i (Anti-Spoiler korumalı, partial fallback)
+- [x] Birim testleri (kaydedilmiş HTML fixture'ları ile, ağ olmadan: `go test -v ./pkg/linkpreview`)
+- [x] Amazon TR / Hepsiburada / Trendyol canlı testleri ve doğrulamaları
 
-**✅ Kabul:** `ty.gl` linki → doğru başlık + ürün görseli + fiyat; `http://127.0.0.1` reddedilir.
+**✅ Kabul:** `ty.gl` linki → doğru başlık + ürün görseli + 699.00 TRY; `amzn.eu` linki → hiRes ürün görseli + 1553.94 TRY; `http://127.0.0.1` reddedilir; hedef kullanıcı 403 alır (Doğrulandı ✅).
 
 ---
 

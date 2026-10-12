@@ -218,6 +218,30 @@
 
 ---
 
+## 2026-10-12 — Faz 5: Ürün Linki Önizleme (`pkg/linkpreview`) & Anti-Spoiler Koruması 🔗
+
+**Gerekçe**
+- Kullanıcı hediye havuzuna manuel bir ürün önerisi eklerken pazar yeri bağlantısını (Trendyol, Amazon TR, Hepsiburada) yapıştırdığında; ürün başlığını, yüksek çözünürlüklü görselini ve anlık fiyatını otomatik çekerek form doldurma zahmetini ortadan kaldırmak (Kural 5).
+
+**Yapılanlar**
+1. **Modüler Extractor Mimarisi (`backend/pkg/linkpreview/`):**
+   - `Extractor` arayüzü (`Name`, `Hosts`, `Refine`) ile site ayrıştırıcıları bağımsız dosyalara bölündü:
+     - `preview.go`: `Preview` modeli, `Extractor` arayüzü, `Fetch(ctx, url)` ve `finalize` normalizasyon akışı.
+     - `fetch.go`: SSRF korumalı HTTP istemcisi (Allowlist + dial-seviyesi `blockPrivateIPs` ile loopback/yerel IP engeli), WhatsApp User-Agent, çerez kavanozu (`cookiejar`), 2 MB limit, 10 redirect ve Adjust (`adj.st`) takip çözümlemesi (`adjust_redirect`).
+     - `extract.go`: Attribute-bazlı meta parser (çift/tek tırnak ve `&#39;` çözümü), HTML entity decode (`html.UnescapeString`), çok katmanlı JSON-LD parser (`@graph`, Product, Offer), fiyat normalizasyonu, jenerik reklam görseli filtresi ve `buildSearchQuery`.
+     - `generic.go`: Temel katman fallback (OG etiketleri → JSON-LD → `<title>`).
+     - `trendyol.go`: `WebPage.name` temiz başlık, gömülü state JSON'undan (`discountedPrice`) indirimli fiyat tespiti.
+     - `amazon.go`: Görsel galerisindeki `hiRes` 1500px fotoğrafı çekme (puan basılmış og:image kartını eleme), buybox JSON'undan `priceAmount` tespiti.
+     - `hepsiburada.go`: Akamai koruması için otomatik gzip/Accept-Encoding uyumu, JSON-LD @graph Product/Offer verisi ve 1500px JPG görsel yükseltmesi (`upgradeHBImage`).
+2. **Birim Testleri (`linkpreview_test.go`):**
+   - Ağ gerektirmeyen offline testler: SSRF URL doğrulaması, private IP engeli (AWS metadata 169.254, 127.0.0.1, IPv6 loopback), fiyat normalizasyonları, search query temizleme, HTML entity decode ve site refine akışları %100 başarıyla geçti.
+3. **API Entegrasyonu & Anti-Spoiler Güvenliği:**
+   - `POST /api/v1/groups/:id/ideas/preview-link` uç noktası `groupSpecific` grubuna eklendi (`middleware.GroupAccess`).
+   - Anti-Spoiler Kalkanı: Hedef kişi link önizleme isteği attığında anında `403 Forbidden` aldı.
+   - Hata Toleransı: Geçersiz URL veya SSRF engellerinde backend çökmeyip `partial: true` dönerek kullanıcının formu manuel doldurmasına olanak sağladı.
+
+---
+
 ## 🧭 Karar Kaydı (Özet)
 
 | # | Tarih | Karar | Gerekçe |
@@ -247,6 +271,10 @@
 | K23 | 10-12 | Model olarak `gemini-3.8-flash` + `gemini-3.5-flash-lite` fallback kullanıldı | Güncel Google GenAI mimarisi ve yüksek talep (503) anlarında kesintisiz çalışma |
 | K24 | 10-12 | Admin Veto (`POST /ideas/:id/reject`) ve Demokrasi Vetosu ($downvotes > N/2$) ayrımı yapıldı | Grup yöneticisinin karar hakkı ile topluluk oylaması dengesi |
 | K25 | 10-12 | Bütçe üstü öneriler sunucu tarafında çöpe atılmaz; `is_over_budget: true` bayrağı ile işaretlenir | AI piyasa fiyatını tam bilmeyebilir veya grup bütçe artışını tolere edebilir; nihai karar gruba bırakılır |
+| K26 | 10-12 | SSRF denetimi DNS çözümleme anında (dial seviyesinde) yapılır | DNS Rebinding saldırılarını ve yerel IP aralıklarını (Loopback, AWS metadata vb.) engellemek |
+| K27 | 10-12 | Hepsiburada Akamai engeli için `Accept-Encoding` elle set edilmez | Go'nun şeffaf gzip çözümlemesini korumak ve 403 engeline takılmamak |
+| K28 | 10-12 | Amazon için `og:image` yerine `hiRes` ürün galerisi görseli alınır | `og:image` puan/yıldız basılmış sosyal medya kartı olduğu için gerçek ürün fotoğrafı değildir |
+| K29 | 10-12 | Önizleme hatalarında HTTP 500 dönülmez, `partial: true` ile 200 dönülür | Frontend'in çökmesini engellemek ve kullanıcının formu elle doldurmasına izin vermek |
 
 
 ---
