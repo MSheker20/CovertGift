@@ -7,6 +7,7 @@ import (
 	"github.com/MSheker20/CovertGift/backend/internal/repository"
 	"github.com/MSheker20/CovertGift/backend/internal/services"
 	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
+	"github.com/MSheker20/CovertGift/backend/pkg/linkpreview"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -20,6 +21,11 @@ type IdeaController struct {
 // NewIdeaController yeni bir IdeaController örneği oluşturur
 func NewIdeaController(ideaService services.IdeaService) *IdeaController {
 	return &IdeaController{ideaService: ideaService}
+}
+
+// PreviewLinkRequest ürün linki önizleme isteği için DTO
+type PreviewLinkRequest struct {
+	URL string `json:"url" binding:"required"`
 }
 
 // AddIdeaRequest manuel hediye önerisi için DTO
@@ -294,5 +300,30 @@ func (ctl *IdeaController) RejectIdea(c *gin.Context) {
 	RespondOK(c, gin.H{
 		"message": "Hediye önerisi başarıyla veto edildi (reddedildi)",
 	})
+}
+
+// PreviewLink verilen ürün linkini ayrıştırarak önizleme verilerini döner (POST /api/v1/groups/:id/ideas/preview-link)
+func (ctl *IdeaController) PreviewLink(c *gin.Context) {
+	var req PreviewLinkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: url alanı zorunludur")
+		return
+	}
+
+	preview, err := linkpreview.Fetch(c.Request.Context(), req.URL)
+	if err != nil {
+		// Kural 5: Önizleme başarısız olsa veya kısıtlansa bile HTTP 500 fırlatılmaz;
+		// kullanıcının formu elle doldurabilmesi için partial: true ile 200 OK yanıtı verilir.
+		if preview == nil {
+			preview = &linkpreview.Preview{
+				FinalURL: req.URL,
+				Partial:  true,
+				Source:   "generic",
+				Warning:  err.Error(),
+			}
+		}
+	}
+
+	RespondOK(c, preview)
 }
 

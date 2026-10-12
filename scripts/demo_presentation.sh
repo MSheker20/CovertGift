@@ -62,12 +62,12 @@ print_http_box() {
 echo -e "${MAGENTA}==============================================================================${RESET}"
 echo -e "${BOLD}${CYAN}   🎁 CovertGift — İşbirlikçi Hediye Platformu (Canlı Sistem Demosu)${RESET}"
 echo -e "${MAGENTA}==============================================================================${RESET}"
-echo -e "${BOLD}Mimarî:${RESET} Go 1.27 + Gin Framework + PostgreSQL 17 + GORM + Gemini 3.8 Flash"
-echo -e "${BOLD}Kapsam:${RESET} Faz 1 (Modeller) ➔ Faz 2 (Auth) ➔ Faz 3 (Anti-Spoiler) ➔ Faz 4 (Oylama) ➔ Faz 6 (AI & Veto)"
+echo -e "${BOLD}Mimarî:${RESET} Go 1.27 + Gin Framework + PostgreSQL 17 + GORM + Gemini 3.8 Flash + Link Preview"
+echo -e "${BOLD}Kapsam:${RESET} Faz 1 (Modeller) ➔ Faz 2 (Auth) ➔ Faz 3 (Anti-Spoiler) ➔ Faz 4 (Oylama) ➔ Faz 5 (Link Önizleme) ➔ Faz 6 (AI & Veto)"
 echo -e "${MAGENTA}------------------------------------------------------------------------------${RESET}"
 
 # 0. Sağlık Kontrolü
-echo -e "\n${BOLD}[0/8] 🔍 Sistem Sağlık Kontrolü (Healthcheck)${RESET}"
+echo -e "\n${BOLD}[0/9] 🔍 Sistem Sağlık Kontrolü (Healthcheck)${RESET}"
 print_http_box "GET" "/health" "" ""
 
 HEALTH_RAW=$(curl -s -w "\nHTTP_STATUS:%{http_code}" http://localhost:8080/health || echo "DOWN")
@@ -86,7 +86,7 @@ echo -e "  ${GREEN}✔ Backend API ve PostgreSQL bağlantı havuzu aktif!${RESET
 step_pause
 
 # 1. Kullanıcı Kaydı & Kimlik Doğrulama
-echo -e "\n${BOLD}[1/8] 👤 Kullanıcı Kayıtları & JWT Güvenliği (Faz 2)${RESET}"
+echo -e "\n${BOLD}[1/9] 👤 Kullanıcı Kayıtları & JWT Güvenliği (Faz 2)${RESET}"
 echo -e "Senaryo gereği 3 farklı aktör oluşturuluyor:"
 echo -e "  • ${CYAN}Admin Can${RESET} (Grup Kurucusu)"
 echo -e "  • ${CYAN}Üye Zeynep${RESET} (Grup Katılımcısı)"
@@ -129,7 +129,7 @@ echo -e "\n  ${GREEN}✔ Şifreler bcrypt ile hash'lendi ve 24 saat geçerli JWT
 step_pause
 
 # 2. Grup Oluşturma
-echo -e "\n${BOLD}[2/8] 👥 Sürpriz Grup Oluşturma & İlgi Alanları (Faz 3)${RESET}"
+echo -e "\n${BOLD}[2/9] 👥 Sürpriz Grup Oluşturma & İlgi Alanları (Faz 3)${RESET}"
 GROUP_PAYLOAD="{
     \"title\":\"Ahmet'in 30. Yaş Sürprizi\",
     \"target_person_name\":\"Ahmet\",
@@ -154,7 +154,7 @@ echo -e "  ${GREEN}✔ Grup ve Admin üyeliği atomik GORM transaction ile kayde
 step_pause
 
 # 3. Anti-Spoiler Kalkanı Testi
-echo -e "\n${BOLD}[3/8] 🛡️ Anti-Spoiler Kalkanı Güvenlik Testi (Kritik İş Kuralı)${RESET}"
+echo -e "\n${BOLD}[3/9] 🛡️ Anti-Spoiler Kalkanı Güvenlik Testi (Kritik İş Kuralı)${RESET}"
 echo -e "Hedef kişi olan Ahmet sisteme giriyor ve sürprizi görmeye çalışıyor:"
 
 echo -e "\n  ${BOLD}a) Ahmet grup listesini çekiyor:${RESET}"
@@ -175,7 +175,7 @@ echo -e "  ${GREEN}✔ GroupAccess Middleware hedef kişiyi anında tespit edip 
 step_pause
 
 # 4. Üye Ekleme ve Dinamik Kişi Başı Bütçe
-echo -e "\n${BOLD}[4/8] 🤝 Üye Ekleme & Dinamik Kişi Başı Bütçe Hesabı${RESET}"
+echo -e "\n${BOLD}[4/9] 🤝 Üye Ekleme & Dinamik Kişi Başı Bütçe Hesabı${RESET}"
 print_http_box "POST" "/api/v1/groups/$GROUP_ID/members" "$ADMIN_TOKEN" "{\"email\":\"$MEMBER_EMAIL\"}"
 
 curl -s -X POST "$BASE_URL/groups/$GROUP_ID/members" \
@@ -195,8 +195,41 @@ echo -e "  ${CYAN}🎯 Anlık Kişi Başı Bütçe (Toplam / Üye Sayısı): ${B
 
 step_pause
 
-# 5. Gemini 3.8 Flash AI Hediye Önerileri
-echo -e "\n${BOLD}[5/8] 🤖 Gemini 3.8 Flash AI Hediye Önerileri (Faz 6)${RESET}"
+# 5. Ürün Linki Önizleme ve SSRF Koruması (Faz 5)
+echo -e "\n${BOLD}[5/9] 🔗 Ürün Linki Önizleme & SSRF Güvenliği (Faz 5)${RESET}"
+echo -e "Kullanıcı manuel öneri eklerken Trendyol kısa linki (${CYAN}https://ty.gl/gkyyduf4wm8u3${RESET}) yapıştırıyor."
+echo -e "Backend sayfayı sosyal medya botu kimliğiyle çekip başlık, resim ve fiyatı otomatik ayrıştırıyor:"
+
+print_http_box "POST" "/api/v1/groups/$GROUP_ID/ideas/preview-link" "$ADMIN_TOKEN" "{\"url\":\"https://ty.gl/gkyyduf4wm8u3\"}"
+PREVIEW_RESP=$(curl -s -X POST "$BASE_URL/groups/$GROUP_ID/ideas/preview-link" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://ty.gl/gkyyduf4wm8u3"}')
+
+echo -e "  ${BOLD}${GREEN}📥 HTTP 200 OK${RESET} ➔ Ayrıştırılan Ürün Önizleme Verisi:"
+echo "$PREVIEW_RESP" | python3 -c "
+import sys, json
+data = json.load(sys.stdin).get('data', {})
+print(f\"     📦 Başlık:       {data.get('title')}\")
+print(f\"     💰 Fiyat:        {data.get('price')} {data.get('currency', 'TRY')}\")
+print(f\"     🔍 Arama Metni:  {data.get('search_query')}\")
+print(f\"     🖼️  Görsel:       {data.get('image_url')[:65]}...\")
+print(f\"     🛡️  Kaynak/Durum: {data.get('source')} (partial={data.get('partial')})\")
+"
+
+echo -e "\n  ${BOLD}🔒 SSRF Güvenlik Testi: Saldırgan yerel IP (127.0.0.1) verirse:${RESET}"
+print_http_box "POST" "/api/v1/groups/$GROUP_ID/ideas/preview-link" "$ADMIN_TOKEN" "{\"url\":\"http://127.0.0.1:8080/health\"}"
+SSRF_RESP=$(curl -s -X POST "$BASE_URL/groups/$GROUP_ID/ideas/preview-link" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"http://127.0.0.1:8080/health"}')
+echo -e "  ${BOLD}${GREEN}📥 HTTP 200 OK (Fail-Safe)${RESET} ➔ $(echo "$SSRF_RESP" | python3 -c "import sys, json; d=json.load(sys.stdin)['data']; print(f\"partial={d['partial']}, warning: '{d['warning']}'\")")"
+echo -e "  ${GREEN}✔ SSRF Kalkanı devrede: İzinli pazar yerleri harici tüm özel IP ve yabancı alan adları engellendi!${RESET}"
+
+step_pause
+
+# 6. Gemini 3.8 Flash AI Hediye Önerileri
+echo -e "\n${BOLD}[6/9] 🤖 Gemini 3.8 Flash AI Hediye Önerileri (Faz 6)${RESET}"
 echo -e "Hedef kişinin hobileri (${CYAN}Kamp, 3. nesil kahve, trekking${RESET}) Gemini'ye State-Based prompt ile gönderiliyor..."
 print_http_box "POST" "/api/v1/groups/$GROUP_ID/ideas/generate-ai" "$ADMIN_TOKEN" ""
 
@@ -219,8 +252,8 @@ FIRST_IDEA_TITLE=$(echo "$AI_RESP" | python3 -c "import sys, json; d = json.load
 
 step_pause
 
-# 6. Admin Vetosu
-echo -e "\n${BOLD}[6/8] 👑 Admin Vetosu Testi (Örnek Hediye: $FIRST_IDEA_TITLE)${RESET}"
+# 7. Admin Vetosu
+echo -e "\n${BOLD}[7/9] 👑 Admin Vetosu Testi (Örnek Hediye: $FIRST_IDEA_TITLE)${RESET}"
 
 echo -e "\n  ${BOLD}a) Normal Üye Zeynep doğrudan veto etmeyi deniyor:${RESET}"
 print_http_box "POST" "/api/v1/ideas/$FIRST_IDEA_ID/reject" "$MEMBER_TOKEN" ""
@@ -238,8 +271,8 @@ echo -e "  ${GREEN}✔ Hediye DB'den silinmedi; durumu 'REJECTED' olarak güncel
 
 step_pause
 
-# 7. Demokrasi Vetosu
-echo -e "\n${BOLD}[7/8] 🗳️ Demokrasi Vetosu Testi (Çoğunluk Kararı)${RESET}"
+# 8. Demokrasi Vetosu
+echo -e "\n${BOLD}[8/9] 🗳️ Demokrasi Vetosu Testi (Çoğunluk Kararı)${RESET}"
 echo -e "Zeynep manuel hediye ekliyor: 'Plastik Anahtarlık' (50 TL)"
 print_http_box "POST" "/api/v1/groups/$GROUP_ID/ideas" "$MEMBER_TOKEN" "{\"title\":\"Plastik Anahtarlık\",\"estimated_price\":50.00}"
 
@@ -269,8 +302,8 @@ echo -e "  ${GREEN}✔ Demokrasi Vetosu çalıştı: Çoğunluk istemediği içi
 
 step_pause
 
-# 8. Negatif Prompt ve AI Belleği
-echo -e "\n${BOLD}[8/8] 🧠 Gemini Bellek Testi (State-Based Negatif Prompt)${RESET}"
+# 9. Negatif Prompt ve AI Belleği
+echo -e "\n${BOLD}[9/9] 🧠 Gemini Bellek Testi (State-Based Negatif Prompt)${RESET}"
 echo -e "Gruptan ikinci kez AI önerisi isteniyor..."
 echo -e "DB'deki Reddedilenler: ${RED}'$FIRST_IDEA_TITLE', 'Plastik Anahtarlık'${RESET}"
 echo -e "Gemini'ye iletilen kısıt: ${YELLOW}\"Bunlar grupta reddedildi, kesinlikle benzer öneri getirme!\"${RESET}"
@@ -299,6 +332,7 @@ echo -e "  • ${GREEN}POST /api/v1/groups${RESET} (Atomik Transaction ile grup 
 echo -e "  • ${GREEN}GET  /api/v1/groups${RESET} (Anti-spoiler listeleme)"
 echo -e "  • ${GREEN}GET  /api/v1/groups/:id${RESET} (403 Spoiler Kalkanı & Dinamik Kişi Başı Bütçe)"
 echo -e "  • ${GREEN}POST /api/v1/groups/:id/members${RESET} (Üye daveti)"
+echo -e "  • ${GREEN}POST /api/v1/groups/:id/ideas/preview-link${RESET} (Ürün Linki Önizleme & SSRF Kalkanı)"
 echo -e "  • ${GREEN}POST /api/v1/groups/:id/ideas${RESET} (Manuel hediye ekleme)"
 echo -e "  • ${GREEN}POST /api/v1/groups/:id/ideas/generate-ai${RESET} (Gemini 3.8 Flash Structured JSON)"
 echo -e "  • ${GREEN}POST /api/v1/ideas/:id/vote${RESET} (Upsert oylama & Demokrasi Vetosu)"

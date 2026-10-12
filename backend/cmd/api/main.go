@@ -123,6 +123,7 @@ func main() {
 				// Hediye Havuzu Rotaları
 				groupSpecific.POST("/ideas", ideaController.AddIdea)
 				groupSpecific.GET("/ideas", ideaController.GetIdeas)
+				groupSpecific.POST("/ideas/preview-link", ideaController.PreviewLink)
 				groupSpecific.POST("/ideas/generate-ai", ideaController.GenerateAI)
 			}
 
