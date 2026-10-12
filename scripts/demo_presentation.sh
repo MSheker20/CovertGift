@@ -59,6 +59,23 @@ print_http_box() {
     echo -e "  ${DIM}╰────────────────────────────────────────────────────────────────────────${RESET}"
 }
 
+# Google Gemini API İstek Detay Kutusu
+print_gemini_box() {
+    local model="$1"
+    local prompt="$2"
+
+    echo -e "  ${DIM}╭────────────────────────────────────────────────────────────────────────${RESET}"
+    echo -e "  ${DIM}│${RESET} ${BOLD}${CYAN}🤖 GOOGLE GEMINI 3.8 FLASH'A GİDEN İSTEK DETAYI (SDK Çağrısı):${RESET}"
+    echo -e "  ${DIM}│${RESET} ${DIM}Model:${RESET}           ${YELLOW}${model}${RESET} ${DIM}(Yedek Fallback: gemini-3.5-flash-lite)${RESET}"
+    echo -e "  ${DIM}│${RESET} ${DIM}MIME Türü:${RESET}       ${GREEN}application/json${RESET} ${DIM}(Structured Output)${RESET}"
+    echo -e "  ${DIM}│${RESET} ${DIM}JSON Şeması:${RESET}     ${DIM}[{ title: string, description: string, estimated_price: number, search_query: string }]${RESET}"
+    echo -e "  ${DIM}│${RESET} ${BOLD}${MAGENTA}📝 State-Based Prompt (Dinamik Gönderilen Metin):${RESET}"
+    while IFS= read -r line; do
+        echo -e "  ${DIM}│${RESET}   ${YELLOW}${line}${RESET}"
+    done <<< "$prompt"
+    echo -e "  ${DIM}╰────────────────────────────────────────────────────────────────────────${RESET}"
+}
+
 echo -e "${MAGENTA}==============================================================================${RESET}"
 echo -e "${BOLD}${CYAN}   🎁 CovertGift — İşbirlikçi Hediye Platformu (Canlı Sistem Demosu)${RESET}"
 echo -e "${MAGENTA}==============================================================================${RESET}"
@@ -233,6 +250,21 @@ echo -e "\n${BOLD}[6/9] 🤖 Gemini 3.8 Flash AI Hediye Önerileri (Faz 6)${RESE
 echo -e "Hedef kişinin hobileri (${CYAN}Kamp, 3. nesil kahve, trekking${RESET}) Gemini'ye State-Based prompt ile gönderiliyor..."
 print_http_box "POST" "/api/v1/groups/$GROUP_ID/ideas/generate-ai" "$ADMIN_TOKEN" ""
 
+GEMINI_PROMPT_1="Sen profesyonel, yaratıcı ve zevkli bir hediye danışmanısın. Bir grup arkadaş, sevdikleri bir kişi için sürpriz hediye seçecek.
+
+HEDEF KİŞİ BİLGİLERİ:
+- İsim: Ahmet
+- İlgi Alanları ve Hobileri: Kamp, 3. nesil kahve demleme, trekking, outdoor
+- Grup/Kutlama Amacı: Ahmet'in 30. Yaş Sürprizi
+- Toplam Bütçe Sınırı: 2500.00 TL
+
+ÖNEMLİ KURALLAR VE KISITLAR:
+3. SIFIR KIRIK LİNK KURALI: Asla web sitesi linki veya URL üretme. Sadece Türkiye'deki pazaryerlerinde (Trendyol, Hepsiburada, Amazon TR) aratıldığında doğrudan ürünü çıkaracak temiz, spesifik 'search_query' kelimesi oluştur.
+4. FİYAT VE BÜTÇE: Hediyelerin tahmini fiyatlarını gerçekçi belirle ve hedef bütçe civarında kalmaya özen göster (tolerans serbest).
+5. ADET: Hedef kişinin zevkine tam hitap eden 3 ile 5 adet arasında birbirinden farklı, orijinal öneri üret."
+
+print_gemini_box "gemini-3.8-flash" "$GEMINI_PROMPT_1"
+
 AI_RESP=$(curl -s -X POST "$BASE_URL/groups/$GROUP_ID/ideas/generate-ai" \
   -H "Authorization: Bearer $ADMIN_TOKEN")
 
@@ -309,6 +341,23 @@ echo -e "DB'deki Reddedilenler: ${RED}'$FIRST_IDEA_TITLE', 'Plastik Anahtarlık'
 echo -e "Gemini'ye iletilen kısıt: ${YELLOW}\"Bunlar grupta reddedildi, kesinlikle benzer öneri getirme!\"${RESET}"
 
 print_http_box "POST" "/api/v1/groups/$GROUP_ID/ideas/generate-ai" "$ADMIN_TOKEN" ""
+
+GEMINI_PROMPT_2="Sen profesyonel, yaratıcı ve zevkli bir hediye danışmanısın. Bir grup arkadaş, sevdikleri bir kişi için sürpriz hediye seçecek.
+
+HEDEF KİŞİ BİLGİLERİ:
+- İsim: Ahmet
+- İlgi Alanları ve Hobileri: Kamp, 3. nesil kahve demleme, trekking, outdoor
+- Toplam Bütçe Sınırı: 2500.00 TL
+
+ÖNEMLİ KURALLAR VE KISITLAR:
+1. HAVUZDA ZATEN MEVCUT OLAN HEDİYELER (BUNLARI ASLA TEKRAR ETME): [Havuzdaki diğer hediyeler]
+2. GRUBUN REDDETTİĞİ / VETO ETTİĞİ HEDİYELER (BU HEDİYELERİ GRUP BEĞENMEDİ, KESİNLİKLE BUNLARA BENZER BİR ŞEY ÖNERME): '$FIRST_IDEA_TITLE', 'Plastik Anahtarlık'
+3. SIFIR KIRIK LİNK KURALI: Asla web sitesi linki veya URL üretme. Sadece temiz, spesifik 'search_query' kelimesi oluştur.
+4. FİYAT VE BÜTÇE: Hediyelerin tahmini fiyatlarını gerçekçi belirle ve hedef bütçe civarında kalmaya özen göster (tolerans serbest).
+5. ADET: Hedef kişinin zevkine tam hitap eden 3 ile 5 adet arasında birbirinden farklı, orijinal öneri üret."
+
+print_gemini_box "gemini-3.8-flash" "$GEMINI_PROMPT_2"
+
 AI_RESP_2=$(curl -s -X POST "$BASE_URL/groups/$GROUP_ID/ideas/generate-ai" \
   -H "Authorization: Bearer $ADMIN_TOKEN")
 
