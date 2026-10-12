@@ -19,9 +19,9 @@ Arkadaş gruplarının **ortak hediye** organize ettiği, bütçeyi birleştirdi
 | **Faz 2 — Kimlik Doğrulama (Auth)** | ✅ Tamamlandı (JWT, bcrypt, `/me`) |
 | **Faz 3 — Gruplar & Anti-Spoiler** | ✅ Tamamlandı (Dinamik bütçe, 403 kalkanı) |
 | **Faz 4 — Hediye Havuzu & Oylama** | ✅ Tamamlandı (Upsert oylama, yetkili silme) |
+| **Faz 5 — Link Önizleme** | ✅ Tamamlandı (`pkg/linkpreview`, Trendyol, Amazon TR, Hepsiburada, SSRF Kalkanı) |
 | **Faz 6 — Gemini AI Hediye Önerileri** | ✅ Tamamlandı (Gemini 3.8 Flash, Admin Veto, Demokrasi Vetosu) |
-| **Faz 5 — Link Önizleme** | ⏳ Sırada |
-| **Faz 7 — Frontend** | ⬜ Başlanmadı |
+| **Faz 7 — Frontend** | ⏳ Sırada (Vite, React, TypeScript, Tailwind, shadcn/ui) |
 
 ---
 
@@ -33,7 +33,7 @@ Arkadaş gruplarının **ortak hediye** organize ettiği, bütçeyi birleştirdi
 | [ROADMAP.md](ROADMAP.md) | Faz faz, işaretlenebilir görev listesi ve her fazın kabul kriterleri. | Her çalışma oturumunun başında / sonunda |
 | [docs/SETUP.md](docs/SETUP.md) | Faz 0 kurulum rehberi — her adımın **ne yaptığı ve neden yapıldığı** açıklamalı. | Ortamı kurarken / yeni makinede |
 | [docs/DEVLOG.md](docs/DEVLOG.md) | Geliştirme günlüğü + **alınan kararlar ve gerekçeleri**. | "Bunu neden böyle yaptık?" sorusunda |
-| [prototypes/linkpreview/README.md](prototypes/linkpreview/README.md) | Ürün linki önizleme denemesinin sonuçları ve öğrenilenler. | Faz 5'e başlarken |
+| [prototypes/linkpreview/README.md](prototypes/linkpreview/README.md) | Ürün linki önizleme prototip bulguları, pazar yeri testleri ve mimari kararlar. | Pazar yeri ayrıştırıcılarını incelerken |
 
 ---
 
@@ -41,11 +41,12 @@ Arkadaş gruplarının **ortak hediye** organize ettiği, bütçeyi birleştirdi
 
 | Katman | Teknoloji |
 |---|---|
-| Backend | Go + Gin, GORM |
-| Veritabanı | PostgreSQL (Docker Compose) |
-| Kimlik doğrulama | JWT + özel Gin middleware |
-| Frontend | React (Vite) + Tailwind CSS + shadcn/ui + Lucide |
-| Yapay zekâ | Google Gemini 3 Flash (`response_schema` ile katı JSON) |
+| Backend | Go 1.27 + Gin Framework, GORM |
+| Veritabanı | PostgreSQL 17 (Docker Compose) |
+| Kimlik doğrulama | JWT (HMAC-SHA256, 24 saat) + Bcrypt + Gin Middleware |
+| Link Önizleme | WhatsApp Bot UA, Cookiejar, Dial-seviyesi SSRF koruması, JSON-LD Scraper |
+| Yapay zekâ | Google Gemini 3.8 Flash (`google.golang.org/genai`, Structured Output, State-Based Prompt) |
+| Frontend | React (Vite) + TypeScript + Tailwind CSS + shadcn/ui + Lucide |
 
 ---
 
@@ -58,11 +59,19 @@ CovertGift/
 ├── ROADMAP.md              ← Yol haritası
 ├── docs/
 │   ├── SETUP.md            ← Kurulum rehberi
-│   └── DEVLOG.md           ← Geliştirme günlüğü & kararlar
+│   └── DEVLOG.md           ← Geliştirme günlüğü & mimarî karar kaydı
+├── scripts/
+│   └── demo_presentation.sh← 🎓 Hocaya canlı sunum & interaktif API test script'i (ANSI HTTP kutuları)
 ├── prototypes/
-│   └── linkpreview/        ← Link önizleme deneme script'i
-├── backend/                ← Go backend API (Faz 0 tamamlandı)
-└── frontend/               ← (Faz 7'de oluşturulacak)
+│   └── linkpreview/        ← Link önizleme prototip ve inceleme laboratuvarı
+├── backend/
+│   ├── cmd/api/            ← HTTP sunucu giriş noktası
+│   ├── internal/           ← Controllers, services, repository, models, middleware
+│   ├── pkg/
+│   │   ├── gemini/         ← Gemini 3.8 Flash istemcisi & resilient fallback
+│   │   └── linkpreview/    ← Ürün linki önizleme & SSRF kalkanı (Trendyol, Amazon, HB)
+│   └── bin/api             ← Derlenmiş API ikili dosyası
+└── frontend/               ← (Faz 7'de oluşturulacak: Vite + React + Tailwind)
 ```
 
 ---
@@ -80,6 +89,10 @@ go run ./cmd/api
 # 3. Sağlık kontrolü yap (ayrı bir terminalde veya tarayıcıda)
 curl http://localhost:8080/health
 # Yanıt: {"success":true,"data":{"db":"up","status":"ok"}}
+
+# 4. 🎓 Akademik Sunum Script'ini Çalıştır (Tüm API uç noktaları kutular içinde sergilenir)
+./scripts/demo_presentation.sh          # Adım adım klavye kontrollü
+./scripts/demo_presentation.sh --auto   # Otomatik test modu
 ```
 
 ## 🔗 Bağlantılar

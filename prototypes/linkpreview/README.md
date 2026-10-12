@@ -1,6 +1,7 @@
 # 🔗 Prototip: Ürün Linki Önizleme
 
-> Durum: **Deneme script'i** — üretim kodu değil. Faz 5'te `backend/pkg/linkpreview/` paketine taşınacak.
+> Durum: **Prototip Başarıyla Tamamlandı & Üretime Taşındı ✅**
+> Bu laboratuvar çalışması Faz 5 kapsamında `backend/pkg/linkpreview/` paketine taşınmış, birim testleri eklenmiş ve `POST /api/v1/groups/:id/ideas/preview-link` uç noktasına bağlanmıştır.
 > Kural seti: [PROJECT_CONTEXT.md → İş Kuralı 5](../../PROJECT_CONTEXT.md)
 
 ## Ne işe yarar?
@@ -73,9 +74,10 @@ flowchart TD
 - [x] `search_query` türetme
 - [x] Amazon TR / Hepsiburada
 
-## Kalan eksikler (Faz 5'te)
-- [ ] Birim testleri: `LINKPREVIEW_DUMP` ile kaydedilen HTML'ler fixture olarak kullanılabilir (ağsız test)
-- [ ] Amazon / Hepsiburada başka kategorilerde (varyantlı ürün, stokta yok, kampanyalı fiyat) denenmedi
-- [ ] Hepsiburada kısa link / uygulama paylaşım domaini bilinmiyor (varsa `Hosts()`'a eklenmeli)
-- [ ] Trendyol `discountedPrice` sayfadaki ilk eşleşme — çok satıcılı üründe `winnerVariant`'a sabitlemek daha güvenli
-- [ ] Siteler bot korumasını sıkılaştırırsa (Akamai/captcha) `partial: true` dönüyor; kalıcı çözüm yok
+## Faz 5 Üretim Durumu (Tamamlananlar ✅)
+- [x] Üretim paketine taşındı: `backend/pkg/linkpreview/` (`preview.go`, `fetch.go`, `extract.go`, `generic.go`, `trendyol.go`, `amazon.go`, `hepsiburada.go`)
+- [x] Çevrimdışı birim testleri eklendi: `backend/pkg/linkpreview/linkpreview_test.go` (`go test -v ./pkg/linkpreview` %100 başarılı)
+- [x] API Uç noktası bağlandı: `POST /api/v1/groups/:id/ideas/preview-link` (Anti-Spoiler korumalı, `middleware.GroupAccess`)
+- [x] SSRF Kalkanı dial seviyesinde devrede (`127.0.0.1`, özel IP'ler ve bilinmeyen hostlar engellenir, `partial: true` fail-safe döner)
+- [x] Trendyol, Amazon TR ve Hepsiburada canlı testleri doğrulandı
+- [x] Akademik sunum script'ine entegre edildi: `scripts/demo_presentation.sh` (Adım [5/9])

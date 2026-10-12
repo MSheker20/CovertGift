@@ -357,6 +357,9 @@ Sonra: ROADMAP'te Faz 0 kutucuklarını işaretle, DEVLOG'a kısa bir kayıt ekl
 | `go run ./cmd/api` | API'yi çalıştırır |
 | `go mod tidy` | Bağımlılıkları düzenler |
 | `go build -o bin/api ./cmd/api` | Çalıştırılabilir dosya üretir |
+| `go test -v ./...` | Tüm birim testlerini çalıştırır (link önizleme, parser, SSRF kalkanı) |
+| `./scripts/demo_presentation.sh` | 🎓 Tüm API uç noktalarını canlı sergileyen akademik interaktif sunum script'i |
+| `./scripts/demo_presentation.sh --auto` | Otomatik demo / test modu |
 
 ---
 
