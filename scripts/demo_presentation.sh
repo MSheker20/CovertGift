@@ -3,7 +3,8 @@
 # 🎁 CovertGift — Akademik Sunum & Canlı Demo Test Senaryosu
 # ==============================================================================
 # Bu script, CovertGift platformunun Faz 1'den Faz 6'ya kadar olan tüm
-# yeteneklerini canlı olarak jüriye / hocaya sunmak için tasarlanmıştır.
+# API uç noktalarını (GET, POST, DELETE, Headers, Payloads) canlı olarak
+# jüriye / hocaya sunmak için tasarlanmıştır.
 #
 # Kullanım:
 #   ./scripts/demo_presentation.sh         (Adım adım ENTER ile ilerleme)
@@ -20,6 +21,7 @@ BLUE="\033[1;34m"
 MAGENTA="\033[1;35m"
 CYAN="\033[1;36m"
 BOLD="\033[1m"
+DIM="\033[2m"
 RESET="\033[0m"
 
 BASE_URL="http://localhost:8080/api/v1"
@@ -39,6 +41,24 @@ step_pause() {
     fi
 }
 
+# HTTP İstek ve Yanıt Görsel Kutusu
+print_http_box() {
+    local method="$1"
+    local endpoint="$2"
+    local auth="$3"
+    local payload="$4"
+
+    echo -e "  ${DIM}╭────────────────────────────────────────────────────────────────────────${RESET}"
+    echo -e "  ${DIM}│${RESET} ${BOLD}${MAGENTA}📡 HTTP İSTEĞİ:${RESET} ${BOLD}${GREEN}${method}${RESET} ${CYAN}${endpoint}${RESET}"
+    if [ -n "$auth" ]; then
+        echo -e "  ${DIM}│${RESET} ${DIM}Header:${RESET}  ${YELLOW}Authorization: Bearer ${auth:0:22}...${RESET} ${DIM}(JWT Token)${RESET}"
+    fi
+    if [ -n "$payload" ]; then
+        echo -e "  ${DIM}│${RESET} ${DIM}Payload:${RESET} ${DIM}${payload}${RESET}"
+    fi
+    echo -e "  ${DIM}╰────────────────────────────────────────────────────────────────────────${RESET}"
+}
+
 echo -e "${MAGENTA}==============================================================================${RESET}"
 echo -e "${BOLD}${CYAN}   🎁 CovertGift — İşbirlikçi Hediye Platformu (Canlı Sistem Demosu)${RESET}"
 echo -e "${MAGENTA}==============================================================================${RESET}"
@@ -47,16 +67,21 @@ echo -e "${BOLD}Kapsam:${RESET} Faz 1 (Modeller) ➔ Faz 2 (Auth) ➔ Faz 3 (Ant
 echo -e "${MAGENTA}------------------------------------------------------------------------------${RESET}"
 
 # 0. Sağlık Kontrolü
-echo -e "\n${BOLD}[0/8] 🔍 Sistem Sağlık Kontrolü (Healthcheck)...${RESET}"
-HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health || echo "DOWN")
+echo -e "\n${BOLD}[0/8] 🔍 Sistem Sağlık Kontrolü (Healthcheck)${RESET}"
+print_http_box "GET" "/health" "" ""
 
-if [ "$HEALTH_STATUS" != "200" ]; then
+HEALTH_RAW=$(curl -s -w "\nHTTP_STATUS:%{http_code}" http://localhost:8080/health || echo "DOWN")
+HEALTH_CODE=$(echo "$HEALTH_RAW" | grep "HTTP_STATUS" | cut -d':' -f2 || echo "DOWN")
+HEALTH_BODY=$(echo "$HEALTH_RAW" | head -n 1)
+
+if [ "$HEALTH_CODE" != "200" ]; then
     echo -e "${RED}❌ HATA: API sunucusuna erişilemedi (http://localhost:8080)!${RESET}"
     echo -e "${YELLOW}Lütfen sunucuyu ayrı bir terminalde başlatın:${RESET}"
     echo -e "   cd backend && ./bin/api  (veya go run ./cmd/api)"
     exit 1
 fi
-echo -e "${GREEN}✅ Backend API ve PostgreSQL veritabanı aktif ve çalışıyor! (200 OK)${RESET}"
+echo -e "  ${BOLD}${GREEN}📥 HTTP ${HEALTH_CODE} OK${RESET} ➔ ${HEALTH_BODY}"
+echo -e "  ${GREEN}✔ Backend API ve PostgreSQL bağlantı havuzu aktif!${RESET}"
 
 step_pause
 
@@ -65,117 +90,128 @@ echo -e "\n${BOLD}[1/8] 👤 Kullanıcı Kayıtları & JWT Güvenliği (Faz 2)${
 echo -e "Senaryo gereği 3 farklı aktör oluşturuluyor:"
 echo -e "  • ${CYAN}Admin Can${RESET} (Grup Kurucusu)"
 echo -e "  • ${CYAN}Üye Zeynep${RESET} (Grup Katılımcısı)"
-echo -e "  • ${CYAN}Hedef Ahmet${RESET} (Kendisine sürpriz yapılacak doğum günü çocuğu)"
+echo -e "  • ${CYAN}Hedef Ahmet${RESET} (Kendisine sürpriz yapılacak kişi)"
 
 PASSWORD="Password123!"
 ADMIN_EMAIL="admin_${TIMESTAMP}@demo.com"
 MEMBER_EMAIL="zeynep_${TIMESTAMP}@demo.com"
 TARGET_EMAIL="ahmet_${TIMESTAMP}@demo.com"
 
-# Admin
-curl -s -X POST "$BASE_URL/auth/register" -H "Content-Type: application/json" \
-  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$PASSWORD\",\"name\":\"Admin Can\"}" > /dev/null
-ADMIN_TOKEN=$(curl -s -X POST "$BASE_URL/auth/login" -H "Content-Type: application/json" \
-  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$PASSWORD\"}" | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['token'])")
+# Admin Kayıt
+print_http_box "POST" "/api/v1/auth/register" "" "{\"email\":\"$ADMIN_EMAIL\",\"name\":\"Admin Can\"}"
+ADMIN_REG=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "$BASE_URL/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$PASSWORD\",\"name\":\"Admin Can\"}")
+echo -e "  ${BOLD}${GREEN}📥 HTTP $(echo "$ADMIN_REG" | grep "HTTP_STATUS" | cut -d':' -f2) CREATED${RESET} ➔ $(echo "$ADMIN_REG" | head -n 1)"
 
-# Üye
+# Admin Giriş
+print_http_box "POST" "/api/v1/auth/login" "" "{\"email\":\"$ADMIN_EMAIL\"}"
+ADMIN_LOGIN=$(curl -s -X POST "$BASE_URL/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$PASSWORD\"}")
+ADMIN_TOKEN=$(echo "$ADMIN_LOGIN" | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['token'])")
+echo -e "  ${BOLD}${GREEN}📥 HTTP 200 OK${RESET} ➔ JWT Token üretildi: ${YELLOW}${ADMIN_TOKEN:0:30}...${RESET}"
+
+# Üye ve Hedef Kişi
 curl -s -X POST "$BASE_URL/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$MEMBER_EMAIL\",\"password\":\"$PASSWORD\",\"name\":\"Üye Zeynep\"}" > /dev/null
 MEMBER_TOKEN=$(curl -s -X POST "$BASE_URL/auth/login" -H "Content-Type: application/json" \
   -d "{\"email\":\"$MEMBER_EMAIL\",\"password\":\"$PASSWORD\"}" | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['token'])")
-MEMBER_ID=$(curl -s -X GET "$BASE_URL/me" -H "Authorization: Bearer $MEMBER_TOKEN" | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['id'])")
 
-# Hedef Kişi
 TARGET_REG=$(curl -s -X POST "$BASE_URL/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TARGET_EMAIL\",\"password\":\"$PASSWORD\",\"name\":\"Hedef Ahmet\"}")
 TARGET_ID=$(echo "$TARGET_REG" | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['id'])")
 TARGET_TOKEN=$(curl -s -X POST "$BASE_URL/auth/login" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TARGET_EMAIL\",\"password\":\"$PASSWORD\"}" | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['token'])")
 
-echo -e "${GREEN}✅ Şifreler bcrypt ile hash'lendi ve 24 saat geçerli JWT oturum token'ları üretildi.${RESET}"
+echo -e "\n  ${GREEN}✔ Şifreler bcrypt ile hash'lendi ve 24 saat geçerli JWT token'ları üretildi.${RESET}"
 
 step_pause
 
 # 2. Grup Oluşturma
 echo -e "\n${BOLD}[2/8] 👥 Sürpriz Grup Oluşturma & İlgi Alanları (Faz 3)${RESET}"
-echo -e "Admin Can, Ahmet için 2.500 TL bütçeli bir sürpriz grup açıyor:"
-echo -e "  • Hedef Kişi Adı: ${BOLD}Ahmet${RESET}"
-echo -e "  • İlgi Alanları (target_interests): ${CYAN}Kamp, 3. nesil kahve demleme, trekking, outdoor ekipmanları${RESET}"
-echo -e "  • Toplam Bütçe: ${BOLD}2.500,00 TL${RESET}"
-
-GROUP_RESP=$(curl -s -X POST "$BASE_URL/groups" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{
+GROUP_PAYLOAD="{
     \"title\":\"Ahmet'in 30. Yaş Sürprizi\",
-    \"description\":\"Doğum günü outdoor sürpriz hediyesi\",
     \"target_person_name\":\"Ahmet\",
     \"target_user_id\":\"$TARGET_ID\",
-    \"target_interests\":\"Kamp, 3. nesil kahve demleme, trekking, outdoor ekipmanları\",
-    \"total_budget\":2500.00,
-    \"event_date\":\"2026-11-20T00:00:00Z\"
-  }")
+    \"target_interests\":\"Kamp, 3. nesil kahve demleme, trekking, outdoor\",
+    \"total_budget\":2500.00
+  }"
+print_http_box "POST" "/api/v1/groups" "$ADMIN_TOKEN" "$GROUP_PAYLOAD"
 
-GROUP_ID=$(echo "$GROUP_RESP" | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['id'])")
-echo -e "${GREEN}✅ Grup atomik bir GORM transaction ile oluşturuldu! Grup ID: $GROUP_ID${RESET}"
+GROUP_RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "$BASE_URL/groups" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "$GROUP_PAYLOAD")
+
+GROUP_CODE=$(echo "$GROUP_RESP" | grep "HTTP_STATUS" | cut -d':' -f2)
+GROUP_BODY=$(echo "$GROUP_RESP" | head -n 1)
+GROUP_ID=$(echo "$GROUP_BODY" | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['id'])")
+
+echo -e "  ${BOLD}${GREEN}📥 HTTP ${GROUP_CODE} CREATED${RESET} ➔ Grup ID: ${BOLD}$GROUP_ID${RESET}"
+echo -e "  ${GREEN}✔ Grup ve Admin üyeliği atomik GORM transaction ile kaydedildi.${RESET}"
 
 step_pause
 
 # 3. Anti-Spoiler Kalkanı Testi
 echo -e "\n${BOLD}[3/8] 🛡️ Anti-Spoiler Kalkanı Güvenlik Testi (Kritik İş Kuralı)${RESET}"
-echo -e "Şimdi hedef kişi olan Ahmet sisteme giriyor ve sürprizi görmeye çalışıyor:"
+echo -e "Hedef kişi olan Ahmet sisteme giriyor ve sürprizi görmeye çalışıyor:"
 
-echo -e "\n  a) Ahmet kendi grup listesini çekiyor (GET /api/v1/groups):"
+echo -e "\n  ${BOLD}a) Ahmet grup listesini çekiyor:${RESET}"
+print_http_box "GET" "/api/v1/groups" "$TARGET_TOKEN" ""
 TARGET_GROUPS=$(curl -s -X GET "$BASE_URL/groups" -H "Authorization: Bearer $TARGET_TOKEN")
-echo -e "     Sonuç: ${CYAN}$TARGET_GROUPS${RESET}"
-echo -e "     ${GREEN}✔ Ahmet'e sürpriz grup SQL seviyesinde gizlendi, boş dizi ([]) döndü.${RESET}"
+echo -e "  ${BOLD}${GREEN}📥 HTTP 200 OK${RESET} ➔ ${CYAN}$TARGET_GROUPS${RESET}"
+echo -e "  ${GREEN}✔ SQL filtresi sayesinde Ahmet grubu listede asla göremedi (data: []).${RESET}"
 
-echo -e "\n  b) Ahmet grup ID'sini öğrenip zorla girmeye çalışıyor (GET /api/v1/groups/:id):"
+echo -e "\n  ${BOLD}b) Ahmet grup ID'sini doğrudan tarayıcıya/isteğe yazıp girmeye çalışıyor:${RESET}"
+print_http_box "GET" "/api/v1/groups/$GROUP_ID" "$TARGET_TOKEN" ""
 DIRECT_ACCESS=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X GET "$BASE_URL/groups/$GROUP_ID" -H "Authorization: Bearer $TARGET_TOKEN")
-HTTP_CODE=$(echo "$DIRECT_ACCESS" | grep "HTTP_STATUS" | cut -d':' -f2)
-ERR_MSG=$(echo "$DIRECT_ACCESS" | head -n 1)
-echo -e "     HTTP Durum Kodu: ${RED}$HTTP_CODE FORBIDDEN${RESET}"
-echo -e "     Sunucu Yanıtı: ${YELLOW}$ERR_MSG${RESET}"
-echo -e "     ${GREEN}✔ Anti-Spoiler Middleware hedef kişiyi anında tespit etti ve 403 ile engelledi!${RESET}"
+DIRECT_CODE=$(echo "$DIRECT_ACCESS" | grep "HTTP_STATUS" | cut -d':' -f2)
+DIRECT_BODY=$(echo "$DIRECT_ACCESS" | head -n 1)
+
+echo -e "  ${BOLD}${RED}📥 HTTP ${DIRECT_CODE} FORBIDDEN${RESET} ➔ ${YELLOW}$DIRECT_BODY${RESET}"
+echo -e "  ${GREEN}✔ GroupAccess Middleware hedef kişiyi anında tespit edip 403 ile engelledi!${RESET}"
 
 step_pause
 
 # 4. Üye Ekleme ve Dinamik Kişi Başı Bütçe
 echo -e "\n${BOLD}[4/8] 🤝 Üye Ekleme & Dinamik Kişi Başı Bütçe Hesabı${RESET}"
-echo -e "Üye Zeynep gruba davet ediliyor..."
+print_http_box "POST" "/api/v1/groups/$GROUP_ID/members" "$ADMIN_TOKEN" "{\"email\":\"$MEMBER_EMAIL\"}"
+
 curl -s -X POST "$BASE_URL/groups/$GROUP_ID/members" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"$MEMBER_EMAIL\"}" > /dev/null
 
+echo -e "  ${BOLD}${GREEN}📥 HTTP 201 CREATED${RESET} ➔ Üye Zeynep başarıyla gruba eklendi."
+
+print_http_box "GET" "/api/v1/groups/$GROUP_ID" "$ADMIN_TOKEN" ""
 GROUP_DETAIL=$(curl -s -X GET "$BASE_URL/groups/$GROUP_ID" -H "Authorization: Bearer $ADMIN_TOKEN")
 MEMBER_COUNT=$(echo "$GROUP_DETAIL" | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['member_count'])")
 PER_PERSON=$(echo "$GROUP_DETAIL" | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['per_person_budget'])")
 
-echo -e "${GREEN}✅ Zeynep gruba katıldı!${RESET}"
-echo -e "  • Gruptaki Aktif Üye Sayısı: ${BOLD}$MEMBER_COUNT kişi${RESET}"
-echo -e "  • Toplam Bütçe: ${BOLD}2.500,00 TL${RESET}"
-echo -e "  • Dinamik Kişi Başı Bütçe (Toplam / Üye Sayısı): ${CYAN}${BOLD}$PER_PERSON TL / kişi${RESET}"
+echo -e "  ${BOLD}${GREEN}📥 HTTP 200 OK${RESET} ➔ Aktif Üye Sayısı: ${BOLD}$MEMBER_COUNT kişi${RESET} | Toplam Bütçe: ${BOLD}2.500 TL${RESET}"
+echo -e "  ${CYAN}🎯 Anlık Kişi Başı Bütçe (Toplam / Üye Sayısı): ${BOLD}${PER_PERSON} TL / kişi${RESET}"
 
 step_pause
 
 # 5. Gemini 3.8 Flash AI Hediye Önerileri
 echo -e "\n${BOLD}[5/8] 🤖 Gemini 3.8 Flash AI Hediye Önerileri (Faz 6)${RESET}"
-echo -e "Hedef kişinin hobileri (${CYAN}Kamp, 3. nesil kahve, trekking${RESET}) Gemini'ye semantik girdi olarak gönderiliyor..."
-echo -e "Kural 3 Güvencesi: Asla kırık URL uydurmaz, pazaryerleri için temiz 'search_query' üretir."
+echo -e "Hedef kişinin hobileri (${CYAN}Kamp, 3. nesil kahve, trekking${RESET}) Gemini'ye State-Based prompt ile gönderiliyor..."
+print_http_box "POST" "/api/v1/groups/$GROUP_ID/ideas/generate-ai" "$ADMIN_TOKEN" ""
 
 AI_RESP=$(curl -s -X POST "$BASE_URL/groups/$GROUP_ID/ideas/generate-ai" \
   -H "Authorization: Bearer $ADMIN_TOKEN")
 
-echo -e "\n${CYAN}Gemini'den Gelen Yapılandırılmış JSON Yanıtı:${RESET}"
+echo -e "  ${BOLD}${GREEN}📥 HTTP 201 CREATED${RESET} ➔ Gemini Yapılandırılmış JSON Yanıtı:"
 echo "$AI_RESP" | python3 -c "
 import sys, json
 data = json.load(sys.stdin)
 for i, idea in enumerate(data.get('data', []), 1):
-    budget_badge = '⚠️ [BÜTÇE ÜSTÜ]' if idea.get('is_over_budget') else '✅ [BÜTÇE DAHİLİNDE]'
-    print(f\"  {i}. {idea['title']} — {idea['estimated_price']} TL {budget_badge}\")
-    print(f\"     Açıklama: {idea['description']}\")
-    print(f\"     Arama Terimi: \\\"{idea['search_query']}\\\"\n\")
+    badge = '⚠️ [BÜTÇE ÜSTÜ]' if idea.get('is_over_budget') else '✅ [BÜTÇE DAHİLİNDE]'
+    print(f\"     {i}. {idea['title']} — {idea['estimated_price']} TL {badge}\")
+    print(f\"        Açıklama: {idea['description']}\")
+    print(f\"        Temiz Arama: \\\"{idea['search_query']}\\\"\n\")
 "
 
 FIRST_IDEA_ID=$(echo "$AI_RESP" | python3 -c "import sys, json; d = json.load(sys.stdin); print(d['data'][0]['id'])")
@@ -185,72 +221,86 @@ step_pause
 
 # 6. Admin Vetosu
 echo -e "\n${BOLD}[6/8] 👑 Admin Vetosu Testi (Örnek Hediye: $FIRST_IDEA_TITLE)${RESET}"
-echo -e "  a) Normal Üye Zeynep bu hediyeyi doğrudan veto etmeyi deniyor:"
+
+echo -e "\n  ${BOLD}a) Normal Üye Zeynep doğrudan veto etmeyi deniyor:${RESET}"
+print_http_box "POST" "/api/v1/ideas/$FIRST_IDEA_ID/reject" "$MEMBER_TOKEN" ""
 MEMBER_VETO=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "$BASE_URL/ideas/$FIRST_IDEA_ID/reject" \
   -H "Authorization: Bearer $MEMBER_TOKEN")
-echo -e "     Sonuç: ${RED}$(echo "$MEMBER_VETO" | grep "HTTP_STATUS")${RESET} — $(echo "$MEMBER_VETO" | head -n 1)"
-echo -e "     ${GREEN}✔ Normal üyelerin veto yetkisi olmadığı doğrulandı (403 Forbidden).${RESET}"
+echo -e "  ${BOLD}${RED}📥 HTTP $(echo "$MEMBER_VETO" | grep "HTTP_STATUS" | cut -d':' -f2) FORBIDDEN${RESET} ➔ $(echo "$MEMBER_VETO" | head -n 1)"
+echo -e "  ${GREEN}✔ Normal üyenin veto yetkisi olmadığı doğrulandı.${RESET}"
 
-echo -e "\n  b) Grup Yöneticisi Admin Can veto butonuna basıyor:"
+echo -e "\n  ${BOLD}b) Grup Yöneticisi Admin Can veto butonuna basıyor:${RESET}"
+print_http_box "POST" "/api/v1/ideas/$FIRST_IDEA_ID/reject" "$ADMIN_TOKEN" ""
 ADMIN_VETO=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "$BASE_URL/ideas/$FIRST_IDEA_ID/reject" \
   -H "Authorization: Bearer $ADMIN_TOKEN")
-echo -e "     Sonuç: ${GREEN}$(echo "$ADMIN_VETO" | grep "HTTP_STATUS")${RESET} — $(echo "$ADMIN_VETO" | head -n 1)"
-echo -e "     ${GREEN}✔ Hediye veritabanından silinmedi; durumu 'REJECTED' olarak işaretlendi!${RESET}"
+echo -e "  ${BOLD}${GREEN}📥 HTTP $(echo "$ADMIN_VETO" | grep "HTTP_STATUS" | cut -d':' -f2) OK${RESET} ➔ $(echo "$ADMIN_VETO" | head -n 1)"
+echo -e "  ${GREEN}✔ Hediye DB'den silinmedi; durumu 'REJECTED' olarak güncellendi!${RESET}"
 
 step_pause
 
 # 7. Demokrasi Vetosu
 echo -e "\n${BOLD}[7/8] 🗳️ Demokrasi Vetosu Testi (Çoğunluk Kararı)${RESET}"
-echo -e "Zeynep havuza manuel bir hediye önerisi ekliyor: 'Plastik Anahtarlık' (50 TL)"
+echo -e "Zeynep manuel hediye ekliyor: 'Plastik Anahtarlık' (50 TL)"
+print_http_box "POST" "/api/v1/groups/$GROUP_ID/ideas" "$MEMBER_TOKEN" "{\"title\":\"Plastik Anahtarlık\",\"estimated_price\":50.00}"
+
 MANUAL_RESP=$(curl -s -X POST "$BASE_URL/groups/$GROUP_ID/ideas" \
   -H "Authorization: Bearer $MEMBER_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"title\":\"Plastik Anahtarlık\",\"description\":\"Basit bir hediye\",\"estimated_price\":50.00}")
 MANUAL_ID=$(echo "$MANUAL_RESP" | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['id'])")
+echo -e "  ${BOLD}${GREEN}📥 HTTP 201 CREATED${RESET} ➔ Hediye ID: $MANUAL_ID"
 
-echo -e "Grup üyeleri oyluyor:"
-echo -e "  • Zeynep downvote (-1) veriyor..."
+echo -e "\n  ${BOLD}Grup üyeleri oyluyor:${RESET}"
+print_http_box "POST" "/api/v1/ideas/$MANUAL_ID/vote" "$MEMBER_TOKEN" "{\"vote_type\": -1}"
 curl -s -X POST "$BASE_URL/ideas/$MANUAL_ID/vote" -H "Authorization: Bearer $MEMBER_TOKEN" \
   -H "Content-Type: application/json" -d "{\"vote_type\":-1}" > /dev/null
+echo -e "  ${BOLD}${GREEN}📥 HTTP 200 OK${RESET} ➔ Zeynep downvote verdi (-1)"
 
-echo -e "  • Admin Can downvote (-1) veriyor (2 üyeli grupta 2 downvote -> çoğunluk sağlandı)..."
+print_http_box "POST" "/api/v1/ideas/$MANUAL_ID/vote" "$ADMIN_TOKEN" "{\"vote_type\": -1}"
 curl -s -X POST "$BASE_URL/ideas/$MANUAL_ID/vote" -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -d "{\"vote_type\":-1}" > /dev/null
+echo -e "  ${BOLD}${GREEN}📥 HTTP 200 OK${RESET} ➔ Admin Can downvote verdi (-1) ➔ (2/2 çoğunluk sağlandı)"
 
 MANUAL_STATUS=$(curl -s -X GET "$BASE_URL/groups/$GROUP_ID/ideas" -H "Authorization: Bearer $ADMIN_TOKEN" | \
   python3 -c "import sys, json; data = json.load(sys.stdin)['data']; print([x['status'] for x in data if x['id'] == '$MANUAL_ID'][0])")
 
-echo -e "Hediyenin güncel durumu: ${BOLD}${RED}$MANUAL_STATUS${RESET}"
-echo -e "${GREEN}✅ Demokrasi Vetosu çalıştı: Çoğunluk istemediği için sistem hediyeyi otomatik REJECTED yaptı!${RESET}"
+echo -e "  ${BOLD}${RED}Hediyenin Güncel Durumu: $MANUAL_STATUS${RESET}"
+echo -e "  ${GREEN}✔ Demokrasi Vetosu çalıştı: Çoğunluk istemediği için sistem hediyeyi otomatik REJECTED yaptı!${RESET}"
 
 step_pause
 
 # 8. Negatif Prompt ve AI Belleği
 echo -e "\n${BOLD}[8/8] 🧠 Gemini Bellek Testi (State-Based Negatif Prompt)${RESET}"
 echo -e "Gruptan ikinci kez AI önerisi isteniyor..."
-echo -e "Veritabanındaki durum:"
-echo -e "  • ${RED}Reddedilenler:${RESET} '$FIRST_IDEA_TITLE', 'Plastik Anahtarlık'"
-echo -e "Gemini'ye bu liste kısıt olarak veriliyor: 'Bunları grup beğenmedi, benzerini getirme!'"
+echo -e "DB'deki Reddedilenler: ${RED}'$FIRST_IDEA_TITLE', 'Plastik Anahtarlık'${RESET}"
+echo -e "Gemini'ye iletilen kısıt: ${YELLOW}\"Bunlar grupta reddedildi, kesinlikle benzer öneri getirme!\"${RESET}"
 
+print_http_box "POST" "/api/v1/groups/$GROUP_ID/ideas/generate-ai" "$ADMIN_TOKEN" ""
 AI_RESP_2=$(curl -s -X POST "$BASE_URL/groups/$GROUP_ID/ideas/generate-ai" \
   -H "Authorization: Bearer $ADMIN_TOKEN")
 
-echo -e "\n${CYAN}Gemini'nin İkinci Tur Yeni Önerileri:${RESET}"
+echo -e "  ${BOLD}${GREEN}📥 HTTP 201 CREATED${RESET} ➔ Gemini İkinci Tur Yeni Öneriler:"
 echo "$AI_RESP_2" | python3 -c "
 import sys, json
 data = json.load(sys.stdin)
 for i, idea in enumerate(data.get('data', []), 1):
-    budget_badge = '⚠️ [BÜTÇE ÜSTÜ]' if idea.get('is_over_budget') else '✅ [BÜTÇE DAHİLİNDE]'
-    print(f\"  {i}. {idea['title']} — {idea['estimated_price']} TL {budget_badge}\")
+    badge = '⚠️ [BÜTÇE ÜSTÜ]' if idea.get('is_over_budget') else '✅ [BÜTÇE DAHİLİNDE]'
+    print(f\"     {i}. {idea['title']} — {idea['estimated_price']} TL {badge}\")
 "
-echo -e "${GREEN}✅ Gemini reddedilen veya havuzda olan hiçbir ürünü tekrarlamadı! Tamamen taze öneriler sundu.${RESET}"
+echo -e "  ${GREEN}✔ Gemini reddedilen ürünleri tekrarlamadı; tamamen yeni öneriler getirdi!${RESET}"
 
 echo -e "\n${MAGENTA}==============================================================================${RESET}"
-echo -e "${GREEN}${BOLD}🎉 TEBRİKLER! TÜM MİMARİ VE İŞ KURALLARI BAŞARIYLA SERGİLENDİ.${RESET}"
+echo -e "${GREEN}${BOLD}🎉 TEBRİKLER! TÜM API UÇ NOKTALARI VE İŞ MANTIKLARI BAŞARIYLA SERGİLENDİ.${RESET}"
 echo -e "${MAGENTA}==============================================================================${RESET}"
-echo -e "Sunum için hazır uç noktalar:"
-echo -e "  • Auth: POST /auth/register, POST /auth/login, GET /me"
-echo -e "  • Grup & Anti-Spoiler: POST /groups, GET /groups, GET /groups/:id, POST /groups/:id/members"
-echo -e "  • Havuz & Oylama: POST /groups/:id/ideas, GET /groups/:id/ideas, POST /ideas/:id/vote"
-echo -e "  • Gemini AI & Veto: POST /groups/:id/ideas/generate-ai, POST /ideas/:id/reject"
+echo -e "Sergilenen REST API Uç Noktaları:"
+echo -e "  • ${GREEN}POST /api/v1/auth/register${RESET} (Bcrypt şifreleme)"
+echo -e "  • ${GREEN}POST /api/v1/auth/login${RESET} (24h JWT oturum üretimi)"
+echo -e "  • ${GREEN}POST /api/v1/groups${RESET} (Atomik Transaction ile grup açma)"
+echo -e "  • ${GREEN}GET  /api/v1/groups${RESET} (Anti-spoiler listeleme)"
+echo -e "  • ${GREEN}GET  /api/v1/groups/:id${RESET} (403 Spoiler Kalkanı & Dinamik Kişi Başı Bütçe)"
+echo -e "  • ${GREEN}POST /api/v1/groups/:id/members${RESET} (Üye daveti)"
+echo -e "  • ${GREEN}POST /api/v1/groups/:id/ideas${RESET} (Manuel hediye ekleme)"
+echo -e "  • ${GREEN}POST /api/v1/groups/:id/ideas/generate-ai${RESET} (Gemini 3.8 Flash Structured JSON)"
+echo -e "  • ${GREEN}POST /api/v1/ideas/:id/vote${RESET} (Upsert oylama & Demokrasi Vetosu)"
+echo -e "  • ${GREEN}POST /api/v1/ideas/:id/reject${RESET} (Admin doğrudan veto)"
 echo -e "${MAGENTA}==============================================================================${RESET}\n"
