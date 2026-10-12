@@ -53,6 +53,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `estimated_price`: NUMERIC(10, 2), varsayılan 0.00
 - `source_type`: VARCHAR(20), varsayılan 'AI' ('AI' veya 'MANUAL')
 - `status`: VARCHAR(20), varsayılan 'ACTIVE' ('ACTIVE', 'REJECTED', 'SELECTED') -- Admin vetosu veya çoğunluk downvote ile 'REJECTED' olur
+- `is_over_budget`: BOOLEAN, varsayılan false -- Bütçeyi aşan fikirlerde true olur (fikir elenmez, grubun toleransına bırakılır)
 - `search_query`: VARCHAR(255), boş geçilemez -- Pazar yerleri için optimize edilmiş arama terimi
 - `image_url`: VARCHAR(500), opsiyonel
 - `product_url`: VARCHAR(1000), opsiyonel -- Sadece `MANUAL` önerilerde, kullanıcının yapıştırdığı linkin çözümlenmiş (final) ürün adresi. AI önerilerinde daima boştur.

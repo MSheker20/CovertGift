@@ -109,7 +109,7 @@ flowchart LR
 - [x] State-based prompt: `target_interests` + bütçe + mevcut başlıklar + reddedilen/veto edilen başlıklar (Kural 4)
 - [x] `POST /api/v1/groups/:id/ideas/generate-ai` → 3-5 öneri, `source_type = AI`, batch insert
 - [x] Hata/kota (503/429) yönetimi + otomatik yedek model geçişi (`gemini-3.5-flash-lite`)
-- [x] Bütçe üstü önerileri sunucu tarafında filtreleme
+- [x] Bütçe üstü öneriler sunucu tarafında çöpe atılmaz; `is_over_budget: true` bayrağı ile işaretlenir (Grup toleransına bırakılır)
 - [x] 👑 **Admin Vetosu:** `POST /api/v1/ideas/:id/reject` → Sadece grup yöneticisi tek tıkla reddeder (`status = REJECTED`)
 - [x] 🗳️ **Demokrasi Vetosu:** Fikre verilen downvote sayısı üye sayısının yarısını geçerse ($downvotes > N/2$) otomatik `status = REJECTED`
 - [x] 🔄 **Negatif Prompt Beslemesi:** Reddedilen fikirler silinmez, sonraki AI prompt'larına negatif kısıt olarak verilir

@@ -246,6 +246,7 @@
 | K22 | 10-12 | `GiftIdea.status` alanı (`ACTIVE`, `REJECTED`, `SELECTED`) eklendi | Reddedilen fikirleri fiziksel olarak silmeyip AI prompt'una negatif kısıt olarak beslemek |
 | K23 | 10-12 | Model olarak `gemini-3.8-flash` + `gemini-3.5-flash-lite` fallback kullanıldı | Güncel Google GenAI mimarisi ve yüksek talep (503) anlarında kesintisiz çalışma |
 | K24 | 10-12 | Admin Veto (`POST /ideas/:id/reject`) ve Demokrasi Vetosu ($downvotes > N/2$) ayrımı yapıldı | Grup yöneticisinin karar hakkı ile topluluk oylaması dengesi |
+| K25 | 10-12 | Bütçe üstü öneriler sunucu tarafında çöpe atılmaz; `is_over_budget: true` bayrağı ile işaretlenir | AI piyasa fiyatını tam bilmeyebilir veya grup bütçe artışını tolere edebilir; nihai karar gruba bırakılır |
 
 
 ---

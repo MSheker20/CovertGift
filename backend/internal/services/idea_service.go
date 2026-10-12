@@ -78,6 +78,8 @@ func (s *ideaService) AddManualIdea(groupID, userID uuid.UUID, title, descriptio
 		cleanQuery = title
 	}
 
+	isOverBudget := group.TotalBudget.GreaterThan(decimal.Zero) && price.GreaterThan(group.TotalBudget)
+
 	idea := &models.GiftIdea{
 		GroupID:        groupID,
 		Title:          title,
@@ -85,6 +87,7 @@ func (s *ideaService) AddManualIdea(groupID, userID uuid.UUID, title, descriptio
 		EstimatedPrice: price,
 		SourceType:     "MANUAL",
 		Status:         "ACTIVE",
+		IsOverBudget:   isOverBudget,
 		SearchQuery:    cleanQuery,
 		ProductURL:     productURL,
 		ImageURL:       imageURL,
@@ -309,15 +312,13 @@ func (s *ideaService) GenerateAIIdeas(ctx context.Context, groupID, currentUserI
 			continue
 		}
 
-		// Bütçe koruması: Bütçe pozitif bir değerse ve önerilen fiyat bütçeyi aşıyorsa atla
-		if group.TotalBudget.GreaterThan(decimal.Zero) && item.EstimatedPrice.GreaterThan(group.TotalBudget) {
-			continue
-		}
-
 		searchQuery := strings.TrimSpace(item.SearchQuery)
 		if searchQuery == "" {
 			searchQuery = title
 		}
+
+		// Bütçe aşımı kontrolü (Gruba karar hakkı tanımak için filtrelemiyoruz, sadece işaretliyoruz)
+		isOverBudget := group.TotalBudget.GreaterThan(decimal.Zero) && item.EstimatedPrice.GreaterThan(group.TotalBudget)
 
 		idea := models.GiftIdea{
 			GroupID:        groupID,
@@ -326,6 +327,7 @@ func (s *ideaService) GenerateAIIdeas(ctx context.Context, groupID, currentUserI
 			EstimatedPrice: item.EstimatedPrice,
 			SourceType:     "AI",
 			Status:         "ACTIVE",
+			IsOverBudget:   isOverBudget,
 			SearchQuery:    searchQuery,
 			CreatedBy:      currentUserID,
 		}
@@ -379,7 +381,7 @@ func (s *ideaService) buildAIPrompt(group *models.Group, existingTitles, rejecte
 	}
 
 	sb.WriteString("3. SIFIR KIRIK LİNK KURALI: Asla web sitesi linki veya URL üretme. Sadece Türkiye'deki pazaryerlerinde (Trendyol, Hepsiburada, Amazon TR) aratıldığında doğrudan ürünü çıkaracak temiz, spesifik 'search_query' kelimesi oluştur.\n")
-	sb.WriteString("4. FİYAT: Her hediyenin tahmini Türk Lirası fiyatını gerçekçi belirle ve toplam bütçeyi kesinlikle aşma.\n")
+	sb.WriteString("4. FİYAT VE BÜTÇE: Hediyelerin tahmini fiyatlarını gerçekçi belirle ve hedef bütçe civarında kalmaya özen göster. Ancak hedef kişiye çok iyi uyacağını düşündüğün özel veya kaliteli bir hediye bütçeyi bir miktar aşıyorsa da önerebilirsin (grup üyeleri bütçe artışını tolere edebilir).\n")
 	sb.WriteString("5. ADET: Hedef kişinin zevkine tam hitap eden 3 ile 5 adet arasında birbirinden farklı, orijinal öneri üret.")
 
 	return sb.String()
