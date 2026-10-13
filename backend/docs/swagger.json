@@ -1068,6 +1068,59 @@
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Oturum açmış kullanıcı kendi profilini, oluşturduğu grupları, hediye önerilerini ve oylarını kalıcı olarak siler.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Kimlik Doğrulama (Auth)"
+                ],
+                "summary": "Kendi Profilini ve Hesabını Sil",
+                "responses": {
+                    "200": {
+                        "description": "Hesap başarıyla silindi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış veya geçersiz token",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Kullanıcı bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
             }
         },
         "/health": {

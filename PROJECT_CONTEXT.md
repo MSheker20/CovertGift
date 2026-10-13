@@ -117,6 +117,8 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 ### Kimlik Doğrulama (Auth)
 - `POST /api/v1/auth/register` -> İstek: `{ name, email, password }` -> `201 Created`
 - `POST /api/v1/auth/login` -> İstek: `{ email, password }` -> `200 OK` + `{ token, user }`
+- `GET /api/v1/me` -> Giriş yapan kullanıcının kendi profilini döner (Bearer token ile)
+- `DELETE /api/v1/me` -> Giriş yapan kullanıcının kendi hesabını, oluşturduğu grupları, fikirleri ve oylarını siler (Cascade & atomik temizlik)
 
 ### Grup İşlemleri
 - `GET /api/v1/groups` -> Kullanıcının üye olduğu grupları listeler (hedef kişi olduğu gruplar filtrelenir)

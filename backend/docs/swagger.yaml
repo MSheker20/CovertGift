@@ -970,6 +970,38 @@ paths:
       tags:
       - Oylama & Veto (Voting & Veto)
   /api/v1/me:
+    delete:
+      description: Oturum açmış kullanıcı kendi profilini, oluşturduğu grupları, hediye
+        önerilerini ve oylarını kalıcı olarak siler.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Hesap başarıyla silindi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "401":
+          description: Oturum açılmamış veya geçersiz token
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Kullanıcı bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Kendi Profilini ve Hesabını Sil
+      tags:
+      - Kimlik Doğrulama (Auth)
     get:
       description: Authorization header'ında iletilen JWT token'a ait kullanıcının
         profil bilgilerini getirir.

@@ -9,6 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // Standart hata tanımları (Sentinel Errors)
@@ -31,6 +32,7 @@ type AuthService interface {
 	Login(email, password string) (*models.User, string, error)
 	GetUserByID(id uuid.UUID) (*models.User, error)
 	GenerateToken(user *models.User) (string, error)
+	DeleteUser(id uuid.UUID) error
 }
 
 type authService struct {
@@ -131,3 +133,16 @@ func (s *authService) GenerateToken(user *models.User) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(s.jwtSecret))
 }
+
+// DeleteUser kullanıcının hesabını ve tüm ilişkili verilerini siler
+func (s *authService) DeleteUser(id uuid.UUID) error {
+	err := s.userRepo.Delete(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+	return nil
+}
+

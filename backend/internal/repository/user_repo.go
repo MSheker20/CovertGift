@@ -13,6 +13,7 @@ type UserRepository interface {
 	Create(user *models.User) error
 	FindByEmail(email string) (*models.User, error)
 	FindByID(id uuid.UUID) (*models.User, error)
+	Delete(id uuid.UUID) error
 }
 
 // userRepository arayüzün GORM tabanlı somut (concrete) implementasyonudur
@@ -55,3 +56,77 @@ func (r *userRepository) FindByID(id uuid.UUID) (*models.User, error) {
 	}
 	return &user, nil
 }
+
+// Delete bir kullanıcıyı ve ona bağlı tüm ilişkili verileri atomik bir transaction ile siler
+func (r *userRepository) Delete(id uuid.UUID) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Kullanıcı var mı kontrol et
+		var user models.User
+		if err := tx.First(&user, "id = ?", id).Error; err != nil {
+			return err
+		}
+
+		// 2. Kullanıcının hedef kişi olduğu gruplarda target_user_id'yi NULL yap (sürpriz bozulmasın, ilişki kopsun)
+		if err := tx.Model(&models.Group{}).Where("target_user_id = ?", id).Update("target_user_id", nil).Error; err != nil {
+			return err
+		}
+
+		// 3. Kullanıcının verdiği tüm oyları sil
+		if err := tx.Where("user_id = ?", id).Delete(&models.Vote{}).Error; err != nil {
+			return err
+		}
+
+		// 4. Kullanıcının herhangi bir grupta önerdiği hediye fikirlerini ve oylarını sil
+		var userIdeaIDs []uuid.UUID
+		if err := tx.Model(&models.GiftIdea{}).Where("created_by = ?", id).Pluck("id", &userIdeaIDs).Error; err != nil {
+			return err
+		}
+		if len(userIdeaIDs) > 0 {
+			if err := tx.Where("gift_idea_id IN ?", userIdeaIDs).Delete(&models.Vote{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("id IN ?", userIdeaIDs).Delete(&models.GiftIdea{}).Error; err != nil {
+				return err
+			}
+		}
+
+		// 5. Kullanıcının oluşturduğu grupları, altındaki fikirleri, oyları ve üyelikleri sil
+		var groupIDs []uuid.UUID
+		if err := tx.Model(&models.Group{}).Where("creator_id = ?", id).Pluck("id", &groupIDs).Error; err != nil {
+			return err
+		}
+		if len(groupIDs) > 0 {
+			var groupIdeaIDs []uuid.UUID
+			if err := tx.Model(&models.GiftIdea{}).Where("group_id IN ?", groupIDs).Pluck("id", &groupIdeaIDs).Error; err != nil {
+				return err
+			}
+			if len(groupIdeaIDs) > 0 {
+				if err := tx.Where("gift_idea_id IN ?", groupIdeaIDs).Delete(&models.Vote{}).Error; err != nil {
+					return err
+				}
+				if err := tx.Where("id IN ?", groupIdeaIDs).Delete(&models.GiftIdea{}).Error; err != nil {
+					return err
+				}
+			}
+			if err := tx.Where("group_id IN ?", groupIDs).Delete(&models.GroupMember{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("id IN ?", groupIDs).Delete(&models.Group{}).Error; err != nil {
+				return err
+			}
+		}
+
+		// 6. Kullanıcının diğer gruplardaki üyeliklerini sil
+		if err := tx.Where("user_id = ?", id).Delete(&models.GroupMember{}).Error; err != nil {
+			return err
+		}
+
+		// 7. Kullanıcıyı sil
+		if err := tx.Delete(&user).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+

@@ -276,6 +276,7 @@
 | K28 | 10-12 | Amazon için `og:image` yerine `hiRes` ürün galerisi görseli alınır | `og:image` puan/yıldız basılmış sosyal medya kartı olduğu için gerçek ürün fotoğrafı değildir |
 | K29 | 10-12 | Önizleme hatalarında HTTP 500 dönülmez, `partial: true` ile 200 dönülür | Frontend'in çökmesini engellemek ve kullanıcının formu elle doldurmasına izin vermek |
 | K30 | 10-13 | Swagger/OpenAPI dokümantasyonu kod içi bildirimlerle (`swaggo/swag`) üretilir ve `/swagger/index.html` üzerinden sunulur | Kod ve dokümantasyon senkronizasyonunu sağlamak, API sözleşmesini canlı interaktif arayüzle test edilebilir kılmak |
+| K31 | 10-13 | Kullanıcı hesap silme (`DELETE /api/v1/me`) atomik transaction ile bağlı verileri (oylar, oluşturulan gruplar, fikirler) temizler | Veritabanı tutarlılığı sağlamak, sahipsiz grup kalmasını önlemek ve KVKK/GDPR uyumlu hesap kapatma sunmak |
 
 
 ---
@@ -311,3 +312,27 @@
 - Gin üzerinde `/swagger/*any` rotası ile Swagger UI bağlandı; `/swagger` ve `/docs` için kalıcı 301 yönlendirmesi eklendi.
 - `scripts/demo_presentation.sh` ve `README.md` dosyalarına Swagger UI bağlantıları eklendi.
 - Tüm birim testleri başarıyla geçti (`go test -v ./...`), canlıda `http://localhost:8080/swagger/index.html` üzerinden 200 OK ile doğrulandı.
+
+---
+
+## 2026-10-13 — Kullanıcı Profil & Hesap Silme Özelliği (`DELETE /api/v1/me`) 👤❌
+
+**Gerekçe**
+- Kullanıcıların kendi profillerini kalıcı olarak silebilmesi (KVKK / GDPR "unutulma hakkı" ve hesap kapatma) talep edildi.
+- Bir kullanıcının silinmesi durumunda sahipsiz grup kalmaması, yabancı anahtar (foreign key `RESTRICT`) kısıtlarına takılınmaması ve hedef kişi olduğu sürpriz grupların bozulmaması için çok katmanlı atomik temizlik kurgulandı.
+
+**Yapılanlar**
+- `repository.UserRepository`: `Delete(id uuid.UUID) error` metodu eklendi.
+  - GORM `Transaction` içinde:
+    1. Kullanıcının sürpriz hedefi olduğu gruplarda `target_user_id = NULL` yapılır.
+    2. Kullanıcının verdiği tüm oylar (`votes`) silinir.
+    3. Kullanıcının önerdiği tüm fikirler (`gift_ideas`) ve üzerindeki oylar silinir.
+    4. Kullanıcının kurucusu olduğu gruplar (`groups`), bağlı tüm fikirler, oylar ve üyelikler silinir.
+    5. Kullanıcının diğer gruplardaki üyelikleri (`group_members`) silinir.
+    6. `users` tablosundan kullanıcı kaydı silinir.
+- `services.AuthService`: `DeleteUser(id uuid.UUID) error` metodu tanımlandı ve implemente edildi.
+- `controllers.AuthController`: `DeleteMe(c *gin.Context)` fonksiyonu eklendi; Swagger bildirimleri yazıldı.
+- `main.go`: `protected.DELETE("/me", authController.DeleteMe)` rotası kaydedildi.
+- `swag init` ile Swagger dokümantasyonu güncellendi (`DELETE /api/v1/me`).
+- Canlıda test edildi: Kullanıcı kaydoldu ➔ grup açtı ➔ profilini sildi (200 OK) ➔ tekrar `/me` sorguladığında `404 Not Found`, giriş yapmayı denediğinde `401 Unauthorized` aldığı doğrulandı.
+

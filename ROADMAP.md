@@ -53,7 +53,8 @@ flowchart LR
 - [x] `POST /api/v1/auth/register` → 201 (e-posta çakışmasında 409)
 - [x] `POST /api/v1/auth/login` → `{ token, user }` (şifre hash'i asla dönmez)
 - [x] `middleware/auth.go` → `Authorization: Bearer` doğrula, `userID` context'e yaz
-- [x] `GET /api/v1/me` (opsiyonel, frontend için faydalı)
+- [x] `GET /api/v1/me` (kullanıcı profil detayı)
+- [x] `DELETE /api/v1/me` (kullanıcının kendi hesabını, oluşturduğu grupları ve verilerini silmesi)
 
 **✅ Kabul:** Kayıt → giriş → token ile korumalı endpoint 200; tokensız 401 (Doğrulandı ✅).
 

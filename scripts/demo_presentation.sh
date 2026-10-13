@@ -391,5 +391,6 @@ echo -e "  • ${GREEN}POST /api/v1/groups/:id/ideas${RESET} (Manuel hediye ekle
 echo -e "  • ${GREEN}POST /api/v1/groups/:id/ideas/generate-ai${RESET} (Gemini 3.8 Flash Structured JSON)"
 echo -e "  • ${GREEN}POST /api/v1/ideas/:id/vote${RESET} (Upsert oylama & Demokrasi Vetosu)"
 echo -e "  • ${GREEN}POST /api/v1/ideas/:id/reject${RESET} (Admin doğrudan veto)"
+echo -e "  • ${GREEN}DELETE /api/v1/me${RESET} (Kullanıcı hesap ve profil silme / KVKK)"
 echo -e "  • ${GREEN}GET  /swagger/index.html${RESET} (İnteraktif Swagger UI & OpenAPI 2.0 Dokümantasyonu)"
 echo -e "${MAGENTA}==============================================================================${RESET}\n"

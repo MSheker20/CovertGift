@@ -140,3 +140,40 @@ func (ctl *AuthController) Me(c *gin.Context) {
 
 	RespondOK(c, user)
 }
+
+// DeleteMe oturum açmış kullanıcının kendi profilini ve hesabını siler
+// @Summary      Kendi Profilini ve Hesabını Sil
+// @Description  Oturum açmış kullanıcı kendi profilini, oluşturduğu grupları, hediye önerilerini ve oylarını kalıcı olarak siler.
+// @Tags         Kimlik Doğrulama (Auth)
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} Response{data=MessageData} "Hesap başarıyla silindi"
+// @Failure      401 {object} Response "Oturum açılmamış veya geçersiz token"
+// @Failure      404 {object} Response "Kullanıcı bulunamadı"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/me [delete]
+func (ctl *AuthController) DeleteMe(c *gin.Context) {
+	val, exists := c.Get("userID")
+	if !exists {
+		RespondErr(c, http.StatusUnauthorized, "Oturum bilgisi bulunamadı")
+		return
+	}
+
+	userID, ok := val.(uuid.UUID)
+	if !ok {
+		RespondErr(c, http.StatusInternalServerError, "Geçersiz kullanıcı kimliği")
+		return
+	}
+
+	if err := ctl.authService.DeleteUser(userID); err != nil {
+		if errors.Is(err, services.ErrUserNotFound) {
+			RespondErr(c, http.StatusNotFound, err.Error())
+			return
+		}
+		RespondErr(c, http.StatusInternalServerError, "Hesap silinirken bir hata oluştu: "+err.Error())
+		return
+	}
+
+	RespondOK(c, MessageData{Message: "Hesabınız ve ilişkili tüm verileriniz başarıyla silindi"})
+}
+

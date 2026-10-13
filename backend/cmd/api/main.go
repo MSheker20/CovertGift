@@ -131,6 +131,7 @@ func main() {
 		protected.Use(middleware.Auth(cfg.JWTSecret))
 		{
 			protected.GET("/me", authController.Me)
+			protected.DELETE("/me", authController.DeleteMe)
 
 			// Genel Grup İşlemleri
 			protected.POST("/groups", groupController.CreateGroup)
