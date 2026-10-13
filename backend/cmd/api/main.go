@@ -142,6 +142,7 @@ func main() {
 			groupSpecific.Use(middleware.GroupAccess(groupRepo))
 			{
 				groupSpecific.GET("", groupController.GetGroupDetail)
+				groupSpecific.DELETE("", groupController.DeleteGroup)
 				groupSpecific.POST("/members", groupController.AddMember)
 
 				// Hediye Havuzu Rotaları

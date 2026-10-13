@@ -17,6 +17,7 @@ type GroupRepository interface {
 	GetMemberCount(groupID uuid.UUID) (int64, error)
 	GetMembers(groupID uuid.UUID) ([]models.GroupMember, error)
 	AddMember(member *models.GroupMember) error
+	DeleteGroup(groupID uuid.UUID) error
 }
 
 type groupRepository struct {
@@ -112,3 +113,42 @@ func (r *groupRepository) GetMembers(groupID uuid.UUID) ([]models.GroupMember, e
 func (r *groupRepository) AddMember(member *models.GroupMember) error {
 	return r.db.Create(member).Error
 }
+
+// DeleteGroup grubu ve ona bağlı tüm fikirleri, oyları ve üyelikleri atomik bir transaction ile siler
+func (r *groupRepository) DeleteGroup(groupID uuid.UUID) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Gruba ait hediye fikirlerinin ID'lerini topla
+		var ideaIDs []uuid.UUID
+		if err := tx.Model(&models.GiftIdea{}).Where("group_id = ?", groupID).Pluck("id", &ideaIDs).Error; err != nil {
+			return err
+		}
+
+		// 2. Fikirlere ait tüm oyları sil
+		if len(ideaIDs) > 0 {
+			if err := tx.Where("gift_idea_id IN ?", ideaIDs).Delete(&models.Vote{}).Error; err != nil {
+				return err
+			}
+			// 3. Fikirleri sil
+			if err := tx.Where("id IN ?", ideaIDs).Delete(&models.GiftIdea{}).Error; err != nil {
+				return err
+			}
+		}
+
+		// 4. Grubun üyelerini sil
+		if err := tx.Where("group_id = ?", groupID).Delete(&models.GroupMember{}).Error; err != nil {
+			return err
+		}
+
+		// 5. Grubu sil
+		res := tx.Where("id = ?", groupID).Delete(&models.Group{})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+
+		return nil
+	})
+}
+

@@ -492,6 +492,53 @@ paths:
       tags:
       - Hediye Grupları (Groups)
   /api/v1/groups/{id}:
+    delete:
+      description: Grubu, gruptaki hediye önerilerini, oyları ve üyelikleri kalıcı
+        olarak siler. Sadece grup kurucusu / yöneticisi (admin) silebilir.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Grup başarıyla silindi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "400":
+          description: Geçersiz grup kimliği
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Bu grubu silme yetkiniz yok (sadece admin silebilir) veya Anti-Spoiler
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Hediye Grubunu Sil
+      tags:
+      - Hediye Grupları (Groups)
     get:
       description: Grup detayını, aktif üye listesini, toplam bütçeyi ve anlık hesaplanan
         kişi başı bütçeyi getirir. Hedef kişi bu uç noktaya erişmeye çalışırsa 403

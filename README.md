@@ -17,7 +17,7 @@ Arkadaş gruplarının **ortak hediye** organize ettiği, bütçeyi birleştirdi
 | **Faz 0 — Proje iskeleti** | ✅ Tamamlandı (`/health` 200 OK) |
 | **Faz 1 — Veritabanı Modelleri** | ✅ Tamamlandı (AutoMigrate 5 tablo aktif) |
 | **Faz 2 — Kimlik Doğrulama (Auth)** | ✅ Tamamlandı (JWT, bcrypt, `GET /me`, `DELETE /me` profil silme) |
-| **Faz 3 — Gruplar & Anti-Spoiler** | ✅ Tamamlandı (Dinamik bütçe, 403 kalkanı) |
+| **Faz 3 — Gruplar & Anti-Spoiler** | ✅ Tamamlandı (Dinamik bütçe, 403 kalkanı, `DELETE /groups/:id` grup silme) |
 | **Faz 4 — Hediye Havuzu & Oylama** | ✅ Tamamlandı (Upsert oylama, yetkili silme) |
 | **Faz 5 — Link Önizleme** | ✅ Tamamlandı (`pkg/linkpreview`, Trendyol, Amazon TR, Hepsiburada, SSRF Kalkanı) |
 | **Faz 6 — Gemini AI Hediye Önerileri** | ✅ Tamamlandı (Gemini 3.8 Flash, Admin Veto, Demokrasi Vetosu) |

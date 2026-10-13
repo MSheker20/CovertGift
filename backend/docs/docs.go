@@ -345,6 +345,81 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Grubu, gruptaki hediye önerilerini, oyları ve üyelikleri kalıcı olarak siler. Sadece grup kurucusu / yöneticisi (admin) silebilir.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hediye Grupları (Groups)"
+                ],
+                "summary": "Hediye Grubunu Sil",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Grup başarıyla silindi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz grup kimliği",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Bu grubu silme yetkiniz yok (sadece admin silebilir) veya Anti-Spoiler",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
             }
         },
         "/api/v1/groups/{id}/ideas": {

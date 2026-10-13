@@ -277,6 +277,7 @@
 | K29 | 10-12 | Önizleme hatalarında HTTP 500 dönülmez, `partial: true` ile 200 dönülür | Frontend'in çökmesini engellemek ve kullanıcının formu elle doldurmasına izin vermek |
 | K30 | 10-13 | Swagger/OpenAPI dokümantasyonu kod içi bildirimlerle (`swaggo/swag`) üretilir ve `/swagger/index.html` üzerinden sunulur | Kod ve dokümantasyon senkronizasyonunu sağlamak, API sözleşmesini canlı interaktif arayüzle test edilebilir kılmak |
 | K31 | 10-13 | Kullanıcı hesap silme (`DELETE /api/v1/me`) atomik transaction ile bağlı verileri (oylar, oluşturulan gruplar, fikirler) temizler | Veritabanı tutarlılığı sağlamak, sahipsiz grup kalmasını önlemek ve KVKK/GDPR uyumlu hesap kapatma sunmak |
+| K32 | 10-13 | Grup silme (`DELETE /api/v1/groups/:id`) sadece grup yöneticisine (admin) aittir; bağlı tüm fikirler, oylar ve üyelikler atomik transaction ile temizlenir | Sahipsiz kayıt kalmasını önlemek ve grup kapatma/iptal hakkını kurucuya vermek |
 
 
 ---
@@ -335,4 +336,29 @@
 - `main.go`: `protected.DELETE("/me", authController.DeleteMe)` rotası kaydedildi.
 - `swag init` ile Swagger dokümantasyonu güncellendi (`DELETE /api/v1/me`).
 - Canlıda test edildi: Kullanıcı kaydoldu ➔ grup açtı ➔ profilini sildi (200 OK) ➔ tekrar `/me` sorguladığında `404 Not Found`, giriş yapmayı denediğinde `401 Unauthorized` aldığı doğrulandı.
+
+---
+
+## 2026-10-13 — Hediye Grubu Silme Özelliği (`DELETE /api/v1/groups/:id`) 👥❌
+
+**Gerekçe**
+- Grup yöneticisinin (kurucusunun) organizasyondan vazgeçmesi, kutlamanın tamamlanması veya grubun iptal edilmesi durumunda grubu ve bağlı tüm verileri sistemden silebilmesi talep edildi.
+- Anti-Spoiler ve Rol Güvenliği (RBAC): Sadece `admin` rolüne sahip grup kurucusu grubu silebilir. Normal üyeler veya hedef kişi silme isteği atarsa `403 Forbidden` ile engellenir.
+
+**Yapılanlar**
+- `repository.GroupRepository`: `DeleteGroup(groupID uuid.UUID) error` metodu eklendi.
+  - GORM `Transaction` içinde:
+    1. Gruba ait hediye fikirlerinin ID'leri toplanır.
+    2. Fikirlere verilen tüm oylar (`votes`) silinir.
+    3. Fikirler (`gift_ideas`) silinir.
+    4. Grubun üyeleri (`group_members`) silinir.
+    5. `groups` tablosundan grup kaydı silinir.
+- `services.GroupService`: `DeleteGroup(groupID, userID uuid.UUID) error` metodu eklendi.
+  - Anti-Spoiler denetimi: Hedef kişi grubu silemez (`403 Forbidden`).
+  - Rol denetimi: İstek atan kullanıcı grupta `admin` değilse işlem engellenir (`403 Forbidden`).
+- `controllers.GroupController`: `DeleteGroup(c *gin.Context)` handler'ı ve Swagger açıklamaları yazıldı.
+- `main.go`: `groupSpecific.DELETE("", groupController.DeleteGroup)` rotası bağlandı (`GroupAccess` middleware'i altında).
+- `swag init` ile Swagger şeması güncellendi (`DELETE /api/v1/groups/{id}`).
+- Canlıda test edildi: Normal üye silmeyi denedi ➔ `403 Forbidden`; Hedef kişi denedi ➔ `403 Forbidden`; Admin sildi ➔ `200 OK`; ardından gruba erişilmeye çalışıldığında `404 Not Found` alındı.
+
 

@@ -228,6 +228,59 @@ func (ctl *GroupController) AddMember(c *gin.Context) {
 	RespondCreated(c, member)
 }
 
+// DeleteGroup grubu ve tüm ilişkili verilerini siler
+// @Summary      Hediye Grubunu Sil
+// @Description  Grubu, gruptaki hediye önerilerini, oyları ve üyelikleri kalıcı olarak siler. Sadece grup kurucusu / yöneticisi (admin) silebilir.
+// @Tags         Hediye Grupları (Groups)
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Success      200 {object} Response{data=MessageData} "Grup başarıyla silindi"
+// @Failure      400 {object} Response "Geçersiz grup kimliği"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Bu grubu silme yetkiniz yok (sadece admin silebilir) veya Anti-Spoiler"
+// @Failure      404 {object} Response "Grup bulunamadı"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/groups/{id} [delete]
+func (ctl *GroupController) DeleteGroup(c *gin.Context) {
+	groupIDStr := c.Param("id")
+	groupID, err := uuid.Parse(groupIDStr)
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+		return
+	}
+
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+
+	err = ctl.groupService.DeleteGroup(groupID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrAntiSpoilerTriggered) {
+			RespondErr(c, http.StatusForbidden, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrNotGroupMember) {
+			RespondErr(c, http.StatusForbidden, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrUnauthorizedGroupDelete) {
+			RespondErr(c, http.StatusForbidden, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrGroupNotFound) {
+			RespondErr(c, http.StatusNotFound, err.Error())
+			return
+		}
+		RespondErr(c, http.StatusInternalServerError, "Grup silinirken bir hata oluştu: "+err.Error())
+		return
+	}
+
+	RespondOK(c, MessageData{Message: "Grup ve ilişkili tüm veriler başarıyla silindi"})
+}
+
 // getUserID Gin Context'ten oturum açmış kullanıcının UUID'sini güvenle döndürür
 func getUserID(c *gin.Context) (uuid.UUID, bool) {
 	val, exists := c.Get("userID")

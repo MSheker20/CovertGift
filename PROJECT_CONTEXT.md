@@ -125,6 +125,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `POST /api/v1/groups` -> Yeni grup açar (oluşturan kişi `admin` üye yapılır)
 - `GET /api/v1/groups/:id` -> Grup detayları, üye sayısı, kişi başı bütçe (Anti-Spoiler korumalı)
 - `POST /api/v1/groups/:id/members` -> Gruba e-posta ile üye ekler
+- `DELETE /api/v1/groups/:id` -> Grubu ve bağlı tüm verileri siler (Sadece grup admini silebilir; Anti-Spoiler korumalı)
 
 ### Hediye Havuzu ve Oylama
 - `GET /api/v1/groups/:id/ideas` -> Hediyeleri toplam oy skoruyla birlikte çeker (`SUM(votes.vote_type)`)

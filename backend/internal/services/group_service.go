@@ -17,6 +17,7 @@ var (
 	ErrCannotAddTargetAsMember = errors.New("hediye alınacak hedef kişi gruba üye eklenemez")
 	ErrAlreadyGroupMember      = errors.New("bu kullanıcı zaten grubun üyesidir")
 	ErrSelfTarget              = errors.New("kendiniz için sürpriz hediye grubu oluşturamazsınız")
+	ErrUnauthorizedGroupDelete = errors.New("bu grubu sadece grup yöneticisi (admin) silebilir")
 )
 
 // GroupDetailResponse grup detay uç noktasının döneceği zenginleştirilmiş veri yapısıdır
@@ -34,6 +35,7 @@ type GroupService interface {
 	GetUserGroups(userID uuid.UUID) ([]models.Group, error)
 	GetGroupDetail(groupID, userID uuid.UUID) (*GroupDetailResponse, error)
 	AddMemberByEmail(groupID, currentUserID uuid.UUID, email string) (*models.GroupMember, error)
+	DeleteGroup(groupID, userID uuid.UUID) error
 }
 
 type groupService struct {
@@ -186,3 +188,37 @@ func (s *groupService) AddMemberByEmail(groupID, currentUserID uuid.UUID, email 
 	newMember.User = *targetUser
 	return newMember, nil
 }
+
+// DeleteGroup grubu ve tüm ilişkili verilerini siler (sadece grup kurucusu / admin üye silebilir)
+func (s *groupService) DeleteGroup(groupID, userID uuid.UUID) error {
+	// 1. Grubu getir
+	group, err := s.groupRepo.GetGroupByID(groupID)
+	if err != nil {
+		return err
+	}
+	if group == nil {
+		return ErrGroupNotFound
+	}
+
+	// 2. Anti-Spoiler: Hedef kişi grubu silemez
+	if group.TargetUserID != nil && *group.TargetUserID == userID {
+		return ErrAntiSpoilerTriggered
+	}
+
+	// 3. Yetki kontrolü: İstek atan kullanıcı grupta mı ve admin rolünde mi (veya Creator mı)?
+	member, err := s.groupRepo.GetMember(groupID, userID)
+	if err != nil {
+		return err
+	}
+	if member == nil {
+		return ErrNotGroupMember
+	}
+
+	if member.Role != "admin" && group.CreatorID != userID {
+		return ErrUnauthorizedGroupDelete
+	}
+
+	// 4. Grubu sil
+	return s.groupRepo.DeleteGroup(groupID)
+}
+
