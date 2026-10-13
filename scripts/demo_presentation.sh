@@ -393,5 +393,6 @@ echo -e "  • ${GREEN}POST /api/v1/ideas/:id/vote${RESET} (Upsert oylama & Demo
 echo -e "  • ${GREEN}POST /api/v1/ideas/:id/reject${RESET} (Admin doğrudan veto)"
 echo -e "  • ${GREEN}DELETE /api/v1/me${RESET} (Kullanıcı hesap ve profil silme / KVKK)"
 echo -e "  • ${GREEN}DELETE /api/v1/groups/:id${RESET} (Grup ve tüm ilişkili verilerin silinmesi / Admin)"
+echo -e "  • ${GREEN}POST /api/v1/dev/reset-db${RESET} (Swagger'dan tek tıkla DB sıfırlama butonu)"
 echo -e "  • ${GREEN}GET  /swagger/index.html${RESET} (İnteraktif Swagger UI & OpenAPI 2.0 Dokümantasyonu)"
 echo -e "${MAGENTA}==============================================================================${RESET}\n"

@@ -278,6 +278,7 @@
 | K30 | 10-13 | Swagger/OpenAPI dokümantasyonu kod içi bildirimlerle (`swaggo/swag`) üretilir ve `/swagger/index.html` üzerinden sunulur | Kod ve dokümantasyon senkronizasyonunu sağlamak, API sözleşmesini canlı interaktif arayüzle test edilebilir kılmak |
 | K31 | 10-13 | Kullanıcı hesap silme (`DELETE /api/v1/me`) atomik transaction ile bağlı verileri (oylar, oluşturulan gruplar, fikirler) temizler | Veritabanı tutarlılığı sağlamak, sahipsiz grup kalmasını önlemek ve KVKK/GDPR uyumlu hesap kapatma sunmak |
 | K32 | 10-13 | Grup silme (`DELETE /api/v1/groups/:id`) sadece grup yöneticisine (admin) aittir; bağlı tüm fikirler, oylar ve üyelikler atomik transaction ile temizlenir | Sahipsiz kayıt kalmasını önlemek ve grup kapatma/iptal hakkını kurucuya vermek |
+| K33 | 10-13 | Test ve sunum amaçlı veritabanı sıfırlama (`POST /api/v1/dev/reset-db`) Swagger'a eklendi; `APP_ENV=production` ise devre dışıdır | Canlı sunumlarda ve otomatik testlerde veritabanını tek tıkla fabrika ayarlarına döndürebilmek |
 
 
 ---
@@ -360,5 +361,21 @@
 - `main.go`: `groupSpecific.DELETE("", groupController.DeleteGroup)` rotası bağlandı (`GroupAccess` middleware'i altında).
 - `swag init` ile Swagger şeması güncellendi (`DELETE /api/v1/groups/{id}`).
 - Canlıda test edildi: Normal üye silmeyi denedi ➔ `403 Forbidden`; Hedef kişi denedi ➔ `403 Forbidden`; Admin sildi ➔ `200 OK`; ardından gruba erişilmeye çalışıldığında `404 Not Found` alındı.
+
+---
+
+## 2026-10-13 — Veritabanı Sıfırlama Butonu & Endpoint'i (`POST /api/v1/dev/reset-db`) 🔄💥
+
+**Gerekçe**
+- Swagger arayüzü ve demo sunumlarında test yaparken veritabanında kalan eski kayıtları (kullanıcılar, gruplar vb.) tek tek elle silmek yerine tek tıkla veritabanını fabrika ayarlarına döndürecek bir geliştirici butonu talep edildi.
+- Güvenlik: Canlı üretim (`APP_ENV=production`) ortamında yanlışlıkla çalıştırılmasını engellemek için `403 Forbidden` koruması eklendi.
+
+**Yapılanlar**
+- `backend/internal/config`: `AppEnv` (`development`, `production`) alanı eklendi.
+- `backend/internal/controllers/dev_controller.go`: `DevController` oluşturuldu. `ResetDB` metodu tek bir atomik transaction içinde `TRUNCATE TABLE votes, gift_ideas, group_members, groups, users RESTART IDENTITY CASCADE;` komutunu çalıştırır.
+- `main.go`: `POST /api/v1/dev/reset-db` rotası bağlandı.
+- `swag init` ile Swagger dokümantasyonuna **"Sistem & Test"** başlığı altında tek tıkla çalışan buton olarak eklendi.
+- Canlıda test edildi: `curl -X POST http://localhost:8080/api/v1/dev/reset-db` çağrıldığında `200 OK` dönüp tüm tabloların milisaniyeler içinde sıfırlandığı doğrulandı.
+
 
 

@@ -15,6 +15,7 @@ type Config struct {
 	GeminiKey   string
 	GeminiModel string
 	CORSOrigin  string
+	AppEnv      string
 }
 
 // Load .env dosyasını okur ve Config yapısını doldurur
@@ -31,6 +32,7 @@ func Load() *Config {
 		GeminiKey:   os.Getenv("GEMINI_API_KEY"),
 		GeminiModel: getEnv("GEMINI_MODEL", "gemini-3.8-flash"),
 		CORSOrigin:  getEnv("CORS_ORIGIN", "http://localhost:5173"),
+		AppEnv:      getEnv("APP_ENV", "development"),
 	}
 
 	// Kritik değişkenler yoksa sistemi hiç başlatma (Fail-Fast)

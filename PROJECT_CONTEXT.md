@@ -136,6 +136,9 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `POST /api/v1/ideas/:id/reject` -> Grup admini doğrudan hediye fikrini veto eder (`status = REJECTED`)
 - `DELETE /api/v1/ideas/:id` -> Hediyeyi kaldırır (Sadece öneren kişi veya grup admini silebilir)
 
+### Sistem & Test
+- `POST /api/v1/dev/reset-db` -> Test ve sunum ortamında tüm tabloları TRUNCATE CASCADE ile sıfırlar (Production ortamında güvenlik için devre dışıdır)
+
 ---
 
 ## 6. Kodlama ve Mimari Standartlar

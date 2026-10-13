@@ -417,6 +417,34 @@ paths:
       summary: Yeni Kullanıcı Kaydı
       tags:
       - Kimlik Doğrulama (Auth)
+  /api/v1/dev/reset-db:
+    post:
+      description: Test, geliştirme ve canlı sunum ortamında tüm tabloları (users,
+        groups, group_members, gift_ideas, votes) sıfırlar (TRUNCATE CASCADE) ve veritabanını
+        fabrika ayarlarına temiz olarak döndürür.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Veritabanı başarıyla sıfırlandı
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "403":
+          description: Üretim (Production) ortamında bu işlem yapılamaz
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Veritabanı sıfırlanırken hata oluştu
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      summary: Veritabanını Sıfırla (Reset Database)
+      tags:
+      - Sistem & Test
   /api/v1/groups:
     get:
       description: Giriş yapmış kullanıcının üye olduğu grupları listeler. Anti-Spoiler

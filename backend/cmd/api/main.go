@@ -100,6 +100,7 @@ func main() {
 	authController := controllers.NewAuthController(authService)
 	groupController := controllers.NewGroupController(groupService)
 	ideaController := controllers.NewIdeaController(ideaService)
+	devController := controllers.NewDevController(db, cfg.AppEnv)
 
 	// 6. Gin web motorunu başlat
 	r := gin.Default()
@@ -119,6 +120,9 @@ func main() {
 	// 8. API v1 Rotaları
 	apiV1 := r.Group("/api/v1")
 	{
+		// Geliştirici & Test Yardımcı Rotaları
+		apiV1.POST("/dev/reset-db", devController.ResetDB)
+
 		// Açık Rotalar (Kimlik Doğrulama)
 		authRoutes := apiV1.Group("/auth")
 		{

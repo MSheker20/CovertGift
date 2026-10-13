@@ -144,6 +144,7 @@ flowchart LR
 
 ## Faz 8 — Test, Güvenlik ve Cila 🧪
 - [x] Swagger / OpenAPI 2.0 canlı dokümantasyonu (`swaggo/swag`, `/swagger/index.html`, `/docs`)
+- [x] Veritabanı tek tıkla sıfırlama endpoint'i ve Swagger butonu (`POST /api/v1/dev/reset-db`)
 - [ ] Backend entegrasyon testleri (özellikle Anti-Spoiler senaryoları)
 - [ ] CORS ayarları, istek boyutu limitleri, input validasyonu (`binding:"required,email"` vb.)
 - [ ] Hata loglama (yapılandırılmış log)
