@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/MSheker20/CovertGift/backend/internal/models"
 	"github.com/MSheker20/CovertGift/backend/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -17,18 +18,37 @@ func NewAuthController(authService services.AuthService) *AuthController {
 	return &AuthController{authService: authService}
 }
 
+// RegisterRequest kullanıcı kaydı için DTO
 type RegisterRequest struct {
-	Name     string `json:"name" binding:"required,min=2,max=100"`
-	Email    string `json:"email" binding:"required,email,max=150"`
-	Password string `json:"password" binding:"required,min=6,max=100"`
+	Name     string `json:"name" binding:"required,min=2,max=100" example:"Can Yılmaz"`
+	Email    string `json:"email" binding:"required,email,max=150" example:"can@demo.com"`
+	Password string `json:"password" binding:"required,min=6,max=100" example:"Password123!"`
 }
 
+// LoginRequest kullanıcı girişi için DTO
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email    string `json:"email" binding:"required,email" example:"can@demo.com"`
+	Password string `json:"password" binding:"required" example:"Password123!"`
 }
 
-// Register yeni kullanıcı kaydı oluşturur (POST /api/v1/auth/register)
+// LoginResponse kullanıcı girişi sonucunda dönen veri yapısıdır
+type LoginResponse struct {
+	Token string      `json:"token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	User  models.User `json:"user"`
+}
+
+// Register yeni kullanıcı kaydı oluşturur
+// @Summary      Yeni Kullanıcı Kaydı
+// @Description  E-posta, şifre ve isim ile sisteme yeni bir kullanıcı hesabı kaydeder. Şifre bcrypt ile hashlenir.
+// @Tags         Kimlik Doğrulama (Auth)
+// @Accept       json
+// @Produce      json
+// @Param        request body RegisterRequest true "Kullanıcı Kayıt Bilgileri"
+// @Success      201 {object} Response{data=models.User} "Kullanıcı başarıyla oluşturuldu"
+// @Failure      400 {object} Response "Geçersiz istek parametreleri"
+// @Failure      409 {object} Response "Bu e-posta adresi zaten kullanımda"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/auth/register [post]
 func (ctl *AuthController) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -49,7 +69,18 @@ func (ctl *AuthController) Register(c *gin.Context) {
 	RespondCreated(c, user)
 }
 
-// Login kullanıcı girişi yapar ve JWT döner (POST /api/v1/auth/login)
+// Login kullanıcı girişi yapar ve JWT döner
+// @Summary      Kullanıcı Girişi (JWT Üretimi)
+// @Description  E-posta ve şifre doğrulaması yaparak 24 saat geçerli JWT Bearer token ve kullanıcı profilini döner.
+// @Tags         Kimlik Doğrulama (Auth)
+// @Accept       json
+// @Produce      json
+// @Param        request body LoginRequest true "Giriş Bilgileri"
+// @Success      200 {object} Response{data=LoginResponse} "Giriş başarılı, JWT token üretildi"
+// @Failure      400 {object} Response "Geçersiz istek formatı"
+// @Failure      401 {object} Response "Geçersiz e-posta veya şifre"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/auth/login [post]
 func (ctl *AuthController) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -67,13 +98,23 @@ func (ctl *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	RespondOK(c, gin.H{
-		"token": token,
-		"user":  user,
+	RespondOK(c, LoginResponse{
+		Token: token,
+		User:  *user,
 	})
 }
 
-// Me oturum açmış kullanıcının profilini döner (GET /api/v1/me)
+// Me oturum açmış kullanıcının profilini döner
+// @Summary      Mevcut Kullanıcı Profili
+// @Description  Authorization header'ında iletilen JWT token'a ait kullanıcının profil bilgilerini getirir.
+// @Tags         Kimlik Doğrulama (Auth)
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} Response{data=models.User} "Kullanıcı profil bilgileri"
+// @Failure      401 {object} Response "Oturum açılmamış veya geçersiz token"
+// @Failure      404 {object} Response "Kullanıcı bulunamadı"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/me [get]
 func (ctl *AuthController) Me(c *gin.Context) {
 	val, exists := c.Get("userID")
 	if !exists {

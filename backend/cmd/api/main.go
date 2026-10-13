@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 	"time"
@@ -15,7 +16,30 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	_ "github.com/MSheker20/CovertGift/backend/docs"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
+
+// @title           CovertGift API
+// @version         1.0
+// @description     Arkadaş gruplarının ortak hediye organize ettiği, bütçeyi birleştirdiği, Gemini 3 Flash ile yapay zekâ destekli semantik hediye önerileri aldığı, önerileri oyladığı (+1 / -1) ve hediye alınacak kişiden süreci gizlediği (Anti-Spoiler) işbirlikçi web platformu REST API.
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name    CovertGift Geliştirici Ekibi
+// @contact.url     https://github.com/MSheker20/CovertGift
+
+// @license.name    MIT
+// @license.url     https://opensource.org/licenses/MIT
+
+// @host            localhost:8080
+// @BasePath        /
+
+// @securityDefinitions.apikey BearerAuth
+// @in              header
+// @name            Authorization
+// @description     JWT Bearer token formatı: "Bearer {token}". Örnek: "Bearer eyJhbGciOiJIUzI1Ni..."
 
 func main() {
 	// 1. Ortam ayarlarını yükle (.env)
@@ -81,17 +105,16 @@ func main() {
 	r := gin.Default()
 
 	// 7. Sağlık Kontrolü (Healthcheck) Endpoint'i
-	r.GET("/health", func(c *gin.Context) {
-		if sqlDB.Ping() != nil {
-			controllers.RespondErr(c, http.StatusServiceUnavailable, "veritabanı erişilemez")
-			return
-		}
+	r.GET("/health", healthHandler(sqlDB))
 
-		controllers.RespondOK(c, gin.H{
-			"status": "ok",
-			"db":     "up",
-		})
+	// Swagger Dokümantasyon UI Rotası
+	r.GET("/swagger", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
 	})
+	r.GET("/docs", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
+	})
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// 8. API v1 Rotaları
 	apiV1 := r.Group("/api/v1")
@@ -141,5 +164,33 @@ func main() {
 	log.Printf("🚀 CovertGift API :%s portunda çalışıyor", cfg.Port)
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("❌ Sunucu başlatılamadı: %v", err)
+	}
+}
+
+// HealthResponse sağlık kontrolü yanıt verisi
+type HealthResponse struct {
+	DB     string `json:"db" example:"up"`
+	Status string `json:"status" example:"ok"`
+}
+
+// healthHandler sistem sağlık kontrolü handler'ı
+// @Summary      Sistem ve Veritabanı Sağlık Kontrolü
+// @Description  API sunucusunun ve PostgreSQL veritabanı bağlantı havuzunun durumunu kontrol eder.
+// @Tags         Sistem & Sağlık
+// @Produce      json
+// @Success      200 {object} controllers.Response{data=HealthResponse} "Sistem ve veritabanı çalışıyor"
+// @Failure      503 {object} controllers.Response "Veritabanına erişilemiyor"
+// @Router       /health [get]
+func healthHandler(sqlDB *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if sqlDB.Ping() != nil {
+			controllers.RespondErr(c, http.StatusServiceUnavailable, "veritabanı erişilemez")
+			return
+		}
+
+		controllers.RespondOK(c, HealthResponse{
+			DB:     "up",
+			Status: "ok",
+		})
 	}
 }

@@ -21,6 +21,7 @@ Arkadaş gruplarının **ortak hediye** organize ettiği, bütçeyi birleştirdi
 | **Faz 4 — Hediye Havuzu & Oylama** | ✅ Tamamlandı (Upsert oylama, yetkili silme) |
 | **Faz 5 — Link Önizleme** | ✅ Tamamlandı (`pkg/linkpreview`, Trendyol, Amazon TR, Hepsiburada, SSRF Kalkanı) |
 | **Faz 6 — Gemini AI Hediye Önerileri** | ✅ Tamamlandı (Gemini 3.8 Flash, Admin Veto, Demokrasi Vetosu) |
+| **API Dokümantasyonu (Swagger / OpenAPI)** | ✅ Tamamlandı (Canlı UI: `/swagger/index.html` veya `/docs`) |
 | **Faz 7 — Frontend** | ⏳ Sırada (Vite, React, TypeScript, Tailwind, shadcn/ui) |
 
 ---
@@ -46,6 +47,7 @@ Arkadaş gruplarının **ortak hediye** organize ettiği, bütçeyi birleştirdi
 | Kimlik doğrulama | JWT (HMAC-SHA256, 24 saat) + Bcrypt + Gin Middleware |
 | Link Önizleme | WhatsApp Bot UA, Cookiejar, Dial-seviyesi SSRF koruması, JSON-LD Scraper |
 | Yapay zekâ | Google Gemini 3.8 Flash (`google.golang.org/genai`, Structured Output, State-Based Prompt) |
+| API Dokümantasyonu | Swagger / OpenAPI 2.0 (`swaggo/swag`, `swaggo/gin-swagger`) |
 | Frontend | React (Vite) + TypeScript + Tailwind CSS + shadcn/ui + Lucide |
 
 ---
@@ -66,6 +68,7 @@ CovertGift/
 │   └── linkpreview/        ← Link önizleme prototip ve inceleme laboratuvarı
 ├── backend/
 │   ├── cmd/api/            ← HTTP sunucu giriş noktası
+│   ├── docs/               ← Swagger / OpenAPI 2.0 şemaları (docs.go, swagger.json, yaml)
 │   ├── internal/           ← Controllers, services, repository, models, middleware
 │   ├── pkg/
 │   │   ├── gemini/         ← Gemini 3.8 Flash istemcisi & resilient fallback
@@ -90,7 +93,10 @@ go run ./cmd/api
 curl http://localhost:8080/health
 # Yanıt: {"success":true,"data":{"db":"up","status":"ok"}}
 
-# 4. 🎓 Akademik Sunum Script'ini Çalıştır (Tüm API uç noktaları kutular içinde sergilenir)
+# 4. 📖 Canlı Swagger API Dokümantasyonunu Aç (Tarayıcıda)
+# http://localhost:8080/swagger/index.html  (veya http://localhost:8080/docs)
+
+# 5. 🎓 Akademik Sunum Script'ini Çalıştır (Tüm API uç noktaları kutular içinde sergilenir)
 ./scripts/demo_presentation.sh          # Adım adım klavye kontrollü
 ./scripts/demo_presentation.sh --auto   # Otomatik test modu
 ```

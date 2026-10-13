@@ -275,6 +275,7 @@
 | K27 | 10-12 | Hepsiburada Akamai engeli için `Accept-Encoding` elle set edilmez | Go'nun şeffaf gzip çözümlemesini korumak ve 403 engeline takılmamak |
 | K28 | 10-12 | Amazon için `og:image` yerine `hiRes` ürün galerisi görseli alınır | `og:image` puan/yıldız basılmış sosyal medya kartı olduğu için gerçek ürün fotoğrafı değildir |
 | K29 | 10-12 | Önizleme hatalarında HTTP 500 dönülmez, `partial: true` ile 200 dönülür | Frontend'in çökmesini engellemek ve kullanıcının formu elle doldurmasına izin vermek |
+| K30 | 10-13 | Swagger/OpenAPI dokümantasyonu kod içi bildirimlerle (`swaggo/swag`) üretilir ve `/swagger/index.html` üzerinden sunulur | Kod ve dokümantasyon senkronizasyonunu sağlamak, API sözleşmesini canlı interaktif arayüzle test edilebilir kılmak |
 
 
 ---
@@ -290,3 +291,23 @@
 - `controllers.GroupController`: `CreateGroupRequest` DTO'suna `target_interests` alanı eklendi.
 - `PROJECT_CONTEXT.md` ve `README.md` güncellendi.
 - `backend` sıfır hatayla derlendi (`go build ./...`).
+
+---
+
+## 2026-10-13 — Swagger / OpenAPI 2.0 Entegrasyonu 📖
+
+**Gerekçe**
+- Projenin akademik jüri ve hocaya sunumunda, tüm REST API uç noktalarının, DTO modellerinin, hata/başarı durumlarının ve JWT Bearer kimlik doğrulamasının interaktif bir arayüz üzerinden incelenebilmesi ve test edilebilmesi talep edildi.
+
+**Yapılanlar**
+- `swaggo/swag` ve `swaggo/gin-swagger` paketleri projeye dahil edildi (`backend/go.mod`).
+- `backend/cmd/api/main.go` içine genel API meta bilgileri (`@title`, `@version`, `@BasePath /`, `@securityDefinitions.apikey BearerAuth`) ve `/health` dökümantasyonu eklendi.
+- Kontrolör katmanındaki tüm handler fonksiyonlarına Swagger bildirimleri (Summary, Description, Tags, Param, Success, Failure, Router) eklendi:
+  - `AuthController`: `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/me`
+  - `GroupController`: `/api/v1/groups` (POST, GET), `/api/v1/groups/{id}` (GET), `/api/v1/groups/{id}/members` (POST)
+  - `IdeaController`: `/api/v1/groups/{id}/ideas` (POST, GET), `/api/v1/groups/{id}/ideas/preview-link` (POST), `/api/v1/groups/{id}/ideas/generate-ai` (POST), `/api/v1/ideas/{id}/vote` (POST), `/api/v1/ideas/{id}/reject` (POST), `/api/v1/ideas/{id}` (DELETE)
+- Standart JSON yanıt formatını (`controllers.Response`) Swagger ile şematize etmek için `controllers/response.go` içinde generic ve data tipleri modellendi.
+- `swag init` çalıştırılarak `backend/docs/` dizini altında `docs.go`, `swagger.json` ve `swagger.yaml` üretildi.
+- Gin üzerinde `/swagger/*any` rotası ile Swagger UI bağlandı; `/swagger` ve `/docs` için kalıcı 301 yönlendirmesi eklendi.
+- `scripts/demo_presentation.sh` ve `README.md` dosyalarına Swagger UI bağlantıları eklendi.
+- Tüm birim testleri başarıyla geçti (`go test -v ./...`), canlıda `http://localhost:8080/swagger/index.html` üzerinden 200 OK ile doğrulandı.

@@ -25,25 +25,40 @@ func NewIdeaController(ideaService services.IdeaService) *IdeaController {
 
 // PreviewLinkRequest ürün linki önizleme isteği için DTO
 type PreviewLinkRequest struct {
-	URL string `json:"url" binding:"required"`
+	URL string `json:"url" binding:"required" example:"https://ty.gl/gkyyduf4wm8u3"`
 }
 
 // AddIdeaRequest manuel hediye önerisi için DTO
 type AddIdeaRequest struct {
-	Title          string          `json:"title" binding:"required,min=2,max=200"`
-	Description    string          `json:"description"`
-	EstimatedPrice decimal.Decimal `json:"estimated_price"`
-	SearchQuery    string          `json:"search_query"`
-	ProductURL     string          `json:"product_url"`
-	ImageURL       string          `json:"image_url"`
+	Title          string          `json:"title" binding:"required,min=2,max=200" example:"Stanley Klasik Vakumlu Termos 1.0L"`
+	Description    string          `json:"description" example:"Doğa yürüyüşlerinde ve kampta sıcak içecek taşımak için"`
+	EstimatedPrice decimal.Decimal `json:"estimated_price" example:"1450.00"`
+	SearchQuery    string          `json:"search_query" example:"Stanley klasik vakumlu termos 1 lt"`
+	ProductURL     string          `json:"product_url" example:"https://www.trendyol.com/brand/product-p-123"`
+	ImageURL       string          `json:"image_url" example:"https://cdn.dsmcdn.com/product.jpg"`
 }
 
 // VoteRequest oy verme isteği için DTO
 type VoteRequest struct {
-	VoteType int8 `json:"vote_type" binding:"required"`
+	VoteType int8 `json:"vote_type" binding:"required" example:"1"` // 1: Upvote, -1: Downvote
 }
 
-// AddIdea gruba manuel hediye önerisi ekler (POST /api/v1/groups/:id/ideas)
+// AddIdea gruba manuel hediye önerisi ekler
+// @Summary      Manuel Hediye Önerisi Ekle
+// @Description  Grubun hediye havuzuna manuel bir hediye fikri ekler (isteğe bağlı pazar yeri linki ile). Anti-Spoiler korumalıdır.
+// @Tags         Hediye Havuzu (Gift Ideas)
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Param        request body AddIdeaRequest true "Hediye Önerisi Bilgileri"
+// @Success      201 {object} Response{data=models.GiftIdea} "Hediye önerisi başarıyla eklendi"
+// @Failure      400 {object} Response "Geçersiz istek parametreleri"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz"
+// @Failure      404 {object} Response "Grup bulunamadı"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/groups/{id}/ideas [post]
 func (ctl *IdeaController) AddIdea(c *gin.Context) {
 	groupIDStr := c.Param("id")
 	groupID, err := uuid.Parse(groupIDStr)
@@ -94,7 +109,20 @@ func (ctl *IdeaController) AddIdea(c *gin.Context) {
 	RespondCreated(c, idea)
 }
 
-// GetIdeas gruptaki hediyeleri skorlarıyla birlikte listeler (GET /api/v1/groups/:id/ideas)
+// GetIdeas gruptaki hediyeleri skorlarıyla birlikte listeler
+// @Summary      Gruptaki Hediye Önerilerini ve Oy Skorlarını Listele
+// @Description  Gruptaki hediye havuzunu, her hediyenin toplam oy skorunu (+1/-1 toplamı) ve istek yapan kullanıcının kendi oyunu listeler. Anti-Spoiler korumalıdır.
+// @Tags         Hediye Havuzu (Gift Ideas)
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Success      200 {object} Response{data=[]repository.IdeaWithScore} "Hediye önerileri ve oy skorları"
+// @Failure      400 {object} Response "Geçersiz grup kimliği"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz"
+// @Failure      404 {object} Response "Grup bulunamadı"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/groups/{id}/ideas [get]
 func (ctl *IdeaController) GetIdeas(c *gin.Context) {
 	groupIDStr := c.Param("id")
 	groupID, err := uuid.Parse(groupIDStr)
@@ -134,93 +162,60 @@ func (ctl *IdeaController) GetIdeas(c *gin.Context) {
 	RespondOK(c, ideas)
 }
 
-// Vote bir hediye fikrine oy verir veya günceller (POST /api/v1/ideas/:id/vote)
-func (ctl *IdeaController) Vote(c *gin.Context) {
-	ideaIDStr := c.Param("id")
-	ideaID, err := uuid.Parse(ideaIDStr)
-	if err != nil {
-		RespondErr(c, http.StatusBadRequest, "Geçersiz hediye kimliği")
-		return
-	}
-
-	var req VoteRequest
+// PreviewLink verilen ürün linkini ayrıştırarak önizleme verilerini döner
+// @Summary      Ürün Linki Önizleme & SSRF Kalkanı (Faz 5)
+// @Description  Kullanıcının yapıştırdığı e-ticaret linkini (Trendyol, Amazon TR, Hepsiburada) güvenle çekerek başlık, görsel, fiyat ve temiz arama terimini döner. Veritabanına yazmaz. Anti-Spoiler korumalıdır.
+// @Tags         Hediye Havuzu (Gift Ideas)
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Param        request body PreviewLinkRequest true "Önizlenecek Ürün URL'si"
+// @Success      200 {object} Response{data=linkpreview.Preview} "Ayrıştırılmış ürün önizleme bilgisi"
+// @Failure      400 {object} Response "URL parametresi eksik veya geçersiz"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz"
+// @Router       /api/v1/groups/{id}/ideas/preview-link [post]
+func (ctl *IdeaController) PreviewLink(c *gin.Context) {
+	var req PreviewLinkRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: "+err.Error())
+		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: url alanı zorunludur")
 		return
 	}
 
-	userID, ok := getUserID(c)
-	if !ok {
-		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
-		return
-	}
-
-	err = ctl.ideaService.VoteIdea(ideaID, userID, req.VoteType)
+	preview, err := linkpreview.Fetch(c.Request.Context(), req.URL)
 	if err != nil {
-		if errors.Is(err, services.ErrInvalidVoteType) {
-			RespondErr(c, http.StatusBadRequest, err.Error())
-			return
+		// Kural 5: Önizleme başarısız olsa veya kısıtlansa bile HTTP 500 fırlatılmaz;
+		// kullanıcının formu elle doldurabilmesi için partial: true ile 200 OK yanıtı verilir.
+		if preview == nil {
+			preview = &linkpreview.Preview{
+				FinalURL: req.URL,
+				Partial:  true,
+				Source:   "generic",
+				Warning:  err.Error(),
+			}
 		}
-		if errors.Is(err, services.ErrIdeaNotFound) {
-			RespondErr(c, http.StatusNotFound, err.Error())
-			return
-		}
-		if errors.Is(err, services.ErrAntiSpoilerTriggered) {
-			RespondErr(c, http.StatusForbidden, err.Error())
-			return
-		}
-		if errors.Is(err, services.ErrNotGroupMember) {
-			RespondErr(c, http.StatusForbidden, err.Error())
-			return
-		}
-		RespondErr(c, http.StatusInternalServerError, "Oy kaydedilirken bir hata oluştu")
-		return
 	}
 
-	RespondOK(c, gin.H{
-		"message": "Oy başarıyla kaydedildi",
-	})
+	RespondOK(c, preview)
 }
 
-// DeleteIdea hediye fikrini siler (DELETE /api/v1/ideas/:id)
-func (ctl *IdeaController) DeleteIdea(c *gin.Context) {
-	ideaIDStr := c.Param("id")
-	ideaID, err := uuid.Parse(ideaIDStr)
-	if err != nil {
-		RespondErr(c, http.StatusBadRequest, "Geçersiz hediye kimliği")
-		return
-	}
-
-	userID, ok := getUserID(c)
-	if !ok {
-		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
-		return
-	}
-
-	err = ctl.ideaService.DeleteIdea(ideaID, userID)
-	if err != nil {
-		if errors.Is(err, services.ErrIdeaNotFound) {
-			RespondErr(c, http.StatusNotFound, err.Error())
-			return
-		}
-		if errors.Is(err, services.ErrUnauthorizedDelete) {
-			RespondErr(c, http.StatusForbidden, err.Error())
-			return
-		}
-		if errors.Is(err, services.ErrNotGroupMember) {
-			RespondErr(c, http.StatusForbidden, err.Error())
-			return
-		}
-		RespondErr(c, http.StatusInternalServerError, "Hediye önerisi silinirken bir hata oluştu")
-		return
-	}
-
-	RespondOK(c, gin.H{
-		"message": "Hediye önerisi başarıyla silindi",
-	})
-}
-
-// GenerateAI yapay zeka ile gruba hediye önerileri üretir (POST /api/v1/groups/:id/ideas/generate-ai)
+// GenerateAI yapay zeka ile gruba hediye önerileri üretir
+// @Summary      Gemini 3.8 Flash ile Yapay Zekâ Hediye Önerileri Üret (Faz 6)
+// @Description  Hedef kişinin hobileri, toplam bütçe, havuzdaki mevcut hediyeler ve grupta daha önce VETO edilen/reddedilen fikirleri (State-Based Negatif Kısıt) Gemini'ye iletir; 3-5 adet yeni semantik hediye üretip havuza ekler.
+// @Tags         Hediye Havuzu (Gift Ideas)
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Success      201 {object} Response{data=[]models.GiftIdea} "Yapay zekâ tarafından üretilen yeni hediye önerileri"
+// @Failure      400 {object} Response "Geçersiz grup kimliği"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz"
+// @Failure      404 {object} Response "Grup bulunamadı"
+// @Failure      422 {object} Response "Yapay zekâ öneri üretemedi"
+// @Failure      503 {object} Response "Gemini API anahtarı yapılandırılmamış veya servis geçici olarak kullanılamıyor"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/groups/{id}/ideas/generate-ai [post]
 func (ctl *IdeaController) GenerateAI(c *gin.Context) {
 	groupIDStr := c.Param("id")
 	groupID, err := uuid.Parse(groupIDStr)
@@ -264,7 +259,83 @@ func (ctl *IdeaController) GenerateAI(c *gin.Context) {
 	RespondCreated(c, ideas)
 }
 
-// RejectIdea grup yöneticisinin bir hediye fikrini veto etmesini sağlar (POST /api/v1/ideas/:id/reject)
+// Vote bir hediye fikrine oy verir veya günceller
+// @Summary      Hediye Fikrine Oy Ver veya Güncelle (+1 Upvote / -1 Downvote)
+// @Description  Bir hediye önerisine oy verir (+1 veya -1). GORM Upsert kuralı ile aynı kullanıcı oy verdiğinde kayıt çoğalmaz, güncellenir. Eğer toplam downvote sayısı grup üye sayısının yarısını aşarsa ($downvotes > N/2$) hediye otomatik REJECTED (Demokrasi Vetosu) olur.
+// @Tags         Oylama & Veto (Voting & Veto)
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Hediye UUID" Format(uuid)
+// @Param        request body VoteRequest true "Oy Türü (1: Upvote, -1: Downvote)"
+// @Success      200 {object} Response{data=MessageData} "Oy başarıyla kaydedildi"
+// @Failure      400 {object} Response "Geçersiz oy türü (sadece 1 veya -1)"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Erişim engellendi: Anti-Spoiler veya grup üyesi değilsiniz"
+// @Failure      404 {object} Response "Hediye fikri bulunamadı"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/ideas/{id}/vote [post]
+func (ctl *IdeaController) Vote(c *gin.Context) {
+	ideaIDStr := c.Param("id")
+	ideaID, err := uuid.Parse(ideaIDStr)
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz hediye kimliği")
+		return
+	}
+
+	var req VoteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: "+err.Error())
+		return
+	}
+
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+
+	err = ctl.ideaService.VoteIdea(ideaID, userID, req.VoteType)
+	if err != nil {
+		if errors.Is(err, services.ErrInvalidVoteType) {
+			RespondErr(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrIdeaNotFound) {
+			RespondErr(c, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrAntiSpoilerTriggered) {
+			RespondErr(c, http.StatusForbidden, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrNotGroupMember) {
+			RespondErr(c, http.StatusForbidden, err.Error())
+			return
+		}
+		RespondErr(c, http.StatusInternalServerError, "Oy kaydedilirken bir hata oluştu")
+		return
+	}
+
+	RespondOK(c, MessageData{
+		Message: "Oy başarıyla kaydedildi",
+	})
+}
+
+// RejectIdea grup yöneticisinin bir hediye fikrini veto etmesini sağlar
+// @Summary      Admin Tek Tık Vetosu (Faz 6)
+// @Description  Sadece grup yöneticisi (admin) tarafından bir hediye fikrini doğrudan veto ederek durumunu 'REJECTED' yapar. Normal üyeler veto edemez (403). Fikir silinmez, sonraki AI çağrısına negatif kısıt olarak beslenir.
+// @Tags         Oylama & Veto (Voting & Veto)
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Hediye UUID" Format(uuid)
+// @Success      200 {object} Response{data=MessageData} "Hediye önerisi başarıyla veto edildi"
+// @Failure      400 {object} Response "Geçersiz hediye kimliği"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Yetkisiz işlem: Sadece grup yöneticisi veto edebilir"
+// @Failure      404 {object} Response "Hediye fikri bulunamadı"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/ideas/{id}/reject [post]
 func (ctl *IdeaController) RejectIdea(c *gin.Context) {
 	ideaIDStr := c.Param("id")
 	ideaID, err := uuid.Parse(ideaIDStr)
@@ -297,33 +368,58 @@ func (ctl *IdeaController) RejectIdea(c *gin.Context) {
 		return
 	}
 
-	RespondOK(c, gin.H{
-		"message": "Hediye önerisi başarıyla veto edildi (reddedildi)",
+	RespondOK(c, MessageData{
+		Message: "Hediye önerisi başarıyla veto edildi (reddedildi)",
 	})
 }
 
-// PreviewLink verilen ürün linkini ayrıştırarak önizleme verilerini döner (POST /api/v1/groups/:id/ideas/preview-link)
-func (ctl *IdeaController) PreviewLink(c *gin.Context) {
-	var req PreviewLinkRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: url alanı zorunludur")
+// DeleteIdea hediye fikrini siler
+// @Summary      Hediye Fikrini Sil
+// @Description  Hediye önerisini kalıcı olarak siler. Sadece hediyeyi öneren kişi veya grup admini silebilir.
+// @Tags         Hediye Havuzu (Gift Ideas)
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Hediye UUID" Format(uuid)
+// @Success      200 {object} Response{data=MessageData} "Hediye önerisi başarıyla silindi"
+// @Failure      400 {object} Response "Geçersiz hediye kimliği"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Yetkisiz işlem: Sadece öneren kişi veya grup admini silebilir"
+// @Failure      404 {object} Response "Hediye fikri bulunamadı"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/ideas/{id} [delete]
+func (ctl *IdeaController) DeleteIdea(c *gin.Context) {
+	ideaIDStr := c.Param("id")
+	ideaID, err := uuid.Parse(ideaIDStr)
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz hediye kimliği")
 		return
 	}
 
-	preview, err := linkpreview.Fetch(c.Request.Context(), req.URL)
-	if err != nil {
-		// Kural 5: Önizleme başarısız olsa veya kısıtlansa bile HTTP 500 fırlatılmaz;
-		// kullanıcının formu elle doldurabilmesi için partial: true ile 200 OK yanıtı verilir.
-		if preview == nil {
-			preview = &linkpreview.Preview{
-				FinalURL: req.URL,
-				Partial:  true,
-				Source:   "generic",
-				Warning:  err.Error(),
-			}
-		}
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
 	}
 
-	RespondOK(c, preview)
-}
+	err = ctl.ideaService.DeleteIdea(ideaID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrIdeaNotFound) {
+			RespondErr(c, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrUnauthorizedDelete) {
+			RespondErr(c, http.StatusForbidden, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrNotGroupMember) {
+			RespondErr(c, http.StatusForbidden, err.Error())
+			return
+		}
+		RespondErr(c, http.StatusInternalServerError, "Hediye önerisi silinirken bir hata oluştu")
+		return
+	}
 
+	RespondOK(c, MessageData{
+		Message: "Hediye önerisi başarıyla silindi",
+	})
+}
