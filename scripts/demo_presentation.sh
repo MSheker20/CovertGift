@@ -100,6 +100,11 @@ fi
 echo -e "  ${BOLD}${GREEN}📥 HTTP ${HEALTH_CODE} OK${RESET} ➔ ${HEALTH_BODY}"
 echo -e "  ${GREEN}✔ Backend API ve PostgreSQL bağlantı havuzu aktif!${RESET}"
 
+SWAGGER_CODE=$(curl -s -L -o /dev/null -w "%{http_code}" http://localhost:8080/swagger/index.html || echo "DOWN")
+if [ "$SWAGGER_CODE" == "200" ]; then
+    echo -e "  ${BOLD}${CYAN}📖 Swagger / OpenAPI UI:${RESET} ${GREEN}http://localhost:8080/swagger/index.html${RESET} ${DIM}(veya /docs)${RESET}"
+fi
+
 step_pause
 
 # 1. Kullanıcı Kaydı & Kimlik Doğrulama
@@ -386,4 +391,5 @@ echo -e "  • ${GREEN}POST /api/v1/groups/:id/ideas${RESET} (Manuel hediye ekle
 echo -e "  • ${GREEN}POST /api/v1/groups/:id/ideas/generate-ai${RESET} (Gemini 3.8 Flash Structured JSON)"
 echo -e "  • ${GREEN}POST /api/v1/ideas/:id/vote${RESET} (Upsert oylama & Demokrasi Vetosu)"
 echo -e "  • ${GREEN}POST /api/v1/ideas/:id/reject${RESET} (Admin doğrudan veto)"
+echo -e "  • ${GREEN}GET  /swagger/index.html${RESET} (İnteraktif Swagger UI & OpenAPI 2.0 Dokümantasyonu)"
 echo -e "${MAGENTA}==============================================================================${RESET}\n"

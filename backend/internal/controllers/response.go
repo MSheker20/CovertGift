@@ -8,9 +8,14 @@ import (
 
 // Response standart API JSON yanıt şablonudur
 type Response struct {
-	Success bool        `json:"success"`
+	Success bool        `json:"success" example:"true"`
 	Data    interface{} `json:"data,omitempty"`
-	Error   string      `json:"error,omitempty"`
+	Error   string      `json:"error,omitempty" example:"Hata mesajı"`
+}
+
+// MessageData işlem sonuç mesajı taşıyan şablondur
+type MessageData struct {
+	Message string `json:"message" example:"İşlem başarıyla tamamlandı"`
 }
 
 // RespondOK standart başarılı (200 OK) JSON yanıtı döner
