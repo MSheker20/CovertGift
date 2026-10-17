@@ -3,6 +3,7 @@
 > Bu rehber [ROADMAP.md → Faz 0](../ROADMAP.md) görevlerini **elle** yapman için hazırlandı.
 > Her adımda: **📌 Ne yapıyoruz → 💡 Neden → ⌨️ Komut/Dosya → ✅ Kontrol.**
 > Bir adımı tamamladıkça ROADMAP'teki kutucuğu `[x]` yap, önemli bir şey öğrendiysen [DEVLOG](DEVLOG.md)'a yaz.
+> Bu dosyadaki config/API örnekleri Faz 0 iskeletini açıklar; güncel çalışan kaynaklar `backend/` altındadır. Hazır projeyi başlatmak için [README → Hızlı Başlangıç](../README.md#-hızlı-başlangıç) adımlarını izleyin. Geçici panel ve Cloudflare kullanımı Adım 7a'dadır (2026-10-17).
 
 **Hedef (Kabul Kriteri):** `docker compose up -d` + `go run ./cmd/api` → `GET http://localhost:8080/health` → `200 OK`.
 
@@ -18,6 +19,8 @@ go version              # beklenen: go1.27.x darwin/arm64
 docker --version        # beklenen: 29.x
 docker compose version  # beklenen: v5.x
 git --version
+node --version          # geçici test paneli için 22+
+cloudflared --version   # isteğe bağlı HTTPS tüneli için
 ```
 
 ✅ Hepsi sürüm yazdırıyor. Docker Desktop uygulaması **açık** olmalı (menü çubuğunda balina ikonu).
@@ -28,6 +31,8 @@ git --version
 | Docker | PostgreSQL'i bilgisayarına kurmadan izole bir konteynerde çalıştırmak |
 | Docker Compose | Konteyner ayarlarını (port, şifre, disk) tek bir YAML dosyasında tanımlamak |
 | Git | Sürüm kontrolü + GitHub'a gönderme |
+| Node.js 22+ | Geçici test panelini ve API proxy'sini çalıştırmak |
+| cloudflared (isteğe bağlı) | Paneli geçici HTTPS adresiyle internetten açmak |
 
 ---
 
@@ -200,7 +205,9 @@ openssl rand -hex 32     # çıkan değeri .env içindeki JWT_SECRET'e yapışt�
 | `DATABASE_URL` | Adım 2'deki compose ayarlarıyla **birebir** aynı kullanıcı/şifre/DB |
 | `JWT_SECRET` | Token imzalama anahtarı — sızarsa herkes sahte token üretebilir |
 | `GEMINI_API_KEY` | Google AI Studio'dan alınacak (Faz 6) |
-| `CORS_ORIGIN` | Vite frontend'inin adresi; tarayıcının API'ye erişmesine izin verir |
+| `GEMINI_MODEL` | İsteğe bağlı model adı; verilmezse güncel kod `gemini-3.8-flash` kullanır |
+| `APP_ENV` | Varsayılan `development`; `production` geliştirme veritabanı sıfırlama ucunu kapatır |
+| `CORS_ORIGIN` | Config'de okunur; mevcut backend'de CORS middleware'i henüz bağlı değildir. Geçici panel aynı origin'deki proxy'yi kullanır |
 
 ✅ `git status` → `.env.example` görünüyor, `.env` **görünmüyor**.
 
@@ -327,6 +334,42 @@ docker compose stop db
 curl -i http://localhost:8080/health    # 503 beklenir
 docker compose start db
 ```
+
+---
+
+## Adım 7a — Geçici Panel ve Cloudflare (Güncel Çalıştırma)
+
+Docker Desktop açıkken proje kökünde `docker compose up -d --wait`, ardından `backend/` içinde `go run ./cmd/api` çalıştırın. Yeni terminalde proje kökünden:
+
+```bash
+node prototypes/test-ui/server.mjs
+```
+
+[Paneli açın](http://127.0.0.1:5173). Proxy sağlık kontrolü:
+
+```bash
+curl --fail http://127.0.0.1:5173/health
+```
+
+İnternetten erişim gerekiyorsa üçüncü terminalde:
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:5173 --no-autoupdate
+```
+
+Cloudflared'in yazdığı geçici HTTPS adresini kullanın. Bilgisayar, API, panel ve tünel çalışmaya devam etmelidir. Tünel panelin 5173 portunu kullanır; sınırlı proxy geliştirme sıfırlama yolunu engeller. `.env` ve proje dosyaları statik sunucuda sunulmaz. Kalıcı React frontend Faz 7'de geliştirilecek.
+
+Doğrulama (proje kökünden):
+
+```bash
+go test ./backend/...
+node --check prototypes/test-ui/server.mjs
+node --check prototypes/test-ui/app.js
+```
+
+Swagger'ı modeller ve controller yorumlarından yeniden üretmek için `swag` kurulu ortamda `backend/` içinden `swag init -g cmd/api/main.go --parseInternal` çalıştırın.
+
+Normal Go testleri gerçek Gemini API'sini çağırmaz. Kota kullanan gerçek API testi özellikle istenirse `backend/` içinden `go test ./pkg/gemini -run TestLiveTurkeyProducts -v -args -live-ai` ile açılır. Ayrıntılar: [panel rehberi](../prototypes/test-ui/README.md).
 
 ---
 

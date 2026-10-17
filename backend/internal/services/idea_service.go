@@ -35,11 +35,15 @@ type IdeaService interface {
 type ideaService struct {
 	ideaRepo     repository.IdeaRepository
 	groupRepo    repository.GroupRepository
-	geminiClient *gemini.Client
+	geminiClient GiftIdeaGenerator
+}
+
+type GiftIdeaGenerator interface {
+	GenerateGiftIdeas(context.Context, string) ([]gemini.AIIdeaSuggestion, error)
 }
 
 // NewIdeaService yeni bir IdeaService örneği oluşturur
-func NewIdeaService(ideaRepo repository.IdeaRepository, groupRepo repository.GroupRepository, geminiClient *gemini.Client) IdeaService {
+func NewIdeaService(ideaRepo repository.IdeaRepository, groupRepo repository.GroupRepository, geminiClient GiftIdeaGenerator) IdeaService {
 	return &ideaService{
 		ideaRepo:     ideaRepo,
 		groupRepo:    groupRepo,
@@ -126,7 +130,16 @@ func (s *ideaService) GetGroupIdeas(groupID, currentUserID uuid.UUID) ([]reposit
 		return nil, ErrNotGroupMember
 	}
 
-	return s.ideaRepo.GetIdeasWithScores(groupID, currentUserID)
+	ideas, err := s.ideaRepo.GetIdeasWithScores(groupID, currentUserID)
+	if err != nil {
+		return nil, err
+	}
+	// An idea generation/addition may have started before a concurrent budget update.
+	// Always display warnings using the budget read for this request.
+	for i := range ideas {
+		ideas[i].IsOverBudget = group.TotalBudget.GreaterThan(decimal.Zero) && ideas[i].EstimatedPrice.GreaterThan(group.TotalBudget)
+	}
+	return ideas, nil
 }
 
 // VoteIdea bir hediye fikrine oy verir (+1 veya -1) ve gerekirse demokrasi vetosunu işletir
@@ -306,32 +319,48 @@ func (s *ideaService) GenerateAIIdeas(ctx context.Context, groupID, currentUserI
 
 	// 7. Sunucu Tarafı Bütçe & Kalite Filtresi
 	var newIdeas []models.GiftIdea
+	seenTitles := make(map[string]bool)
+	seenQueries := make(map[string]bool)
+	for _, title := range append(append([]string{}, existingTitles...), rejectedTitles...) {
+		seenTitles[gemini.NormalizeProduct(title)] = true
+	}
 	for _, item := range suggestions {
-		title := strings.TrimSpace(item.Title)
-		if title == "" {
+		item.Title = strings.TrimSpace(item.Title)
+		item.Description = strings.TrimSpace(item.Description)
+		item.SearchQuery = strings.TrimSpace(item.SearchQuery)
+		if !gemini.ValidSuggestion(item) || len(item.Sources) == 0 {
 			continue
 		}
-
-		searchQuery := strings.TrimSpace(item.SearchQuery)
-		if searchQuery == "" {
-			searchQuery = title
+		titleKey, queryKey := gemini.NormalizeProduct(item.Title), gemini.NormalizeProduct(item.SearchQuery)
+		if seenTitles[titleKey] || seenTitles[queryKey] || seenQueries[queryKey] {
+			continue
+		}
+		seenTitles[titleKey], seenQueries[queryKey] = true, true
+		var sources []models.AISource
+		for _, source := range item.Sources {
+			sources = append(sources, models.AISource{Title: source.Title, URL: source.URL})
 		}
 
 		// Bütçe aşımı kontrolü (Gruba karar hakkı tanımak için filtrelemiyoruz, sadece işaretliyoruz)
 		isOverBudget := group.TotalBudget.GreaterThan(decimal.Zero) && item.EstimatedPrice.GreaterThan(group.TotalBudget)
 
 		idea := models.GiftIdea{
-			GroupID:        groupID,
-			Title:          title,
-			Description:    item.Description,
-			EstimatedPrice: item.EstimatedPrice,
-			SourceType:     "AI",
-			Status:         "ACTIVE",
-			IsOverBudget:   isOverBudget,
-			SearchQuery:    searchQuery,
-			CreatedBy:      currentUserID,
+			GroupID:             groupID,
+			Title:               item.Title,
+			Description:         item.Description,
+			EstimatedPrice:      item.EstimatedPrice,
+			SourceType:          "AI",
+			Status:              "ACTIVE",
+			IsOverBudget:        isOverBudget,
+			SearchQuery:         item.SearchQuery,
+			AISources:           sources,
+			AISearchSuggestions: item.SearchSuggestions,
+			CreatedBy:           currentUserID,
 		}
 		newIdeas = append(newIdeas, idea)
+		if len(newIdeas) == 5 {
+			break
+		}
 	}
 
 	if len(newIdeas) == 0 {
@@ -352,6 +381,7 @@ func (s *ideaService) buildAIPrompt(group *models.Group, existingTitles, rejecte
 
 	sb.WriteString("Sen profesyonel, yaratıcı ve zevkli bir hediye danışmanısın. ")
 	sb.WriteString("Bir grup arkadaş, sevdikleri bir kişi için sürpriz hediye seçecek.\n\n")
+	sb.WriteString("Pazar: Türkiye. Para birimi: TRY/TL. Hedef kişinin adı üzerinden yaş, cinsiyet veya kişilik varsayma.\n")
 
 	sb.WriteString("HEDEF KİŞİ BİLGİLERİ:\n")
 	sb.WriteString(fmt.Sprintf("- İsim: %s\n", group.TargetPersonName))
@@ -382,7 +412,9 @@ func (s *ideaService) buildAIPrompt(group *models.Group, existingTitles, rejecte
 
 	sb.WriteString("3. SIFIR KIRIK LİNK KURALI: Asla web sitesi linki veya URL üretme. Sadece Türkiye'deki pazaryerlerinde (Trendyol, Hepsiburada, Amazon TR) aratıldığında doğrudan ürünü çıkaracak temiz, spesifik 'search_query' kelimesi oluştur.\n")
 	sb.WriteString("4. FİYAT VE BÜTÇE: Hediyelerin tahmini fiyatlarını gerçekçi belirle ve hedef bütçe civarında kalmaya özen göster. Ancak hedef kişiye çok iyi uyacağını düşündüğün özel veya kaliteli bir hediye bütçeyi bir miktar aşıyorsa da önerebilirsin (grup üyeleri bütçe artışını tolere edebilir).\n")
-	sb.WriteString("5. ADET: Hedef kişinin zevkine tam hitap eden 3 ile 5 adet arasında birbirinden farklı, orijinal öneri üret.")
+	sb.WriteString("5. KALİTE: Türkiye mağazalarında satış ilanı bulunan somut ürünler seç. Hayali marka/model, yalnızca yurt dışı satışı, abonelik veya soyut deneyim önerme. Açıklamada ürünün hangi ilgi alanına nasıl uyduğunu belirt.\n")
+	sb.WriteString("6. BÜTÇE DAĞILIMI: Bütçe her bir alternatif hediye içindir; öneri sayısına bölme. Bütçe verilmişse öncelikle bütçe içindeki adayları seç.\n")
+	sb.WriteString("7. ADET: Tercihen 3-5 farklı öneri üret; yeterli uygun ve kaynaklı ürün bulunamazsa daha az üret. Adet doldurmak için ürün uydurma.")
 
 	return sb.String()
 }

@@ -2,6 +2,7 @@
 
 > Referans: [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md)
 > İlerledikçe kutucukları `[x]` olarak işaretle. Her fazın sonunda **✅ Kabul Kriterleri** sağlanmadan sonraki faza geçme.
+> Son doğrulama: **2026-10-17** — Backend birim testleri ve panel JavaScript sözdizimi kontrolleri geçti; Cloudflare üzerinden arayüz/API/DB erişimi doğrulandı. Kalıcı React frontend henüz başlamadı.
 
 ```mermaid
 flowchart LR
@@ -69,6 +70,8 @@ flowchart LR
 - [x] `GET /api/v1/groups` (hedef kişi olduğu gruplar filtrelenir)
 - [x] `GET /api/v1/groups/:id` → `member_count`, `per_person_budget` (anlık hesap, 0'a bölme kontrolü)
 - [x] `POST /api/v1/groups/:id/members` (e-posta ile; hedef kişi üye **eklenemez**; zaten üyeyse 409)
+- [x] İlgi alanları listesi (2026-10-16): `POST /api/v1/groups/:id/interests` ile tüm üyeler tek tek ekleyebilir; `DELETE` ile yalnızca admin silebilir. Anti-Spoiler korunur. Eski toplu `PATCH` kaldırıldı; geçici panelde liste ve “Ekle” alanı var. Eşzamanlı eklemeler satır kilidiyle korunur.
+- [x] `PATCH /api/v1/groups/:id/budget` — Admin toplam bütçeyi güncelleyebilir (2026-10-16). Kişi başı tutar ve mevcut hediye bütçe aşımı uyarıları yenilenir; geçici panelde admin için bütçe formu eklendi.
 - [x] `DELETE /api/v1/groups/:id` (grubun, fikirlerin, oyların ve üyelerin admin tarafından atomik silinmesi)
 
 **✅ Kabul:** Hedef kullanıcı tüm `/groups/:id/*` uçlarında 403 alır; listede grubu görmez (Doğrulandı ✅).
@@ -108,20 +111,23 @@ flowchart LR
 
 ## Faz 6 — Gemini AI Önerileri 🤖
 - [x] `pkg/gemini` istemcisi (`google.golang.org/genai`, model: `gemini-3.8-flash` + `gemini-3.5-flash-lite` resilient fallback)
-- [x] `response_schema` → `[{ title, description, estimated_price, search_query }]` (URL alanı **yok** - Kural 3: Sıfır Kırık Link Kuralı)
+- [x] İki aşamalı üretim: Google Search ile Türkiye mağazalarında ürün/TL fiyatı araştırması → `response_schema` ile `[{ title, description, estimated_price, search_query, evidence_ids }]` seçimi. Model URL üretmez; `ai_sources` yalnızca grounding metadata'sından gelir.
 - [x] State-based prompt: `target_interests` + bütçe + mevcut başlıklar + reddedilen/veto edilen başlıklar (Kural 4)
-- [x] `POST /api/v1/groups/:id/ideas/generate-ai` → 3-5 öneri, `source_type = AI`, batch insert
-- [x] Hata/kota (503/429) yönetimi + otomatik yedek model geçişi (`gemini-3.5-flash-lite`)
+- [x] `POST /api/v1/groups/:id/ideas/generate-ai` → en fazla 5 kaynaklı öneri, `source_type = AI`, batch insert. Yeterli geçerli ürün yoksa 3'ten az sonuç dönebilir.
+- [x] 503 hatasında otomatik yedek model geçişi (`gemini-3.5-flash-lite`); araştırma/JSON ayarları yedek çağrıda korunur. Diğer API hataları üst katmana iletilir.
+- [x] Kaynak, ürün adı ve fiyat eşleşmesi; pozitif tutar, veritabanı sınırları ve normalize edilmiş tekrar kontrolü için birim testleri
 - [x] Bütçe üstü öneriler sunucu tarafında çöpe atılmaz; `is_over_budget: true` bayrağı ile işaretlenir (Grup toleransına bırakılır)
 - [x] 👑 **Admin Vetosu:** `POST /api/v1/ideas/:id/reject` → Sadece grup yöneticisi tek tıkla reddeder (`status = REJECTED`)
 - [x] 🗳️ **Demokrasi Vetosu:** Fikre verilen downvote sayısı üye sayısının yarısını geçerse ($downvotes > N/2$) otomatik `status = REJECTED`
 - [x] 🔄 **Negatif Prompt Beslemesi:** Reddedilen fikirler silinmez, sonraki AI prompt'larına negatif kısıt olarak verilir
 
-**✅ Kabul:** Butona basınca 3-5 geçerli öneri DB'ye yazılır; admin vetosu ve çoğunluk downvote ile reddedilen ürünler bir sonraki AI çağrısında asla tekrar önerilmez (Doğrulandı ✅).
+**✅ Kabul:** Kaynakla desteklenen ve doğrulamadan geçen en fazla 5 öneri DB'ye yazılır. Mevcut/reddedilmiş başlıklarla normalize edildiğinde eşleşen ürünler elenir; reddedilenler sonraki prompt'a negatif kısıt olarak eklenir. Benzer ürünlerin anlamsal olarak tamamen engellenmesi garanti edilmez. Araştırma/seçim, filtre ve 503 yedeği birim testleri geçti (2026-10-17); gerçek API testi isteğe bağlıdır ve bu oturumda tekrar çalıştırılmadı.
 
 ---
 
 ## Faz 7 — React Frontend 🎨
+> 2026-10-16: Backend'i tarayıcıdan denemek için bağımsız ve geçici `prototypes/test-ui/` paneli eklendi. HTML/CSS/JavaScript + Node.js yerel proxy kullanır; kalıcı frontend'e sıfırdan başlanacak, aşağıdaki Faz 7 görevleri henüz tamamlanmış sayılmaz. Kalıcı tasarım mobil web önceliklidir.
+
 - [ ] `frontend/` → Vite + React + TypeScript
 - [ ] Tailwind CSS + shadcn/ui kurulumu + Lucide Icons
 - [ ] `src/api/` katmanı (axios instance, JWT interceptor, 401 → login'e yönlendir)
@@ -134,6 +140,7 @@ flowchart LR
   - [ ] MANUAL + `product_url` varsa "Ürüne git" butonu
   - [ ] Sağ panel: üyeler, üye ekle, **"Gemini ile Öner"** butonu (loading durumu)
 - [ ] "Manuel Ekle" diyaloğu → link yapıştır → önizleme ile form otomatik dolar
+- [ ] AI kaynaklarını (`ai_sources`) ve Google arama önerilerini (`ai_search_suggestions`) izole biçimde göster; geçici panelde bu gösterim henüz yok
 - [ ] 403 Anti-Spoiler için özel "🎁 Bu bir sürpriz!" ekranı
 - [ ] Optimistic UI ile oylama
 - [ ] Toast bildirimleri, boş durumlar, iskelet (skeleton) yükleyiciler
@@ -145,11 +152,15 @@ flowchart LR
 ## Faz 8 — Test, Güvenlik ve Cila 🧪
 - [x] Swagger / OpenAPI 2.0 canlı dokümantasyonu (`swaggo/swag`, `/swagger/index.html`, `/docs`)
 - [x] Veritabanı tek tıkla sıfırlama endpoint'i ve Swagger butonu (`POST /api/v1/dev/reset-db`)
+- [x] Bağımlılıksız geçici test paneli ve API yolu allowlist'i; geliştirme sıfırlama ucu proxy'de engellenir
+- [x] Cloudflare Quick Tunnel ile panel ve API'ye aynı HTTPS adresinden erişim; arayüz 200, sağlık kontrolü 200 (`db: up`), oturumsuz profil 401 (2026-10-17)
+- [x] İlgi alanı yetkileri, bütçe doğrulaması/uyarıları, AI kaynak ve tekrar filtreleri için backend birim testleri
 - [ ] Backend entegrasyon testleri (özellikle Anti-Spoiler senaryoları)
+- [ ] AI hata yanıtlarını ayrıştır: kaynaksız araştırma şu an 500 döner; 422 eşlemesi ve 429/503 için ayrı yanıtlar ekle
 - [ ] CORS ayarları, istek boyutu limitleri, input validasyonu (`binding:"required,email"` vb.)
 - [ ] Hata loglama (yapılandırılmış log)
 - [ ] Seed script (demo kullanıcılar + grup)
-- [ ] `README.md` → kurulum ve çalıştırma adımları
+- [x] `README.md` → ilk `.env` kurulumu, backend/panel/tünel komutları ve doğrulama adımları (2026-10-17)
 - [ ] (Opsiyonel) Backend için Dockerfile + compose'a ekleme
 
 **✅ Kabul:** Temiz bir makinede README adımlarıyla proje 10 dakikada ayağa kalkar.

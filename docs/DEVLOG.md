@@ -2,7 +2,7 @@
 
 > Bu dosya **ne yaptığımızı** ve **neden öyle yaptığımızı** kayıt altında tutar.
 > Kural: Her anlamlı adım / karar sonrası en üste değil, **kronolojik olarak en alta** yeni bir kayıt eklenir.
-> Kararlar ayrıca en alttaki **Karar Kaydı** tablosunda özetlenir.
+> Kararlar ayrıca **Karar Kaydı** tablosunda özetlenir.
 
 ---
 
@@ -279,6 +279,11 @@
 | K31 | 10-13 | Kullanıcı hesap silme (`DELETE /api/v1/me`) atomik transaction ile bağlı verileri (oylar, oluşturulan gruplar, fikirler) temizler | Veritabanı tutarlılığı sağlamak, sahipsiz grup kalmasını önlemek ve KVKK/GDPR uyumlu hesap kapatma sunmak |
 | K32 | 10-13 | Grup silme (`DELETE /api/v1/groups/:id`) sadece grup yöneticisine (admin) aittir; bağlı tüm fikirler, oylar ve üyelikler atomik transaction ile temizlenir | Sahipsiz kayıt kalmasını önlemek ve grup kapatma/iptal hakkını kurucuya vermek |
 | K33 | 10-13 | Test ve sunum amaçlı veritabanı sıfırlama (`POST /api/v1/dev/reset-db`) Swagger'a eklendi; `APP_ENV=production` ise devre dışıdır | Canlı sunumlarda ve otomatik testlerde veritabanını tek tıkla fabrika ayarlarına döndürebilmek |
+| K34 | 10-16 | Geçici test paneli bağımlılıksız tutulur; kalıcı React frontend Faz 7'de ayrı geliştirilir | Backend'i erken deneyebilmek ve prototipi tamamlanmış frontend saymamak |
+| K35 | 10-16 | Cloudflare tüneli 5173 portundaki sınırlı proxy'ye bağlanır | Panel/API aynı origin'i kullanır; geliştirme sıfırlama ucu ve proje dosyaları paylaşılmaz |
+| K36 | 10-16 | İlgi alanlarına tüm üyeler tek tek ekler; yalnızca admin siler, yazımlar satır kilidiyle korunur | Üyelerin katkısını korumak ve eşzamanlı güncellemelerde veri kaybını engellemek |
+| K37 | 10-16 | Bütçeyi yalnızca admin günceller; mevcut hediye uyarıları transaction'da ve listelemede güncellenir | Toplam/kişi başı bütçeyle hediye uyarılarının tutarlı kalması |
+| K38 | 10-17 | AI ürün araştırması Google Search grounding ve ayrı JSON seçimiyle yapılır; kaynak adresleri metadata'dan alınır | Kaynaksız ürün/fiyatları elemek ve modelin URL üretmesini önlemek |
 
 
 ---
@@ -376,6 +381,80 @@
 - `main.go`: `POST /api/v1/dev/reset-db` rotası bağlandı.
 - `swag init` ile Swagger dokümantasyonuna **"Sistem & Test"** başlığı altında tek tıkla çalışan buton olarak eklendi.
 - Canlıda test edildi: `curl -X POST http://localhost:8080/api/v1/dev/reset-db` çağrıldığında `200 OK` dönüp tüm tabloların milisaniyeler içinde sıfırlandığı doğrulandı.
+
+---
+
+## 2026-10-16 — Geçici Backend Test Arayüzü
+
+**Gerekçe**
+- Kalıcı, mobil web öncelikli Faz 7 arayüzünden önce API'yi tarayıcı üzerinden elle deneyebilmek istendi. Kalıcı frontend'e daha sonra sıfırdan başlanacak.
+
+**Yapılanlar**
+- `prototypes/test-ui/` altında bağımlılıksız HTML/CSS/JavaScript paneli ve Node.js standart kütüphanesiyle yerel statik sunucu/API proxy'si eklendi.
+- Kayıt/giriş, profil, grup oluşturma/listeleme, ID ile grup erişimi, üye ekleme, bütçe özeti, manuel hediye/link önizleme, AI üretimi, oy, veto ve onaylı silme işlemleri bağlandı.
+- HTTP durum kodu ve JSON yanıt günlüğü eklendi; token maskelenir, şifreler loglanmaz. Oturum sekmeye özel `sessionStorage` içinde tutulur.
+- Backend CORS değişikliği gerektirmemek için panel sunucusu API isteklerini `127.0.0.1:8080` adresine iletir. Mevcut backend kaynak dosyaları değiştirilmedi.
+- Çalıştırma: proje kökünde `node prototypes/test-ui/server.mjs`; tarayıcı: `http://127.0.0.1:5173`.
+- Faz 7 görevleri tamamlandı olarak işaretlenmedi; geçici panel ayrı tutuldu.
+- Doğrulama: JavaScript sözdizimi kontrolü; tarayıcıda kayıt/giriş, grup ve manuel hediye oluşturma, oy değiştirme, reddedilen filtresi ve kısmi önizleme; canlı API/proxy üzerinden üyeler, bütçe, Anti-Spoiler, oy upsert, veto ve silme yetkileri. 390 px mobil genişlikte yatay taşma görülmedi. Oluşturulan sentetik test hesapları ve grupları temizlendi. Gerçek Gemini üretim çağrısı yapılmadı.
+
+---
+
+## 2026-10-16 — Cloudflare ile Geçici Canlı Test Bağlantısı
+
+- Kullanıcının isteğiyle `cloudflared` Homebrew üzerinden kuruldu ve `http://127.0.0.1:5173` için Quick Tunnel açıldı. Kalıcı alan adı veya sistem servisi oluşturulmadı.
+- Tünel doğrudan backend'e değil, arayüzün API proxy'sine bağlandı. Proxy yalnızca panelin kullandığı API yollarını iletecek şekilde sınırlandı; giriş gerektirmeyen `/api/v1/dev/reset-db` ve diğer geliştirme uçları proxy'de engellendi.
+- Kullanım komutu ve tünelin bilgisayar/süreçler açıkken çalışacağı `prototypes/test-ui/README.md` dosyasına eklendi.
+- Canlı HTTPS adresinde sayfa 200, `/health` 200 (`db: up`), tokensız `/api/v1/me` 401 ve geliştirme sıfırlama yolu 403 ile doğrulandı. Tarayıcıda “API ve DB bağlı” durumu görüldü.
+
+---
+
+## 2026-10-16 — İlgi Alanlarını Sonradan Düzenleme
+
+- `PATCH /api/v1/groups/:id/interests` eklendi. `{ "target_interests": "..." }` gövdesi yalnızca grubun ilgi alanlarını değiştirir. Boş metin alanı temizler; eksik/null veya metin dışı değer 400 döner.
+- Kullanıcının isteğiyle şimdilik admin dahil tüm grup üyeleri düzenleyebilir. JWT, üyelik ve Anti-Spoiler kontrolleri korunur; hedef kişi ve grup dışı kullanıcı 403 alır.
+- Geçici panelin grup detayına mevcut değeri gösteren düzenleme formu eklendi. Kaydetme sonrasında detay ve grup listesi yenilenir. Sonraki AI çağrısı veritabanındaki güncel ilgi alanlarını kullanır.
+- Proxy allowlist'i, Swagger şemaları, teknik şartname ve roadmap güncellendi. API ve panel aynı Cloudflare bağlantısında yeniden başlatıldı.
+- `go test ./...` geçti. Yeni servis testleri normal üye/admin, boşaltma, hedef kişi, grup dışı kullanıcı, bulunamayan grup ve veritabanı hatalarını kapsar. Canlı HTTPS üzerinden kalıcılık, diğer grup alanlarının korunması, 400/401/403/404 durumları ve Swagger doğrulandı; tarayıcıda düzenleme/kaydetme denendi. Sentetik test hesapları ve grupları temizlendi.
+
+---
+
+## 2026-10-16 — İlgi Alanları Listesi: Üyeler Ekler, Admin Siler
+
+- Kullanıcının yeni isteğiyle toplu metin düzenleme yerine tek tek eklenen listeye geçildi. `POST /api/v1/groups/:id/interests` tüm üyelere ekleme, `DELETE` yalnızca admine silme yetkisi verir. Her iki istek de `{ "interest": "Kamp" }` gövdesi alır. Normal üye kendi eklediğini de silemez.
+- Önceki `PATCH` endpoint'i kaldırıldı; üye listeyi değiştirip silme kuralını aşamaz. JWT, üyelik ve Anti-Spoiler korunur.
+- Grup detayı `interests: string[]` döner. Mevcut `target_interests` TEXT sütunu korunur; eski virgül/noktalı virgül/satır sonu ayrımlı değerler okunur. Yeni yazımlar satır sonuyla ayrılır. Mevcut veriye şema migrasyonu uygulanmadı; Gemini güncel listeyi metin olarak kullanmaya devam eder.
+- Ekleme tek öğe (1–100 karakter) kabul eder; boş ve tekrarlanan öğeler engellenir. Güncellemeler transaction içinde satır kilidiyle yapılır; eşzamanlı katkılar birbirini ezmez.
+- Geçici panelde etiketler, tek giriş alanı ve “Ekle” butonu bulunur. Etiketlerdeki “Sil” butonu yalnızca admine gösterilir; yetki API'de ayrıca kontrol edilir.
+- Doğrulama: `go test ./...`, JavaScript sözdizimi ve Swagger üretimi geçti. Canlı HTTPS testlerinde eski veri okuma, ekleme, admin/üye silme yetkileri, kaldırılan PATCH, 10 eşzamanlı eklemenin korunması, listeyi son öğeye kadar silme ve 400/401/403/404/409 durumları kontrol edildi. Tarayıcıda üye ekledi, admin sildi; üyede silme butonu yoktu. 390 px mobil genişlikte yatay taşma olmadı. Sentetik test verileri temizlendi.
+
+---
+
+## 2026-10-16 — Grup Bütçesini Güncelleme
+
+- `PATCH /api/v1/groups/:id/budget` eklendi; `{ "total_budget": "6000.00" }` gövdesi alır. Düzenleme grup adminine aittir; normal üye, hedef kişi ve grup dışı kullanıcı 403 alır. JWT ve Anti-Spoiler kontrolleri korunur.
+- Tutar 0–99999999.99 aralığında, en fazla iki ondalık basamaklı olmalıdır. Eksik/null, geçersiz, negatif ve veritabanı sınırını aşan tutarlar 400 döner. Para işlemleri `decimal.Decimal` ile yapılır.
+- Grup bütçesi ve mevcut hediyelerin `is_over_budget` bayrakları tek transaction'da güncellenir. Listelemede de güncel bütçeden hesaplanır; eski bütçeyle başlamış eşzamanlı hediye eklemeleri arayüzde eski uyarı göstermez. Önceki kuralla tutarlı olarak 0 bütçe aşımı uyarılarını kapatır.
+- Geçici panelde admin için bütçe formu eklendi. Kaydetme sonrası toplam/kişi başı bütçe, grup listesi ve hediye kartları yenilenir. Swagger, teknik şartname ve roadmap güncellendi. Aynı Cloudflare bağlantısı korunarak API ve proxy yeniden başlatıldı.
+- Doğrulama: `go test ./...` geçti. Yetki, para sınırları ve güncel bütçeden hediye uyarıları için servis testleri eklendi. Canlı HTTPS testleri bütçe artırma/azaltma, kuruş hassasiyeti, sıfır ve eşit fiyat senaryolarını; kişi başı hesaplamayı; ilgi alanlarının korunmasını; 400/401/403/404 durumlarını kapsadı. Veritabanında ilgili sentetik hediyelerin saklanan bayrakları da SELECT ile doğrulandı. Tarayıcıdan 3000 → 6000 bütçe güncellemesiyle kişi başı tutar 1500 → 3000 oldu, 5000 ₺ hediyenin uyarısı kalktı. Üyede bütçe formu görünmedi; 390 px genişlikte taşma olmadı. Sentetik test verileri temizlendi.
+
+---
+
+## 2026-10-17 — Kaynaklı AI Akışının Kaydı ve Doküman Senkronizasyonu
+
+**Mevcut kodda doğrulanan değişiklikler**
+- Gemini istemcisi iki aşamalı çalışır: Google Search ile izinli Türkiye mağazalarında somut ürün/TL fiyatı araştırması, ardından `evidence_ids` ile desteklenen ürünlerin yapılandırılmış JSON'a dönüştürülmesi. Araştırma ile seçim toplam 150 saniyelik context kullanır; 503 durumunda arama/JSON ayarları korunarak yedek model denenir.
+- Kaynakların grounding metadata'sından gelmesi; ürün adı, arama metni ve fiyatın destekleyen araştırmada bulunması; pozitif fiyat, iki ondalık basamak ve veritabanı sınırları kontrol edilir. Servis mevcut/reddedilmiş başlıkları ve aynı yanıttaki tekrarları normalize ederek eler; en fazla 5 öneri kaydeder. Daha az sonuç dönebilir.
+- `GiftIdea` modelinde `ai_sources` (JSONB) ve `ai_search_suggestions` (TEXT) saklanır; AI önerilerinde `product_url` boş kalır. Grup oluşturma yanıtı kurucunun profilini yükler; yüklenmeyen `Creator` ilişkisi boş nesne yerine atlanabilir.
+- README, ROADMAP, PROJECT_CONTEXT, SETUP ve panel README'si mevcut uygulamayla eşitlendi. İlk `.env` kurulumu, Node.js gereksinimi, ayrı terminallerde backend/panel/tünel çalıştırma ve doğrulama komutları eklendi. Geçici tünel adresi kalıcı proje bağlantısı olarak dokümanlara yazılmadı.
+- Kaynakların panelde iframe içinde gösterildiğini söyleyen eski ifade düzeltildi: `ai_sources` ve Google arama önerisi HTML'i API'de mevcut, panel kartlarında gösterim henüz yok. Bu iş Faz 7'de açık tutuldu. Kaynaksız araştırmanın mevcut HTTP 500 yanıtı ile servis filtresi sonrası boş sonucun 422 yanıtı ayrıştırıldı; hata eşlemelerini iyileştirme işi roadmap'e eklendi. API davranışı bu dokümantasyon güncellemesinde değiştirilmedi.
+- Swagger'ın AI açıklaması kaynak controller yorumunda güncellendi; `backend/` içinde `swag init -g cmd/api/main.go --parseInternal` ile üç şema dosyası yeniden üretildi.
+
+**Çalıştırma ve doğrulama**
+- `docker compose up -d --wait` ile PostgreSQL sağlıklı duruma geldi. Güncel kaynak `backend/` içinde `go run ./cmd/api`, panel proje kökünde `node prototypes/test-ui/server.mjs` ile başlatıldı. AutoMigrate tamamlandı.
+- `cloudflared tunnel --url http://127.0.0.1:5173 --no-autoupdate` ile yeni Quick Tunnel açıldı. HTTPS üzerinden panel 200, `/health` 200 ve `db: up`, tokensız `/api/v1/me` 401 doğrulandı.
+- `go test ./...` tüm backend paketlerinde geçti; Gemini testleri sahte HTTP taşıyıcısıyla araştırma/seçim, geçersiz kaynak/ürün/fiyat, 503 yedeği ve Türkçe UTF-8 kaynak aralıklarını kapsadı. İlgi alanı ve bütçe servis testleri de geçti. `node --check` ile panel sunucusu ve istemci JavaScript sözdizimleri doğrulandı.
+- Kota kullanan gerçek Gemini testi bu oturumda çalıştırılmadı; `TestLiveTurkeyProducts` varsayılan olarak atlanır, `-args -live-ai` ile özellikle açılır. Önceki günün tarayıcı ve yazma senaryoları bu oturumda tekrar denenmedi. Proxy'nin geliştirme uçlarını engellediği kaynak allowlist'i üzerinden incelendi.
 
 
 

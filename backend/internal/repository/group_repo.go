@@ -2,10 +2,13 @@ package repository
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/MSheker20/CovertGift/backend/internal/models"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // GroupRepository grup ve üyelik veritabanı işlemlerini tanımlayan arayüzdür
@@ -17,6 +20,8 @@ type GroupRepository interface {
 	GetMemberCount(groupID uuid.UUID) (int64, error)
 	GetMembers(groupID uuid.UUID) ([]models.GroupMember, error)
 	AddMember(member *models.GroupMember) error
+	MutateInterests(groupID uuid.UUID, change func([]string) ([]string, error)) ([]string, error)
+	UpdateBudget(groupID uuid.UUID, budget decimal.Decimal) error
 	DeleteGroup(groupID uuid.UUID) error
 }
 
@@ -46,6 +51,12 @@ func (r *groupRepository) CreateGroupWithAdmin(group *models.Group, adminUserID 
 
 		if err := tx.Create(member).Error; err != nil {
 			return err // Hata olursa grup kaydı da geri alınır (Rollback)!
+		}
+
+		// 3. Grubu oluşturan kullanıcının profil bilgilerini Creator alanına yükle
+		var creator models.User
+		if err := tx.First(&creator, "id = ?", adminUserID).Error; err == nil {
+			group.Creator = &creator
 		}
 
 		return nil
@@ -114,6 +125,48 @@ func (r *groupRepository) AddMember(member *models.GroupMember) error {
 	return r.db.Create(member).Error
 }
 
+// MutateInterests locks the row so concurrent additions cannot overwrite each other.
+func (r *groupRepository) MutateInterests(groupID uuid.UUID, change func([]string) ([]string, error)) ([]string, error) {
+	var interests []string
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var group models.Group
+		if err := tx.Select("id", "target_interests").Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&group, "id = ?", groupID).Error; err != nil {
+			return err
+		}
+		updated, err := change(models.ParseInterests(group.TargetInterests))
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(&models.Group{}).Where("id = ?", groupID).
+			Update("target_interests", strings.Join(updated, "\n")).Error; err != nil {
+			return err
+		}
+		interests = updated
+		return nil
+	})
+	return interests, err
+}
+
+// UpdateBudget keeps the group's budget and existing gift warnings consistent.
+func (r *groupRepository) UpdateBudget(groupID uuid.UUID, budget decimal.Decimal) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&models.Group{}).Where("id = ?", groupID).Update("total_budget", budget)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		var overBudget interface{} = false
+		if budget.GreaterThan(decimal.Zero) {
+			overBudget = gorm.Expr("estimated_price > ?", budget)
+		}
+		return tx.Model(&models.GiftIdea{}).Where("group_id = ?", groupID).
+			Update("is_over_budget", overBudget).Error
+	})
+}
+
 // DeleteGroup grubu ve ona bağlı tüm fikirleri, oyları ve üyelikleri atomik bir transaction ile siler
 func (r *groupRepository) DeleteGroup(groupID uuid.UUID) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
@@ -151,4 +204,3 @@ func (r *groupRepository) DeleteGroup(groupID uuid.UUID) error {
 		return nil
 	})
 }
-

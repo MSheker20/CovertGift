@@ -202,7 +202,7 @@ func (ctl *IdeaController) PreviewLink(c *gin.Context) {
 
 // GenerateAI yapay zeka ile gruba hediye önerileri üretir
 // @Summary      Gemini 3.8 Flash ile Yapay Zekâ Hediye Önerileri Üret (Faz 6)
-// @Description  Hedef kişinin hobileri, toplam bütçe, havuzdaki mevcut hediyeler ve grupta daha önce VETO edilen/reddedilen fikirleri (State-Based Negatif Kısıt) Gemini'ye iletir; 3-5 adet yeni semantik hediye üretip havuza ekler.
+// @Description  Google Search ile Türkiye mağazalarında ürün ve TL fiyatı araştırır; kaynakla desteklenen sonuçlardan kişinin ilgi alanına uygun en fazla 5 yeni hediye üretir. Mevcut/veto edilmiş fikirler ve bütçe dikkate alınır. ai_sources araştırma kaynaklarını, ai_search_suggestions Google arama önerisi HTML'ini taşır; anlık stok garantisi vermez. Kaynaksız araştırma şu an 500, servis filtresinden sonra boş sonuç 422 döner. Geçici panel kaynak alanlarını henüz göstermez.
 // @Tags         Hediye Havuzu (Gift Ideas)
 // @Produce      json
 // @Security     BearerAuth

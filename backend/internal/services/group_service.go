@@ -2,6 +2,8 @@ package services
 
 import (
 	"errors"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/MSheker20/CovertGift/backend/internal/models"
 	"github.com/MSheker20/CovertGift/backend/internal/repository"
@@ -11,13 +13,19 @@ import (
 
 // Standart grup hata tanımları (Sentinel Errors)
 var (
-	ErrGroupNotFound           = errors.New("grup bulunamadı")
-	ErrNotGroupMember          = errors.New("bu grubun üyesi değilsiniz")
-	ErrAntiSpoilerTriggered    = errors.New("Erişim engellendi: Bu hediye grubu senin için oluşturulmuş bir sürprizdir.")
-	ErrCannotAddTargetAsMember = errors.New("hediye alınacak hedef kişi gruba üye eklenemez")
-	ErrAlreadyGroupMember      = errors.New("bu kullanıcı zaten grubun üyesidir")
-	ErrSelfTarget              = errors.New("kendiniz için sürpriz hediye grubu oluşturamazsınız")
-	ErrUnauthorizedGroupDelete = errors.New("bu grubu sadece grup yöneticisi (admin) silebilir")
+	ErrGroupNotFound              = errors.New("grup bulunamadı")
+	ErrNotGroupMember             = errors.New("bu grubun üyesi değilsiniz")
+	ErrAntiSpoilerTriggered       = errors.New("Erişim engellendi: Bu hediye grubu senin için oluşturulmuş bir sürprizdir.")
+	ErrCannotAddTargetAsMember    = errors.New("hediye alınacak hedef kişi gruba üye eklenemez")
+	ErrAlreadyGroupMember         = errors.New("bu kullanıcı zaten grubun üyesidir")
+	ErrSelfTarget                 = errors.New("kendiniz için sürpriz hediye grubu oluşturamazsınız")
+	ErrUnauthorizedGroupDelete    = errors.New("bu grubu sadece grup yöneticisi (admin) silebilir")
+	ErrUnauthorizedInterestDelete = errors.New("ilgi alanlarını sadece grup yöneticisi (admin) silebilir")
+	ErrInvalidInterest            = errors.New("tek bir ilgi alanı girin: 1–100 karakter, virgül, noktalı virgül veya satır sonu kullanmadan")
+	ErrDuplicateInterest          = errors.New("bu ilgi alanı zaten listede")
+	ErrInterestNotFound           = errors.New("ilgi alanı bulunamadı")
+	ErrUnauthorizedBudgetUpdate   = errors.New("bütçeyi sadece grup yöneticisi (admin) güncelleyebilir")
+	ErrInvalidBudget              = errors.New("bütçe 0–99.999.999,99 ₺ arasında ve en fazla iki ondalık basamaklı olmalıdır")
 )
 
 // GroupDetailResponse grup detay uç noktasının döneceği zenginleştirilmiş veri yapısıdır
@@ -27,6 +35,7 @@ type GroupDetailResponse struct {
 	PerPersonBudget decimal.Decimal      `json:"per_person_budget"`
 	Members         []models.GroupMember `json:"members,omitempty"`
 	MyRole          string               `json:"my_role"`
+	Interests       []string             `json:"interests"`
 }
 
 // GroupService grup iş mantığını tanımlayan arayüzdür
@@ -35,6 +44,9 @@ type GroupService interface {
 	GetUserGroups(userID uuid.UUID) ([]models.Group, error)
 	GetGroupDetail(groupID, userID uuid.UUID) (*GroupDetailResponse, error)
 	AddMemberByEmail(groupID, currentUserID uuid.UUID, email string) (*models.GroupMember, error)
+	AddInterest(groupID, userID uuid.UUID, interest string) ([]string, error)
+	DeleteInterest(groupID, userID uuid.UUID, interest string) ([]string, error)
+	UpdateBudget(groupID, userID uuid.UUID, budget decimal.Decimal) error
 	DeleteGroup(groupID, userID uuid.UUID) error
 }
 
@@ -128,6 +140,7 @@ func (s *groupService) GetGroupDetail(groupID, userID uuid.UUID) (*GroupDetailRe
 		PerPersonBudget: perPersonBudget,
 		Members:         members,
 		MyRole:          member.Role,
+		Interests:       models.ParseInterests(group.TargetInterests),
 	}, nil
 }
 
@@ -189,6 +202,97 @@ func (s *groupService) AddMemberByEmail(groupID, currentUserID uuid.UUID, email 
 	return newMember, nil
 }
 
+// checkInterestAccess preserves membership and Anti-Spoiler for both operations.
+func (s *groupService) checkInterestAccess(groupID, userID uuid.UUID, adminOnly bool) error {
+	group, err := s.groupRepo.GetGroupByID(groupID)
+	if err != nil {
+		return err
+	}
+	if group == nil {
+		return ErrGroupNotFound
+	}
+	if group.TargetUserID != nil && *group.TargetUserID == userID {
+		return ErrAntiSpoilerTriggered
+	}
+	member, err := s.groupRepo.GetMember(groupID, userID)
+	if err != nil {
+		return err
+	}
+	if member == nil {
+		return ErrNotGroupMember
+	}
+	if adminOnly && member.Role != "admin" {
+		return ErrUnauthorizedInterestDelete
+	}
+	return nil
+}
+
+// AddInterest appends one item. Members cannot replace or clear the existing list.
+func (s *groupService) AddInterest(groupID, userID uuid.UUID, interest string) ([]string, error) {
+	if err := s.checkInterestAccess(groupID, userID, false); err != nil {
+		return nil, err
+	}
+	interest = strings.TrimSpace(interest)
+	if interest == "" || utf8.RuneCountInString(interest) > 100 || strings.ContainsAny(interest, ",;\r\n") {
+		return nil, ErrInvalidInterest
+	}
+	return s.groupRepo.MutateInterests(groupID, func(items []string) ([]string, error) {
+		for _, item := range items {
+			if strings.EqualFold(item, interest) {
+				return nil, ErrDuplicateInterest
+			}
+		}
+		return append(items, interest), nil
+	})
+}
+
+// DeleteInterest removes one existing item, and is restricted to group admins.
+func (s *groupService) DeleteInterest(groupID, userID uuid.UUID, interest string) ([]string, error) {
+	if err := s.checkInterestAccess(groupID, userID, true); err != nil {
+		return nil, err
+	}
+	interest = strings.TrimSpace(interest)
+	if interest == "" {
+		return nil, ErrInvalidInterest
+	}
+	return s.groupRepo.MutateInterests(groupID, func(items []string) ([]string, error) {
+		for i, item := range items {
+			if item == interest {
+				return append(items[:i], items[i+1:]...), nil
+			}
+		}
+		return nil, ErrInterestNotFound
+	})
+}
+
+// UpdateBudget is restricted to admins and validates the database's money range.
+func (s *groupService) UpdateBudget(groupID, userID uuid.UUID, budget decimal.Decimal) error {
+	group, err := s.groupRepo.GetGroupByID(groupID)
+	if err != nil {
+		return err
+	}
+	if group == nil {
+		return ErrGroupNotFound
+	}
+	if group.TargetUserID != nil && *group.TargetUserID == userID {
+		return ErrAntiSpoilerTriggered
+	}
+	member, err := s.groupRepo.GetMember(groupID, userID)
+	if err != nil {
+		return err
+	}
+	if member == nil {
+		return ErrNotGroupMember
+	}
+	if member.Role != "admin" {
+		return ErrUnauthorizedBudgetUpdate
+	}
+	if budget.IsNegative() || budget.GreaterThan(decimal.New(9999999999, -2)) || !budget.Equal(budget.Round(2)) {
+		return ErrInvalidBudget
+	}
+	return s.groupRepo.UpdateBudget(groupID, budget)
+}
+
 // DeleteGroup grubu ve tüm ilişkili verilerini siler (sadece grup kurucusu / admin üye silebilir)
 func (s *groupService) DeleteGroup(groupID, userID uuid.UUID) error {
 	// 1. Grubu getir
@@ -221,4 +325,3 @@ func (s *groupService) DeleteGroup(groupID, userID uuid.UUID) error {
 	// 4. Grubu sil
 	return s.groupRepo.DeleteGroup(groupID)
 }
-

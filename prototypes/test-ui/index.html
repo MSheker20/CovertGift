@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>CovertGift · Geçici API test paneli</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <div><strong>CovertGift</strong> <span class="badge">Geçici test paneli</span></div>
+    <div class="actions"><span id="health">API kontrol ediliyor…</span><button id="check-health">Bağlantıyı dene</button><a href="/swagger/index.html" target="_blank" rel="noopener">Swagger ↗</a></div>
+  </header>
+  <main>
+    <p class="hint">Backend işlemlerini denemek için basit arayüz. Veriler gerçek API’ye kaydedilir. Farklı kullanıcıları ayrı tarayıcı sekmelerinde açabilirsin.</p>
+    <p id="notice" role="status" aria-live="polite">Hazır.</p>
+    <p id="working" role="status" hidden>İşlem sürüyor, sunucu yanıtı bekleniyor…</p>
+
+    <section id="auth-panel" class="panel">
+      <h1>Giriş / kayıt</h1>
+      <div class="columns">
+        <form id="login-form">
+          <h2>Giriş yap</h2>
+          <label>E-posta<input name="email" type="email" autocomplete="username" required></label>
+          <label>Şifre<input name="password" type="password" autocomplete="current-password" required></label>
+          <button class="primary">Giriş yap</button>
+        </form>
+        <form id="register-form">
+          <h2>Hesap oluştur</h2>
+          <label>Ad soyad<input name="name" minlength="2" maxlength="100" autocomplete="name" required></label>
+          <label>E-posta<input name="email" type="email" maxlength="150" autocomplete="email" required></label>
+          <label>Şifre (en az 6 karakter)<input name="password" type="password" minlength="6" maxlength="100" autocomplete="new-password" required></label>
+          <button>Kaydol ve giriş yap</button>
+        </form>
+      </div>
+    </section>
+
+    <div id="workspace" hidden>
+      <section class="panel">
+        <div class="row"><h2>Oturum</h2><button id="logout">Çıkış yap</button></div>
+        <p id="profile"></p>
+        <label>Kullanıcı ID’si (Anti-Spoiler testi için)<input id="user-id" readonly></label>
+        <div class="actions"><button id="refresh-profile">Profili yenile</button><button id="delete-account" class="danger">Hesabımı sil…</button></div>
+      </section>
+
+      <div class="columns">
+        <section class="panel">
+          <div class="row"><h2>Gruplarım</h2><button id="refresh-groups">Yenile</button></div>
+          <div id="groups"></div>
+          <form id="open-group-form" class="divider">
+            <label>ID ile grup aç (erişim / Anti-Spoiler testi)<input name="group_id" placeholder="Grup UUID" required pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"></label>
+            <button>Grubu aç</button>
+          </form>
+        </section>
+        <section class="panel">
+          <details>
+            <summary>Yeni grup oluştur</summary>
+            <form id="create-group-form">
+              <label>Grup başlığı<input name="title" minlength="2" maxlength="150" required></label>
+              <label>Hediye alınacak kişi<input name="target_person_name" minlength="2" maxlength="100" required></label>
+              <label>Başlangıç ilgi alanları (virgülle ayır)<textarea name="target_interests" placeholder="Kahve, kamp, teknoloji…"></textarea></label>
+              <label>Açıklama<textarea name="description"></textarea></label>
+              <label>Toplam bütçe (₺)<input name="total_budget" type="number" min="0" step="0.01" value="3000" required></label>
+              <label>Hedef kullanıcı ID’si (isteğe bağlı)<input name="target_user_id" placeholder="Anti-Spoiler için mevcut kullanıcı UUID" pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"></label>
+              <button class="primary">Grup oluştur</button>
+            </form>
+          </details>
+        </section>
+      </div>
+
+      <section id="group-panel" class="panel" hidden>
+        <div class="row"><h1 id="group-title"></h1><div class="actions"><button id="refresh-group">Grubu yenile</button><button id="delete-group" class="danger">Grubu sil…</button></div></div>
+        <p id="group-description"></p>
+        <div id="group-stats" class="stats"></div>
+        <form id="budget-form" class="inline-form" hidden>
+          <label>Toplam bütçe (₺)<input name="total_budget" type="number" min="0" max="99999999.99" step="0.01" required></label>
+          <button>Bütçeyi kaydet</button>
+          <small>0 girersen bütçe aşımı uyarıları gösterilmez.</small>
+        </form>
+        <label>Grup ID’si<input id="group-id" readonly></label>
+        <section class="divider" aria-labelledby="interests-title">
+          <h2 id="interests-title">İlgi alanları</h2>
+          <ul id="interests-list" class="interest-list"></ul>
+          <p id="interests-help" class="hint">Tüm üyeler ekleyebilir, sadece admin silebilir.</p>
+          <form id="interests-form" class="inline-form">
+            <label>Yeni ilgi alanı<input name="interest" placeholder="Örn. Kamp" maxlength="100" required></label>
+            <button class="primary">Ekle</button>
+          </form>
+        </section>
+        <details class="divider">
+          <summary>Üyeler ve üye ekleme</summary>
+          <ul id="members"></ul>
+          <form id="member-form" class="inline-form">
+            <label>Kayıtlı kullanıcının e-postası<input name="email" type="email" required></label><button>Üye ekle</button>
+          </form>
+        </details>
+        <div class="row divider"><h2>Hediye havuzu</h2><button id="generate-ai" class="primary">Gemini ile öneri üret</button></div>
+        <label>Göster<select id="idea-filter"><option value="ALL">Tüm fikirler</option><option value="ACTIVE">Aktif</option><option value="REJECTED">Reddedilen</option><option value="SELECTED">Seçilen</option></select></label>
+        <div id="ideas" class="idea-grid"></div>
+        <details id="manual-details" class="divider">
+          <summary>Manuel hediye ekle / link önizleme</summary>
+          <form id="preview-form" class="inline-form">
+            <label>Ürün linki (isteğe bağlı)<input name="url" type="url" placeholder="https://…" required></label><button>Linkten doldur</button>
+          </form>
+          <p id="preview-note" class="hint">Önizleme veritabanına kayıt yapmaz. Alanları kontrol edip aşağıdan kaydet.</p>
+          <form id="idea-form">
+            <div class="columns">
+              <label>Hediye başlığı<input name="title" minlength="2" maxlength="200" required></label>
+              <label>Tahmini fiyat (₺)<input name="estimated_price" type="number" min="0" step="0.01" value="0" required></label>
+            </div>
+            <label>Açıklama<textarea name="description"></textarea></label>
+            <label>Arama terimi<input name="search_query" maxlength="255" placeholder="Boş bırakırsan başlık kullanılır"></label>
+            <label>Ürün URL’si<input name="product_url" type="url" maxlength="1000"></label>
+            <label>Görsel URL’si<input name="image_url" type="url" maxlength="500"></label>
+            <button class="primary">Hediyeyi kaydet</button>
+          </form>
+        </details>
+      </section>
+    </div>
+
+    <section class="panel">
+      <details>
+        <summary>Son API yanıtları</summary>
+        <p class="hint">HTTP kodu ve yanıt gövdesi. Şifreler kaydedilmez, token gizlenir.</p>
+        <pre id="api-log">Henüz istek yok.</pre>
+        <button id="clear-log">Günlüğü temizle</button>
+      </details>
+    </section>
+  </main>
+</body>
+</html>

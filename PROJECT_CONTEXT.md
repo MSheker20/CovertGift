@@ -11,7 +11,8 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - **Veritabanı:** PostgreSQL (Docker üzerinde) + **GORM**
 - **Kimlik Doğrulama:** JWT (JSON Web Tokens) ve özel Gin middleware'i
 - **Frontend:** React (Vite) + Tailwind CSS + shadcn/ui + Lucide Icons
-- **Yapay Zekâ Katmanı:** Google Gemini 3 Flash (Google AI Studio Free Tier, `response_schema` ile katı JSON formatı)
+- **Geçici test paneli:** `prototypes/test-ui/` altında HTML/CSS/JavaScript + Node.js 22+ statik sunucu ve API proxy'si; kalıcı frontend Faz 7'de geliştirilecek
+- **Yapay Zekâ Katmanı:** `google.golang.org/genai` ile Google Search araştırması + `response_schema` ile JSON seçimi. Kod varsayılanı `gemini-3.8-flash`; `GEMINI_MODEL` ile değiştirilebilir. 503 hatasında `gemini-3.5-flash-lite` yedeği denenir; kota ve erişim kullanılan API hesabına bağlıdır.
 - **Konteynerizasyon:** PostgreSQL için Docker Compose
 
 ---
@@ -31,7 +32,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `title`: VARCHAR(150), boş geçilemez
 - `description`: TEXT
 - `target_person_name`: VARCHAR(100), boş geçilemez
-- `target_interests`: TEXT -- Hedef kişinin hobileri ve ilgi alanları (Gemini AI hediye önerileri için bağlam)
+- `target_interests`: TEXT -- Hedef kişinin ilgi alanları. Liste öğeleri satır sonuyla saklanır; eski virgül/noktalı virgül ayrımlı metinler de okunur. Grup detayındaki `interests: string[]` alanı arayüz için ayrıştırılmış listedir. Gemini bağlamı bu metinden üretilir.
 - `target_user_id`: UUID (Opsiyonel, Foreign Key -> `users.id`) -- Anti-Spoiler kontrolü için kullanılır
 - `total_budget`: NUMERIC(10, 2), varsayılan 0.00
 - `creator_id`: UUID (Foreign Key -> `users.id`), boş geçilemez
@@ -57,6 +58,8 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `search_query`: VARCHAR(255), boş geçilemez -- Pazar yerleri için optimize edilmiş arama terimi
 - `image_url`: VARCHAR(500), opsiyonel
 - `product_url`: VARCHAR(1000), opsiyonel -- Sadece `MANUAL` önerilerde, kullanıcının yapıştırdığı linkin çözümlenmiş (final) ürün adresi. AI önerilerinde daima boştur.
+- `ai_sources`: JSONB, opsiyonel -- Google grounding metadata'sından alınan `{ title, url }` kaynak listesi; modelin ürettiği URL'ler kullanılmaz
+- `ai_search_suggestions`: TEXT, opsiyonel -- Google'ın döndürdüğü arama önerisi HTML'i; mevcut panelde gösterilmez
 - `created_by`: UUID (Foreign Key -> `users.id`), boş geçilemez
 - `created_at`: TIMESTAMP, varsayılan now()
 
@@ -91,8 +94,10 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 
 4. **Token Tasarrufu Sağlayan Prompt Yapısı (State-Based Context):**
    - Sohbet geçmişi biriktirilmez.
-   - Veritabanından grubun ilgi alanları, kalan bütçe limiti ve grupta daha önce negatif oy almış (`vote_type = -1`) ürünlerin başlıkları çekilir.
-   - Tek bir JSON prompt'u ile Gemini'a iletilir ve 3-5 adet yeni öneri istenir.
+   - Veritabanından grubun güncel ilgi alanları, toplam bütçesi, mevcut ve `REJECTED` durumundaki ürün başlıkları çekilir. Tek bir negatif oy, çoğunluk vetosu eşiğine ulaşmadıkça fikri reddedilmiş yapmaz.
+   - Bu bağlam araştırma ve JSON seçimi aşamalarında kullanılır. Hedef 3–5 farklı öneridir; doğrulamadan geçen daha az ürün varsa sonuç sayısı azalır.
+
+   **Türkiye ürün araştırması (2026-10-16):** AI üretimi iki aşamalıdır: Google Search grounding ile izinli Türkiye mağazalarındaki somut ürünler ve TL fiyatları araştırılır; yalnızca API kaynaklarıyla desteklenen araştırma parçaları yapılandırılmış önerilere dönüştürülür. Seçim aşamasında `evidence_ids` ile kaynak eşleştirilir; ürün adı, arama metni ve fiyatın destekleyen araştırmada geçmesi doğrulanır. Kaynaksız, eksik, fiyatı geçersiz ve tekrar eden kayıtlar elenir; gerekirse 3'ten az öneri döner. Arama sonuçları anlık stok garantisi değildir. `ai_sources` alanı Google'ın döndürdüğü kaynak başlığı ve adresini taşır; `product_url` AI için boş kalır. `ai_search_suggestions` Google'ın arama önerisi HTML'idir; mevcut geçici panel bunu henüz göstermez. Kalıcı frontend'de izole gösterim planlanır. Kaynak bulunamaması şu an controller'ın genel hata yolundan 500 döner; servis filtresinden sonra hiç öneri kalmaması 422, API anahtarı eksikliği 503 döner.
 
 5. **Ürün Linki Önizleme (Link Preview / Manuel Öneri Zenginleştirme):**
    - Kullanıcı manuel öneri eklerken bir ürün linki yapıştırabilir (Örn: Trendyol paylaşım linki `https://ty.gl/...`). Backend sayfayı çekip başlık, açıklama, görsel ve fiyatı otomatik doldurur.
@@ -125,19 +130,23 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `POST /api/v1/groups` -> Yeni grup açar (oluşturan kişi `admin` üye yapılır)
 - `GET /api/v1/groups/:id` -> Grup detayları, üye sayısı, kişi başı bütçe (Anti-Spoiler korumalı)
 - `POST /api/v1/groups/:id/members` -> Gruba e-posta ile üye ekler
+- `POST /api/v1/groups/:id/interests` -> `{ interest: string }` ile listeye tek ilgi alanı ekler; tüm grup üyeleri ekleyebilir. Başındaki/sonundaki boşluklar temizlenir; 1–100 karakter, virgül/noktalı virgül/satır sonu içermez. Tekrar ekleme 409 döner. Yanıt `{ interests: string[] }` olur.
+- `DELETE /api/v1/groups/:id/interests` -> `{ interest: string }` ile yalnızca **admin** bir öğeyi silebilir; normal üye kendi eklediğini de silemez (403). Anti-Spoiler ve üyelik kontrolü her iki uçta da zorunludur. Eski toplu `PATCH` yolu kaldırılmıştır; tüm listeyi değiştirerek silme yetkisi aşılamaz. Eşzamanlı eklemeler transaction + satır kilidiyle korunur.
+- `PATCH /api/v1/groups/:id/budget` -> `{ total_budget: decimal }` ile yalnızca **admin** toplam bütçeyi günceller. Aralık 0–99999999.99, en fazla iki ondalık basamaktır. Kişi başı tutar anlık hesaplanır; mevcut hediye bütçe aşımı bayrakları aynı transaction'da güncellenir ve listelemede güncel bütçeye göre hesaplanır. Mevcut kurala uygun olarak 0 bütçe aşımı uyarılarını kapatır. Anti-Spoiler ve üyelik kontrolü zorunludur.
 - `DELETE /api/v1/groups/:id` -> Grubu ve bağlı tüm verileri siler (Sadece grup admini silebilir; Anti-Spoiler korumalı)
 
 ### Hediye Havuzu ve Oylama
 - `GET /api/v1/groups/:id/ideas` -> Hediyeleri toplam oy skoruyla birlikte çeker (`SUM(votes.vote_type)`)
 - `POST /api/v1/groups/:id/ideas` -> Manuel hediye önerisi ekler (opsiyonel `product_url` ile; link önizlemeden gelen veriler formu doldurur)
 - `POST /api/v1/groups/:id/ideas/preview-link` -> İstek: `{ url }` -> `200 OK` + `{ title, description, image_url, price, final_url, search_query }` (Veritabanına yazmaz, sadece önizleme döner; Anti-Spoiler korumalı)
-- `POST /api/v1/groups/:id/ideas/generate-ai` -> Gemini API'yi tetikler, yeni önerileri tabloya kaydeder ve döner
+- `POST /api/v1/groups/:id/ideas/generate-ai` -> Google Search araştırması ve JSON seçimiyle en fazla 5 kaynaklı öneriyi kaydeder; `201` + `GiftIdea[]` döner. `ai_sources` ve `ai_search_suggestions` yanıta dahildir. 3'ten az sonuç dönebilir; mevcut hata eşlemeleri İş Kuralı 4'te açıklanır.
 - `POST /api/v1/ideas/:id/vote` -> Oy verir veya günceller `{ vote_type: 1 | -1 }` (Conflict durumunda güncelleme; downvote sayısı çoğunluğu aşarsa fikri otomatik REJECTED yapar)
 - `POST /api/v1/ideas/:id/reject` -> Grup admini doğrudan hediye fikrini veto eder (`status = REJECTED`)
 - `DELETE /api/v1/ideas/:id` -> Hediyeyi kaldırır (Sadece öneren kişi veya grup admini silebilir)
 
 ### Sistem & Test
 - `POST /api/v1/dev/reset-db` -> Test ve sunum ortamında tüm tabloları TRUNCATE CASCADE ile sıfırlar (Production ortamında güvenlik için devre dışıdır)
+- Geçici panel proxy'si yalnızca auth, profil, grup, hediye ve oy yollarıyla `/health`, `/swagger/*`, `/docs` yollarını iletir. Geliştirme uçları 403 ile engellenir. Cloudflare tüneli bu proxy'nin 5173 portuna bağlanır.
 
 ---
 

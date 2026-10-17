@@ -62,6 +62,21 @@ definitions:
     - target_person_name
     - title
     type: object
+  controllers.InterestListResponse:
+    properties:
+      interests:
+        items:
+          type: string
+        type: array
+    type: object
+  controllers.InterestRequest:
+    properties:
+      interest:
+        example: Kamp
+        type: string
+    required:
+    - interest
+    type: object
   controllers.LoginRequest:
     properties:
       email:
@@ -127,6 +142,14 @@ definitions:
         example: true
         type: boolean
     type: object
+  controllers.UpdateBudgetRequest:
+    properties:
+      total_budget:
+        example: 3500
+        type: number
+    required:
+    - total_budget
+    type: object
   controllers.VoteRequest:
     properties:
       vote_type:
@@ -171,8 +194,21 @@ definitions:
         example: ok
         type: string
     type: object
+  models.AISource:
+    properties:
+      title:
+        type: string
+      url:
+        type: string
+    type: object
   models.GiftIdea:
     properties:
+      ai_search_suggestions:
+        type: string
+      ai_sources:
+        items:
+          $ref: '#/definitions/models.AISource'
+        type: array
       created_at:
         type: string
       created_by:
@@ -267,6 +303,12 @@ definitions:
     type: object
   repository.IdeaWithScore:
     properties:
+      ai_search_suggestions:
+        type: string
+      ai_sources:
+        items:
+          $ref: '#/definitions/models.AISource'
+        type: array
       created_at:
         type: string
       created_by:
@@ -310,6 +352,10 @@ definitions:
     properties:
       group:
         $ref: '#/definitions/models.Group'
+      interests:
+        items:
+          type: string
+        type: array
       member_count:
         type: integer
       members:
@@ -615,6 +661,64 @@ paths:
       summary: Grup Detayı ve Dinamik Kişi Başı Bütçe (Anti-Spoiler Korumalı)
       tags:
       - Hediye Grupları (Groups)
+  /api/v1/groups/{id}/budget:
+    patch:
+      consumes:
+      - application/json
+      description: Yalnızca admin toplam bütçeyi değiştirebilir. 0–99999999.99 aralığında,
+        en fazla iki ondalık basamak kabul edilir. Kişi başı bütçe anlık hesaplanır;
+        hediye bütçe aşımı uyarıları yenilenir. 0 bütçe aşımı uyarılarını kapatır.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Yeni toplam bütçe
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateBudgetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Bütçe güncellendi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "400":
+          description: Geçersiz bütçe veya grup kimliği
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Sadece admin güncelleyebilir; Anti-Spoiler ve üyelik kontrolü
+            zorunlu
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Grup Bütçesini Güncelle (Admin)
+      tags:
+      - Hediye Grupları (Groups)
   /api/v1/groups/{id}/ideas:
     get:
       description: Gruptaki hediye havuzunu, her hediyenin toplam oy skorunu (+1/-1
@@ -722,9 +826,13 @@ paths:
       - Hediye Havuzu (Gift Ideas)
   /api/v1/groups/{id}/ideas/generate-ai:
     post:
-      description: Hedef kişinin hobileri, toplam bütçe, havuzdaki mevcut hediyeler
-        ve grupta daha önce VETO edilen/reddedilen fikirleri (State-Based Negatif
-        Kısıt) Gemini'ye iletir; 3-5 adet yeni semantik hediye üretip havuza ekler.
+      description: Google Search ile Türkiye mağazalarında ürün ve TL fiyatı araştırır;
+        kaynakla desteklenen sonuçlardan kişinin ilgi alanına uygun en fazla 5 yeni
+        hediye üretir. Mevcut/veto edilmiş fikirler ve bütçe dikkate alınır. ai_sources
+        araştırma kaynaklarını, ai_search_suggestions Google arama önerisi HTML'ini
+        taşır; anlık stok garantisi vermez. Kaynaksız araştırma şu an 500, servis
+        filtresinden sonra boş sonuç 422 döner. Geçici panel kaynak alanlarını henüz
+        göstermez.
       parameters:
       - description: Grup UUID
         format: uuid
@@ -829,6 +937,121 @@ paths:
       summary: Ürün Linki Önizleme & SSRF Kalkanı (Faz 5)
       tags:
       - Hediye Havuzu (Gift Ideas)
+  /api/v1/groups/{id}/interests:
+    delete:
+      consumes:
+      - application/json
+      description: Yalnızca grup yöneticisi listeden bir ilgi alanı silebilir. Normal
+        üyeler kendi ekledikleri ilgi alanını da silemez.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Silinecek ilgi alanı
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.InterestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Güncel ilgi alanı listesi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.InterestListResponse'
+              type: object
+        "400":
+          description: Geçersiz grup kimliği veya istek
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Sadece admin silebilir; Anti-Spoiler ve üyelik kontrolü zorunlu
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup veya ilgi alanı bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: İlgi Alanı Sil (Admin)
+      tags:
+      - Hediye Grupları (Groups)
+    post:
+      consumes:
+      - application/json
+      description: Tüm grup üyeleri tek bir ilgi alanı ekleyebilir (1–100 karakter).
+        Hedef kişi ve grup dışı kullanıcılar erişemez. Tekrarlar kabul edilmez.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Eklenecek ilgi alanı
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.InterestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Güncel ilgi alanı listesi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.InterestListResponse'
+              type: object
+        "400":
+          description: Geçersiz grup kimliği veya istek
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler veya gruba üye değilsiniz
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: İlgi alanı zaten listede
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: İlgi Alanı Ekle
+      tags:
+      - Hediye Grupları (Groups)
   /api/v1/groups/{id}/members:
     post:
       consumes:

@@ -36,6 +36,18 @@ type AddMemberRequest struct {
 	Email string `json:"email" binding:"required,email" example:"zeynep@demo.com"`
 }
 
+type InterestRequest struct {
+	Interest string `json:"interest" binding:"required" example:"Kamp"`
+}
+
+type InterestListResponse struct {
+	Interests []string `json:"interests"`
+}
+
+type UpdateBudgetRequest struct {
+	TotalBudget *decimal.Decimal `json:"total_budget" binding:"required" example:"3500.00"`
+}
+
 // CreateGroup yeni grup oluşturur
 // @Summary      Yeni Hediye Grubu Oluştur
 // @Description  Yeni bir sürpriz hediye grubu açar ve oluşturan kullanıcıyı atomik transaction ile 'admin' rolüyle üye yapar.
@@ -226,6 +238,135 @@ func (ctl *GroupController) AddMember(c *gin.Context) {
 	}
 
 	RespondCreated(c, member)
+}
+
+// AddInterest adds one interest without replacing other members' contributions.
+// @Summary      İlgi Alanı Ekle
+// @Description  Tüm grup üyeleri tek bir ilgi alanı ekleyebilir (1–100 karakter). Hedef kişi ve grup dışı kullanıcılar erişemez. Tekrarlar kabul edilmez.
+// @Tags         Hediye Grupları (Groups)
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Param        request body InterestRequest true "Eklenecek ilgi alanı"
+// @Success      200 {object} Response{data=InterestListResponse} "Güncel ilgi alanı listesi"
+// @Failure      400 {object} Response "Geçersiz grup kimliği veya istek"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Anti-Spoiler veya gruba üye değilsiniz"
+// @Failure      404 {object} Response "Grup bulunamadı"
+// @Failure      409 {object} Response "İlgi alanı zaten listede"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/groups/{id}/interests [post]
+func (ctl *GroupController) AddInterest(c *gin.Context) {
+	ctl.changeInterest(c, false)
+}
+
+// DeleteInterest removes one item. Only admins may delete, including their own additions.
+// @Summary      İlgi Alanı Sil (Admin)
+// @Description  Yalnızca grup yöneticisi listeden bir ilgi alanı silebilir. Normal üyeler kendi ekledikleri ilgi alanını da silemez.
+// @Tags         Hediye Grupları (Groups)
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Param        request body InterestRequest true "Silinecek ilgi alanı"
+// @Success      200 {object} Response{data=InterestListResponse} "Güncel ilgi alanı listesi"
+// @Failure      400 {object} Response "Geçersiz grup kimliği veya istek"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Sadece admin silebilir; Anti-Spoiler ve üyelik kontrolü zorunlu"
+// @Failure      404 {object} Response "Grup veya ilgi alanı bulunamadı"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/groups/{id}/interests [delete]
+func (ctl *GroupController) DeleteInterest(c *gin.Context) {
+	ctl.changeInterest(c, true)
+}
+
+func (ctl *GroupController) changeInterest(c *gin.Context, remove bool) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+		return
+	}
+	var req InterestRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: interest metin alanı zorunludur")
+		return
+	}
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+	var interests []string
+	if remove {
+		interests, err = ctl.groupService.DeleteInterest(groupID, userID, req.Interest)
+	} else {
+		interests, err = ctl.groupService.AddInterest(groupID, userID, req.Interest)
+	}
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrAntiSpoilerTriggered), errors.Is(err, services.ErrNotGroupMember), errors.Is(err, services.ErrUnauthorizedInterestDelete):
+			RespondErr(c, http.StatusForbidden, err.Error())
+		case errors.Is(err, services.ErrGroupNotFound), errors.Is(err, services.ErrInterestNotFound):
+			RespondErr(c, http.StatusNotFound, err.Error())
+		case errors.Is(err, services.ErrInvalidInterest):
+			RespondErr(c, http.StatusBadRequest, err.Error())
+		case errors.Is(err, services.ErrDuplicateInterest):
+			RespondErr(c, http.StatusConflict, err.Error())
+		default:
+			RespondErr(c, http.StatusInternalServerError, "İlgi alanları güncellenirken bir hata oluştu")
+		}
+		return
+	}
+	RespondOK(c, InterestListResponse{Interests: interests})
+}
+
+// UpdateBudget updates the total budget and existing gift budget warnings.
+// @Summary      Grup Bütçesini Güncelle (Admin)
+// @Description  Yalnızca admin toplam bütçeyi değiştirebilir. 0–99999999.99 aralığında, en fazla iki ondalık basamak kabul edilir. Kişi başı bütçe anlık hesaplanır; hediye bütçe aşımı uyarıları yenilenir. 0 bütçe aşımı uyarılarını kapatır.
+// @Tags         Hediye Grupları (Groups)
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Param        request body UpdateBudgetRequest true "Yeni toplam bütçe"
+// @Success      200 {object} Response{data=MessageData} "Bütçe güncellendi"
+// @Failure      400 {object} Response "Geçersiz bütçe veya grup kimliği"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Sadece admin güncelleyebilir; Anti-Spoiler ve üyelik kontrolü zorunlu"
+// @Failure      404 {object} Response "Grup bulunamadı"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/groups/{id}/budget [patch]
+func (ctl *GroupController) UpdateBudget(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+		return
+	}
+	var req UpdateBudgetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: total_budget sayısal alanı zorunludur")
+		return
+	}
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+	if err := ctl.groupService.UpdateBudget(groupID, userID, *req.TotalBudget); err != nil {
+		switch {
+		case errors.Is(err, services.ErrAntiSpoilerTriggered), errors.Is(err, services.ErrNotGroupMember), errors.Is(err, services.ErrUnauthorizedBudgetUpdate):
+			RespondErr(c, http.StatusForbidden, err.Error())
+		case errors.Is(err, services.ErrGroupNotFound):
+			RespondErr(c, http.StatusNotFound, err.Error())
+		case errors.Is(err, services.ErrInvalidBudget):
+			RespondErr(c, http.StatusBadRequest, err.Error())
+		default:
+			RespondErr(c, http.StatusInternalServerError, "Bütçe güncellenirken bir hata oluştu")
+		}
+		return
+	}
+	RespondOK(c, MessageData{Message: "Bütçe güncellendi"})
 }
 
 // DeleteGroup grubu ve tüm ilişkili verilerini siler

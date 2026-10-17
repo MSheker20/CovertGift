@@ -460,6 +460,95 @@
                 }
             }
         },
+        "/api/v1/groups/{id}/budget": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca admin toplam bütçeyi değiştirebilir. 0–99999999.99 aralığında, en fazla iki ondalık basamak kabul edilir. Kişi başı bütçe anlık hesaplanır; hediye bütçe aşımı uyarıları yenilenir. 0 bütçe aşımı uyarılarını kapatır.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hediye Grupları (Groups)"
+                ],
+                "summary": "Grup Bütçesini Güncelle (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Yeni toplam bütçe",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateBudgetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Bütçe güncellendi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz bütçe veya grup kimliği",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Sadece admin güncelleyebilir; Anti-Spoiler ve üyelik kontrolü zorunlu",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/groups/{id}/ideas": {
             "get": {
                 "security": [
@@ -634,7 +723,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Hedef kişinin hobileri, toplam bütçe, havuzdaki mevcut hediyeler ve grupta daha önce VETO edilen/reddedilen fikirleri (State-Based Negatif Kısıt) Gemini'ye iletir; 3-5 adet yeni semantik hediye üretip havuza ekler.",
+                "description": "Google Search ile Türkiye mağazalarında ürün ve TL fiyatı araştırır; kaynakla desteklenen sonuçlardan kişinin ilgi alanına uygun en fazla 5 yeni hediye üretir. Mevcut/veto edilmiş fikirler ve bütçe dikkate alınır. ai_sources araştırma kaynaklarını, ai_search_suggestions Google arama önerisi HTML'ini taşır; anlık stok garantisi vermez. Kaynaksız araştırma şu an 500, servis filtresinden sonra boş sonuç 422 döner. Geçici panel kaynak alanlarını henüz göstermez.",
                 "produces": [
                     "application/json"
                 ],
@@ -789,6 +878,188 @@
                     },
                     "403": {
                         "description": "Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/interests": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Tüm grup üyeleri tek bir ilgi alanı ekleyebilir (1–100 karakter). Hedef kişi ve grup dışı kullanıcılar erişemez. Tekrarlar kabul edilmez.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hediye Grupları (Groups)"
+                ],
+                "summary": "İlgi Alanı Ekle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Eklenecek ilgi alanı",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.InterestRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Güncel ilgi alanı listesi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.InterestListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz grup kimliği veya istek",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler veya gruba üye değilsiniz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "İlgi alanı zaten listede",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca grup yöneticisi listeden bir ilgi alanı silebilir. Normal üyeler kendi ekledikleri ilgi alanını da silemez.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hediye Grupları (Groups)"
+                ],
+                "summary": "İlgi Alanı Sil (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Silinecek ilgi alanı",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.InterestRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Güncel ilgi alanı listesi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.InterestListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz grup kimliği veya istek",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Sadece admin silebilir; Anti-Spoiler ve üyelik kontrolü zorunlu",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup veya ilgi alanı bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
                         "schema": {
                             "$ref": "#/definitions/controllers.Response"
                         }
@@ -1366,6 +1637,29 @@
                 }
             }
         },
+        "controllers.InterestListResponse": {
+            "type": "object",
+            "properties": {
+                "interests": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "controllers.InterestRequest": {
+            "type": "object",
+            "required": [
+                "interest"
+            ],
+            "properties": {
+                "interest": {
+                    "type": "string",
+                    "example": "Kamp"
+                }
+            }
+        },
         "controllers.LoginRequest": {
             "type": "object",
             "required": [
@@ -1457,6 +1751,18 @@
                 }
             }
         },
+        "controllers.UpdateBudgetRequest": {
+            "type": "object",
+            "required": [
+                "total_budget"
+            ],
+            "properties": {
+                "total_budget": {
+                    "type": "number",
+                    "example": 3500
+                }
+            }
+        },
         "controllers.VoteRequest": {
             "type": "object",
             "required": [
@@ -1521,9 +1827,29 @@
                 }
             }
         },
+        "models.AISource": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "models.GiftIdea": {
             "type": "object",
             "properties": {
+                "ai_search_suggestions": {
+                    "type": "string"
+                },
+                "ai_sources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AISource"
+                    }
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -1665,6 +1991,15 @@
         "repository.IdeaWithScore": {
             "type": "object",
             "properties": {
+                "ai_search_suggestions": {
+                    "type": "string"
+                },
+                "ai_sources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AISource"
+                    }
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -1726,6 +2061,12 @@
             "properties": {
                 "group": {
                     "$ref": "#/definitions/models.Group"
+                },
+                "interests": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "member_count": {
                     "type": "integer"
