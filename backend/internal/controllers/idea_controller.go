@@ -213,6 +213,7 @@ func (ctl *IdeaController) PreviewLink(c *gin.Context) {
 // @Failure      403 {object} Response "Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz"
 // @Failure      404 {object} Response "Grup bulunamadı"
 // @Failure      422 {object} Response "Yapay zekâ öneri üretemedi"
+// @Failure      429 {object} Response "Gemini kullanım kotası veya istek sınırı aşıldı"
 // @Failure      503 {object} Response "Gemini API anahtarı yapılandırılmamış veya servis geçici olarak kullanılamıyor"
 // @Failure      500 {object} Response "Sunucu hatası"
 // @Router       /api/v1/groups/{id}/ideas/generate-ai [post]
@@ -246,6 +247,10 @@ func (ctl *IdeaController) GenerateAI(c *gin.Context) {
 		}
 		if errors.Is(err, gemini.ErrAPIKeyMissing) {
 			RespondErr(c, http.StatusServiceUnavailable, "Gemini API anahtarı yapılandırılmamış")
+			return
+		}
+		if errors.Is(err, gemini.ErrRateLimited) {
+			RespondErr(c, http.StatusTooManyRequests, "Yapay zekâ servisinin kullanım kotası veya istek sınırı aşıldı. Bir süre sonra tekrar deneyin; sorun sürerse proje kotasını kontrol edin.")
 			return
 		}
 		if errors.Is(err, services.ErrNoAIIdeasGenerated) {

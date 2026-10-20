@@ -62,3 +62,7 @@ Telefonda bilgisayarın yerel IP adresini `http://BILGISAYARIN_YEREL_IPSI:5173` 
 Oturum token'ı sekmeye özel `sessionStorage` içinde tutulur. Kullanıcı değişimi için çıkış yapabilir veya ayrı bir sekmede giriş yapabilirsiniz. Başka hesaptan açılan sayfadaki kullanıcı ID'sini grup oluştururken hedef ID olarak kullanıp Anti-Spoiler denemesi yapabilirsiniz. Hedef hesapta **ID ile grup aç** formuyla 403 yanıtını kontrol edin. Panel, UI görünürlüğünden bağımsız olarak yetkilendirmeyi API'ye bırakır; grup silme dahil yetkisiz işlemler sunucudan hata döner.
 
 Önizleme kısmi dönerse formu elle doldurun. AI için backend'de geçerli Gemini yapılandırması gerekir. AI önce Türkiye mağazalarında Google Search araştırması yapar, ardından kaynakla desteklenen ürün/fiyatları seçer; en fazla 5, bazen 3'ten az öneri döner. API yanıtındaki `ai_sources` ve `ai_search_suggestions` alanları panel kartlarında henüz gösterilmez; JSON günlüğünden incelenebilir. Bütün kayıt işlemleri gerçek veritabanına gider. Veritabanını topluca sıfırlayan buton eklenmemiştir.
+
+## Azure demo
+
+Panel Docker imajı ve `API_TARGET` ile ayrı API uygulamasına bağlantı için [Azure dağıtım rehberine](../../docs/AZURE.md) bakın. Yerel Cloudflare doğrulaması yukarıdaki tarihli kayıttır; Azure işletim notları ayrı rehberde tutulur.

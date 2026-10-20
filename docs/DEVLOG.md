@@ -456,5 +456,22 @@
 - `go test ./...` tüm backend paketlerinde geçti; Gemini testleri sahte HTTP taşıyıcısıyla araştırma/seçim, geçersiz kaynak/ürün/fiyat, 503 yedeği ve Türkçe UTF-8 kaynak aralıklarını kapsadı. İlgi alanı ve bütçe servis testleri de geçti. `node --check` ile panel sunucusu ve istemci JavaScript sözdizimleri doğrulandı.
 - Kota kullanan gerçek Gemini testi bu oturumda çalıştırılmadı; `TestLiveTurkeyProducts` varsayılan olarak atlanır, `-args -live-ai` ile özellikle açılır. Önceki günün tarayıcı ve yazma senaryoları bu oturumda tekrar denenmedi. Proxy'nin geliştirme uçlarını engellediği kaynak allowlist'i üzerinden incelendi.
 
+---
 
+## 2026-10-19 — Sonraya Bırakılan AI ve Trendyol İyileştirmeleri
 
+- Kullanıcı iki konunun daha sonra uygulanmak üzere kaydedilmesini istedi; ikisi de ROADMAP backlog'una açık görev olarak eklendi.
+- **AI:** Mevcut önerilerin başlıkları Gemini'ye tekrar yasağı olarak gidiyor; manuel önerilerden olumlu tercih çıkarma ve oy skorlarıyla yönlendirme henüz yok. İleride beğenilen manuel fikirler olumlu örnek, veto edilenler olumsuz örnek olarak kullanılacak; yeni öneriler mevcut ürünleri tekrar etmemeli.
+- **Trendyol:** Ürün `811478750` için yerel backend testi HTTP 200, `partial: false`, başlık/görsel/açıklama ve fiyat döndürdü. Azure'dan HTTP incelemesinde `/pl/` yönlendirmesi ve 403 görüldü; Türkiye mağazası sorgu parametreleri sonucu değiştirmedi. Bölgesel yönlendirme ve sunucu IP erişim kısıtları araştırılacak; kesin kök neden ayrıştırılmadan bir çözüm garantisi verilmedi. Amazon ve Hepsiburada'nın canlıda çalıştığı kullanıcı tarafından bildirildi.
+- Türkiye çıkışlı ayrı servis ve frontend tarafına taşıma seçenekleri değerlendirme aşamasında. Tarayıcı seçeneğinde CORS kısıtları ayrıca doğrulanmalı. Bu kayıt sırasında uygulama kodu veya canlı dağıtım değiştirilmedi.
+
+---
+
+## 2026-10-20 — AI Model Ayrımı, Azure Paketleme ve Depo Senkronizasyonu
+
+- Araştırma `GEMINI_RESEARCH_MODEL` (varsayılan `gemini-3.8-flash`), JSON seçimi `GEMINI_MODEL` (varsayılan `gemini-3.5-flash-lite`) ile ayrı yapılandırılır. Seçim aşamasında Google Search açılmaz. 503 yedeği çağrı ayarlarını korur; kullanılan model zaten yedekse aynı model tekrar çağrılmaz.
+- Gemini 429 hatası hata zincirinde korunur ve controller HTTP 429 ile kullanıcıya kota/istek sınırı mesajı döner; provider ayrıntısı yanıta sızmaz. Swagger şemaları ve testler bu davranışı kapsar.
+- API ve geçici panel için Dockerfile/`.dockerignore` dosyaları ve 19 Ekim Azure demo ortamının dağıtım/işletim kaydı depoya eklendi. Bu oturumda buluta yeniden dağıtım yapılmadı.
+- README, teknik şartname, kurulum rehberi, panel rehberi ve roadmap kodla eşitlendi; Azure rehberi bağlantıları eklendi. 429 işi tamamlandı; kaynaksız araştırmanın 422 eşlemesi, geçici servis hatasının 503 eşlemesi ve yerel compose entegrasyonu açık tutuldu.
+- `.gitignore` günlükleri, geçici dosyaları, veritabanı yedeklerini ve özel anahtar/kimlik dosyalarını dışlayacak şekilde genişletildi; `.env.example` takipte kalır.
+- Doğrulama: `go test ./backend/...`, `go vet ./backend/...`, panelin iki JavaScript dosyasında `node --check`, `git diff --check`, yerel doküman bağlantıları ve yaygın gizli anahtar kalıpları kontrolü geçti. `.env`, örnek yedek/anahtar/günlük yollarının dışlandığı ve `.env.example` dosyasının dışlanmadığı doğrulandı. Canlı Gemini çağrısı, Docker imaj derlemesi ve Azure canlı sağlık kontrolü bu oturumda yapılmadı.

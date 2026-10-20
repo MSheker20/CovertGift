@@ -35,3 +35,21 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Yerel günlükler, geçici veriler ve veritabanı yedekleri
+*.log
+*.pid
+*.pid.lock
+/tmp/
+/backups/
+*.dump
+*.backup
+*.sql.gz
+
+# Özel anahtar ve kimlik dosyaları
+*.key
+*.pem
+*.p12
+*.pfx
+credentials*.json
+service-account*.json

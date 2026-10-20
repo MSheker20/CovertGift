@@ -110,7 +110,7 @@ flowchart LR
 ---
 
 ## Faz 6 — Gemini AI Önerileri 🤖
-- [x] `pkg/gemini` istemcisi (`google.golang.org/genai`, model: `gemini-3.8-flash` + `gemini-3.5-flash-lite` resilient fallback)
+- [x] `pkg/gemini` istemcisi (`google.golang.org/genai`, araştırma: `GEMINI_RESEARCH_MODEL=gemini-3.8-flash`; seçim: `GEMINI_MODEL=gemini-3.5-flash-lite`)
 - [x] İki aşamalı üretim: Google Search ile Türkiye mağazalarında ürün/TL fiyatı araştırması → `response_schema` ile `[{ title, description, estimated_price, search_query, evidence_ids }]` seçimi. Model URL üretmez; `ai_sources` yalnızca grounding metadata'sından gelir.
 - [x] State-based prompt: `target_interests` + bütçe + mevcut başlıklar + reddedilen/veto edilen başlıklar (Kural 4)
 - [x] `POST /api/v1/groups/:id/ideas/generate-ai` → en fazla 5 kaynaklı öneri, `source_type = AI`, batch insert. Yeterli geçerli ürün yoksa 3'ten az sonuç dönebilir.
@@ -156,18 +156,22 @@ flowchart LR
 - [x] Cloudflare Quick Tunnel ile panel ve API'ye aynı HTTPS adresinden erişim; arayüz 200, sağlık kontrolü 200 (`db: up`), oturumsuz profil 401 (2026-10-17)
 - [x] İlgi alanı yetkileri, bütçe doğrulaması/uyarıları, AI kaynak ve tekrar filtreleri için backend birim testleri
 - [ ] Backend entegrasyon testleri (özellikle Anti-Spoiler senaryoları)
-- [ ] AI hata yanıtlarını ayrıştır: kaynaksız araştırma şu an 500 döner; 422 eşlemesi ve 429/503 için ayrı yanıtlar ekle
+- [x] Gemini kota/istek sınırı hatasını HTTP 429 olarak döndür; istemci ve controller testleriyle doğrula
+- [ ] Kalan AI hata yanıtlarını ayrıştır: kaynaksız araştırma şu an 500 döner; 422 eşlemesi ve geçici servis hataları için 503 yanıtı ekle
 - [ ] CORS ayarları, istek boyutu limitleri, input validasyonu (`binding:"required,email"` vb.)
 - [ ] Hata loglama (yapılandırılmış log)
 - [ ] Seed script (demo kullanıcılar + grup)
 - [x] `README.md` → ilk `.env` kurulumu, backend/panel/tünel komutları ve doğrulama adımları (2026-10-17)
-- [ ] (Opsiyonel) Backend için Dockerfile + compose'a ekleme
+- [x] Backend ve geçici panel için Dockerfile ve `.dockerignore`; Azure demo dağıtım rehberi
+- [ ] (Opsiyonel) Backend ve paneli yerel Docker Compose yapılandırmasına ekleme
 
 **✅ Kabul:** Temiz bir makinede README adımlarıyla proje 10 dakikada ayağa kalkar.
 
 ---
 
 ## 💡 Gelecek Fikirler (Backlog)
+- [ ] **Manuel önerilerden AI tercih çıkarımı (2026-10-19):** Mevcut akış manuel/AI başlıklarını yalnızca tekrar etmeme listesi olarak gönderiyor; oy skorlarını göndermiyor. Manuel önerileri, özellikle beğenilenleri, olumlu tercih örnekleri olarak kullanarak yeni ve farklı ürünler ürettir. Reddedilen/veto edilen fikirleri olumsuz bağlamda tut; mevcut tekrar, kaynak ve fiyat doğrulamalarını koru. Kullanılacak alanlar ve oy ağırlıkları uygulama sırasında netleştirilecek.
+- [ ] **Trendyol önizlemesinin Azure'da çalışması (2026-10-19):** LEGO 76424 / ürün `811478750` yerelde gerçek backend paketiyle eksiksiz önizleme verdi; Azure'daki HTTP kontrolünde aynı ürün `/pl/` Polonya sayfasına yönlenip 403 döndü. `storefrontId=1&countryCode=TR&language=tr` denemesi de yönlendirmeyi engellemedi. Kullanıcı Amazon ve Hepsiburada'nın canlıda çalıştığını bildirdi. Türkiye çıkışlı ayrı önizleme servisini önce doğrula; Türkiye IP'sinin tek başına çözüm olacağı varsayılmamalı. Frontend'e taşıma seçeneği CORS ve sayfa erişimi açısından ayrıca denenecek. Manuel doldurma/partial fallback ve SSRF korumaları korunacak. Çözüm seçilmedi ve canlıya bu konuda değişiklik uygulanmadı.
 - [ ] **Grup Modları:** Tek kişiye sürpriz modu (`SINGLE_TARGET`) vs. Herkes için ortak havuz / çekiliş modu (`ALL_MEMBERS`)
 - [ ] E-posta ile davet linki (kayıtlı olmayan kullanıcılar için)
 - [ ] Bireysel katkı takibi (kim ne kadar ödedi)

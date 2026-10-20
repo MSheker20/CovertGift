@@ -8,7 +8,9 @@ Arkadaş gruplarının **ortak hediye** organize ettiği, bütçeyi birleştirdi
 
 ## 📍 Mevcut Durum
 
-Son doğrulama: **2026-10-17**. PostgreSQL, güncel backend ve geçici test paneli çalıştırıldı; Cloudflare üzerinden arayüz 200, `/health` 200 (`db: up`) ve oturumsuz `/api/v1/me` 401 döndü.
+Doküman güncellemesi: **2026-10-20**. Azure demo dağıtımı ve işletim notları: [Azure rehberi](docs/AZURE.md).
+
+Son yerel/tünel doğrulaması: **2026-10-17**. PostgreSQL, güncel backend ve geçici test paneli çalıştırıldı; Cloudflare üzerinden arayüz 200, `/health` 200 (`db: up`) ve oturumsuz `/api/v1/me` 401 döndü.
 
 | Alan | Durum |
 |---|---|
@@ -36,6 +38,7 @@ Son doğrulama: **2026-10-17**. PostgreSQL, güncel backend ve geçici test pane
 | [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) | **Tek doğruluk kaynağı.** Veri modelleri, iş kuralları, API sözleşmesi, mimari standartlar. Yapay zekâ asistanına da proje bağlamı olarak verilir. | Bir özelliği kodlamadan önce, "bu nasıl çalışmalı?" sorusunda |
 | [ROADMAP.md](ROADMAP.md) | Faz faz, işaretlenebilir görev listesi ve her fazın kabul kriterleri. | Her çalışma oturumunun başında / sonunda |
 | [docs/SETUP.md](docs/SETUP.md) | Faz 0 kurulum rehberi — her adımın **ne yaptığı ve neden yapıldığı** açıklamalı. | Ortamı kurarken / yeni makinede |
+| [docs/AZURE.md](docs/AZURE.md) | API ve panel Docker imajları, Azure demo dağıtımı ve işletim notları. | Bulut ortamını kurarken / güncellerken |
 | [docs/DEVLOG.md](docs/DEVLOG.md) | Geliştirme günlüğü + **alınan kararlar ve gerekçeleri**. | "Bunu neden böyle yaptık?" sorusunda |
 | [prototypes/linkpreview/README.md](prototypes/linkpreview/README.md) | Ürün linki önizleme prototip bulguları, pazar yeri testleri ve mimari kararlar. | Pazar yeri ayrıştırıcılarını incelerken |
 | [prototypes/test-ui/README.md](prototypes/test-ui/README.md) | Geçici test paneli, API proxy'si ve Cloudflare tüneli. | Backend'i tarayıcıdan veya telefondan denemek için |
@@ -50,7 +53,7 @@ Son doğrulama: **2026-10-17**. PostgreSQL, güncel backend ve geçici test pane
 | Veritabanı | PostgreSQL 17 (Docker Compose) |
 | Kimlik doğrulama | JWT (HMAC-SHA256, 24 saat) + Bcrypt + Gin Middleware |
 | Link Önizleme | WhatsApp Bot UA, Cookiejar, Dial-seviyesi SSRF koruması, JSON-LD Scraper |
-| Yapay zekâ | `google.golang.org/genai`: Google Search araştırması + yapılandırılmış JSON seçimi; varsayılan `gemini-3.8-flash`, 503 hatasında `gemini-3.5-flash-lite` yedeği |
+| Yapay zekâ | `google.golang.org/genai`: Google Search araştırması + yapılandırılmış JSON seçimi; araştırma `gemini-3.8-flash`, JSON seçimi `gemini-3.5-flash-lite`; 503 durumunda farklı modelden `gemini-3.5-flash-lite` yedeği |
 | API Dokümantasyonu | Swagger / OpenAPI 2.0 (`swaggo/swag`, `swaggo/gin-swagger`) |
 | Geçici panel | HTML/CSS/JavaScript + Node.js 22+ (ek paket gerektirmez) |
 | Planlanan frontend | React (Vite) + TypeScript + Tailwind CSS + shadcn/ui + Lucide |
@@ -66,6 +69,7 @@ CovertGift/
 ├── ROADMAP.md              ← Yol haritası
 ├── docs/
 │   ├── SETUP.md            ← Kurulum rehberi
+│   ├── AZURE.md            ← Azure demo dağıtımı
 │   └── DEVLOG.md           ← Geliştirme günlüğü & mimarî karar kaydı
 ├── scripts/
 │   └── demo_presentation.sh← 🎓 Hocaya canlı sunum & interaktif API test script'i (ANSI HTTP kutuları)
@@ -99,7 +103,7 @@ cp backend/.env.example backend/.env
 openssl rand -hex 32
 ```
 
-Üretilen değeri `backend/.env` içindeki `JWT_SECRET` alanına yazın. AI önerilerini kullanmak için `GEMINI_API_KEY` ekleyin; `GEMINI_MODEL` verilmezse kodun varsayılan modeli kullanılır. `.env` dosyası Git'e dahil edilmez. Anahtar yokken AI dışındaki özellikler çalışır.
+Üretilen değeri `backend/.env` içindeki `JWT_SECRET` alanına yazın. AI önerilerini kullanmak için `GEMINI_API_KEY` ekleyin; `GEMINI_RESEARCH_MODEL` araştırma modelini (varsayılan `gemini-3.8-flash`), `GEMINI_MODEL` JSON seçim modelini (varsayılan `gemini-3.5-flash-lite`) belirler. `.env` dosyası Git'e dahil edilmez. Anahtar yokken AI dışındaki özellikler çalışır.
 
 **Terminal 1 — veritabanı ve backend (proje kökünden):**
 

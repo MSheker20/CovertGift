@@ -82,12 +82,12 @@ func main() {
 	// Gemini AI İstemcisi Başlatma (Fail-Safe)
 	var geminiClient *gemini.Client
 	if cfg.GeminiKey != "" {
-		client, err := gemini.NewClient(cfg.GeminiKey, cfg.GeminiModel)
+		client, err := gemini.NewClientWithModels(cfg.GeminiKey, cfg.GeminiResearchModel, cfg.GeminiModel)
 		if err != nil {
 			log.Printf("⚠️  Gemini istemcisi başlatılamadı: %v", err)
 		} else {
 			geminiClient = client
-			log.Printf("🤖 Gemini AI istemcisi aktif! (Model: %s)", cfg.GeminiModel)
+			log.Printf("🤖 Gemini AI istemcisi aktif! (Araştırma: %s, seçim: %s)", cfg.GeminiResearchModel, cfg.GeminiModel)
 		}
 	} else {
 		log.Println("⚠️  GEMINI_API_KEY tanımlı değil; AI hediye üretimi devre dışı.")

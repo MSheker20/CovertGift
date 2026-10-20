@@ -16,7 +16,7 @@ func TestLiveTurkeyProducts(t *testing.T) {
 		t.Skip("enable explicitly with -args -live-ai")
 	}
 	_ = godotenv.Load("../../.env")
-	client, err := NewClient(os.Getenv("GEMINI_API_KEY"), os.Getenv("GEMINI_MODEL"))
+	client, err := NewClientWithModels(os.Getenv("GEMINI_API_KEY"), os.Getenv("GEMINI_RESEARCH_MODEL"), os.Getenv("GEMINI_MODEL"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -191,6 +191,8 @@ PORT=8080
 DATABASE_URL=postgres://covertgift:covertgift_dev@localhost:5432/covertgift?sslmode=disable
 JWT_SECRET=buraya-uzun-rastgele-bir-deger-yaz
 GEMINI_API_KEY=
+GEMINI_RESEARCH_MODEL=gemini-3.8-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 CORS_ORIGIN=http://localhost:5173
 ```
 
@@ -205,7 +207,8 @@ openssl rand -hex 32     # çıkan değeri .env içindeki JWT_SECRET'e yapışt�
 | `DATABASE_URL` | Adım 2'deki compose ayarlarıyla **birebir** aynı kullanıcı/şifre/DB |
 | `JWT_SECRET` | Token imzalama anahtarı — sızarsa herkes sahte token üretebilir |
 | `GEMINI_API_KEY` | Google AI Studio'dan alınacak (Faz 6) |
-| `GEMINI_MODEL` | İsteğe bağlı model adı; verilmezse güncel kod `gemini-3.8-flash` kullanır |
+| `GEMINI_RESEARCH_MODEL` | Google Search araştırması; varsayılan `gemini-3.8-flash` |
+| `GEMINI_MODEL` | JSON seçimi (Search kapalı); varsayılan `gemini-3.5-flash-lite` |
 | `APP_ENV` | Varsayılan `development`; `production` geliştirme veritabanı sıfırlama ucunu kapatır |
 | `CORS_ORIGIN` | Config'de okunur; mevcut backend'de CORS middleware'i henüz bağlı değildir. Geçici panel aynı origin'deki proxy'yi kullanır |
 

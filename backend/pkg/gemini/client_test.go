@@ -25,7 +25,7 @@ func testClient(t *testing.T, handler fakeTransport) *Client {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Client{client: client, model: "gemini-3.8-flash"}
+	return &Client{client: client, researchModel: DefaultResearchModel, model: DefaultSelectionModel}
 }
 
 func jsonResponse(t *testing.T, value any) *http.Response {
@@ -66,12 +66,15 @@ func TestResearchThenSelectGroundedProduct(t *testing.T) {
 			t.Fatal(err)
 		}
 		if calls == 1 {
+			if !strings.Contains(r.URL.Path, "gemini-3.8-flash:") {
+				t.Fatalf("research used the wrong model: %s", r.URL.Path)
+			}
 			if body["tools"] == nil {
 				t.Fatal("research must enable search")
 			}
 			return jsonResponse(t, researchResponse()), nil
 		}
-		if body["tools"] != nil || body["generationConfig"] == nil {
+		if !strings.Contains(r.URL.Path, "gemini-3.5-flash-lite:") || body["tools"] != nil || body["generationConfig"] == nil {
 			t.Fatal("selection must use structured output separately from search")
 		}
 		data, _ := json.Marshal(body)
@@ -169,6 +172,61 @@ func Test503FallbackKeepsSearchEnabled(t *testing.T) {
 		}
 		return jsonResponse(t, textResponse(selectedProduct, nil)), nil
 	})
+	if _, err := client.GenerateGiftIdeas(context.Background(), "Kahve"); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 3 {
+		t.Fatalf("calls = %d", calls)
+	}
+}
+
+func Test429StopsWithoutFallbackAndPreservesQuotaError(t *testing.T) {
+	for _, stage := range []string{"research", "selection"} {
+		t.Run(stage, func(t *testing.T) {
+			calls := 0
+			client := testClient(t, func(r *http.Request) (*http.Response, error) {
+				calls++
+				if stage == "selection" && calls == 1 {
+					return jsonResponse(t, researchResponse()), nil
+				}
+				return &http.Response{StatusCode: 429, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":429,"message":"quota exhausted","status":"RESOURCE_EXHAUSTED"}}`))}, nil
+			})
+			_, err := client.GenerateGiftIdeas(context.Background(), "Kahve")
+			var upstream genai.APIError
+			if !errors.Is(err, ErrRateLimited) || !errors.As(err, &upstream) || upstream.Code != 429 {
+				t.Fatalf("lost quota error: %v", err)
+			}
+			wantCalls := 1
+			if stage == "selection" {
+				wantCalls = 2
+			}
+			if calls != wantCalls {
+				t.Fatalf("quota exhaustion caused extra calls: got %d, want %d", calls, wantCalls)
+			}
+		})
+	}
+}
+
+func TestSelection503FallbackDoesNotEnableSearch(t *testing.T) {
+	calls := 0
+	client := testClient(t, func(r *http.Request) (*http.Response, error) {
+		calls++
+		if calls == 1 {
+			return jsonResponse(t, researchResponse()), nil
+		}
+		if calls == 2 {
+			return &http.Response{StatusCode: 503, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":503,"message":"busy","status":"UNAVAILABLE"}}`))}, nil
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(r.URL.Path, DefaultSelectionModel) || body["tools"] != nil || body["generationConfig"] == nil {
+			t.Fatalf("selection fallback lost its model/schema or enabled Search: %s %+v", r.URL.Path, body)
+		}
+		return jsonResponse(t, textResponse(selectedProduct, nil)), nil
+	})
+	client.model = "gemini-3.8-flash"
 	if _, err := client.GenerateGiftIdeas(context.Background(), "Kahve"); err != nil {
 		t.Fatal(err)
 	}

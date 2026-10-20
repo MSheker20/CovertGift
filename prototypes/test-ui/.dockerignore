@@ -1,0 +1,7 @@
+**
+!Dockerfile
+!.dockerignore
+!server.mjs
+!index.html
+!app.js
+!style.css

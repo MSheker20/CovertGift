@@ -799,6 +799,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/controllers.Response"
                         }
                     },
+                    "429": {
+                        "description": "Gemini kullanım kotası veya istek sınırı aşıldı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
                     "500": {
                         "description": "Sunucu hatası",
                         "schema": {
