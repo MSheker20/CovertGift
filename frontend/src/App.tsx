@@ -1,44 +1,30 @@
-import { Navigate, Outlet, createBrowserRouter, useLocation } from 'react-router'
+import { Navigate, createBrowserRouter, type RouteObject } from 'react-router'
 
-import { useAuth } from '@/auth/AuthProvider'
-import { AppShell } from '@/pages/AppShell'
-import { GroupPage } from '@/pages/GroupPage'
-import { GroupsPage } from '@/pages/GroupsPage'
-import { LoginPage } from '@/pages/LoginPage'
-import { RegisterPage } from '@/pages/RegisterPage'
+import { GuestOnly, RequireAuth } from '@/routes/guards'
 
-function RequireAuth() {
-  const { token } = useAuth()
-  const location = useLocation()
-  if (!token) return <Navigate to="/login" replace state={{ from: location.pathname }} />
-  return <Outlet />
-}
-
-function GuestOnly() {
-  const { token } = useAuth()
-  if (token) return <Navigate to="/" replace />
-  return <Outlet />
-}
-
-export const router = createBrowserRouter([
+// Sayfalar rota açıldığında yüklenir (kod bölme): giriş ekranı uygulama kabuğunu,
+// grup listesi grup sayfasını beklemez.
+export const routes: RouteObject[] = [
   {
     element: <GuestOnly />,
     children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/register', element: <RegisterPage /> },
+      { path: '/login', lazy: () => import('@/pages/LoginPage').then((m) => ({ Component: m.LoginPage })) },
+      { path: '/register', lazy: () => import('@/pages/RegisterPage').then((m) => ({ Component: m.RegisterPage })) },
     ],
   },
   {
     element: <RequireAuth />,
     children: [
       {
-        element: <AppShell />,
+        lazy: () => import('@/pages/AppShell').then((m) => ({ Component: m.AppShell })),
         children: [
-          { index: true, element: <GroupsPage /> },
-          { path: '/groups/:id', element: <GroupPage /> },
+          { index: true, lazy: () => import('@/pages/GroupsPage').then((m) => ({ Component: m.GroupsPage })) },
+          { path: '/groups/:id', lazy: () => import('@/pages/GroupPage').then((m) => ({ Component: m.GroupPage })) },
         ],
       },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
-])
+]
+
+export const router = createBrowserRouter(routes)

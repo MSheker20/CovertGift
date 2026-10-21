@@ -13,6 +13,16 @@ npm run dev        # http://localhost:5174 — /api ve /health istekleri 127.0.0
 npm run build      # tsc + üretim derlemesi
 ```
 
+Testler:
+
+```bash
+npm test               # Vitest + Testing Library + MSW (API taklit edilir)
+npm run test:coverage  # kapsam raporu (coverage/)
+npm run test:e2e       # Playwright; önce Go API'yi başlat, Vite sunucusunu kendisi açar
+```
+
+Uçtan uca testler kendi geçici `e2e-…@demo.test` kullanıcılarını oluşturur ve sonunda `DELETE /me` ile siler; Gemini çağrılmaz. İlk kurulumda tarayıcı için `npx playwright install chromium` gerekir.
+
 Ayarlar `.env.example` içinde: `API_TARGET` (geliştirme proxy hedefi), `VITE_API_BASE_URL` (üretimde API ayrı bir origin'deyse).
 
 ## Yapı

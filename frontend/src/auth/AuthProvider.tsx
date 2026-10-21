@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { tokenStore, UNAUTHORIZED_EVENT } from '@/api/client'
+import { ApiError, tokenStore, UNAUTHORIZED_EVENT } from '@/api/client'
 import { authApi, queryKeys } from '@/api/endpoints'
 import type { User } from '@/api/types'
 
@@ -24,7 +24,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const me = useQuery({
     queryKey: queryKeys.me,
-    queryFn: ({ signal }) => authApi.me(signal),
+    queryFn: async ({ signal }) => {
+      try {
+        return await authApi.me(signal)
+      } catch (err) {
+        // Token geçerli ama kullanıcı artık yok (hesap silinmiş): oturumu 401 gibi kapat.
+        if (err instanceof ApiError && err.status === 404) {
+          tokenStore.clear()
+          window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+        }
+        throw err
+      }
+    },
+    retry: (count, err) => !(err instanceof ApiError && err.status < 500) && count < 2,
     enabled: token !== null,
     staleTime: 5 * 60_000,
   })

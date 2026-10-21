@@ -25,6 +25,13 @@ export const groupsApi = {
   create: (input: CreateGroupInput) => api<Group>('/groups', { method: 'POST', body: input }),
   addMember: (id: string, email: string) =>
     api<GroupMember>(`/groups/${id}/members`, { method: 'POST', body: { email } }),
+  addInterest: (id: string, interest: string) =>
+    api<{ interests: string[] }>(`/groups/${id}/interests`, { method: 'POST', body: { interest } }),
+  removeInterest: (id: string, interest: string) =>
+    api<{ interests: string[] }>(`/groups/${id}/interests`, { method: 'DELETE', body: { interest } }),
+  updateBudget: (id: string, totalBudget: string) =>
+    api<unknown>(`/groups/${id}/budget`, { method: 'PATCH', body: { total_budget: totalBudget } }),
+  remove: (id: string) => api<unknown>(`/groups/${id}`, { method: 'DELETE' }),
 }
 
 export const ideasApi = {

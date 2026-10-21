@@ -14,8 +14,9 @@ import { errorMessage, isAntiSpoiler } from '@/lib/errors'
 import { formatMoney } from '@/lib/format'
 import { AddMemberForm } from './group/AddMemberForm'
 import { GiftPool } from './group/GiftPool'
+import { BudgetTile, GroupMenu, InterestsTile } from './group/GroupManage'
 
-// Grup ekranı: bütçe ve ilgi alanları, hediye havuzu (oylama, AI, manuel ekleme) ve üyeler.
+// Grup ekranı: bütçe ve ilgi alanları (yerinde düzenleme), hediye havuzu (oylama, AI, manuel ekleme) ve üyeler.
 export function GroupPage() {
   const { t } = useTranslation()
   const { id = '' } = useParams()
@@ -53,29 +54,27 @@ export function GroupPage() {
         </div>
       ) : (
         <>
-          <header className="mt-4">
-            <h1 className="font-display text-[26px] leading-[1.12] font-semibold md:text-[40px]">
-              {d ? d.group.title : <Bar className="h-10 w-72" />}
-            </h1>
-            <p className="mt-2 text-[15px] text-muted">
-              {d ? (
-                <>
-                  {t('group.forPerson', { name: d.group.target_person_name })} ·{' '}
-                  {t('group.members', { count: d.member_count })}
-                </>
-              ) : (
-                <Bar className="mt-1 h-4 w-48" />
-              )}
-            </p>
+          <header className="mt-4 flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <h1 className="font-display text-[26px] leading-[1.12] font-semibold md:text-[40px]">
+                {d ? d.group.title : <Bar className="h-10 w-72" />}
+              </h1>
+              <p className="mt-2 text-[15px] text-muted">
+                {d ? (
+                  <>
+                    {t('group.forPerson', { name: d.group.target_person_name })} ·{' '}
+                    {t('group.members', { count: d.member_count })}
+                  </>
+                ) : (
+                  <Bar className="mt-1 h-4 w-48" />
+                )}
+              </p>
+            </div>
+            {d?.my_role === 'admin' && <GroupMenu groupId={id} title={d.group.title} />}
           </header>
 
           <dl className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-12">
-            <div className="rounded-[22px] bg-surface p-4 md:col-span-4 md:p-5">
-              <dt className="text-sm font-medium text-muted">{t('group.totalBudget')}</dt>
-              <dd className="font-display num mt-2 text-[22px] leading-8 font-semibold md:text-[32px] md:leading-10">
-                {d ? formatMoney(d.group.total_budget) : <Bar className="h-8 w-28" />}
-              </dd>
-            </div>
+            <BudgetTile groupId={id} total={d?.group.total_budget} isAdmin={d?.my_role === 'admin'} />
             {/* Kişi başı tutar ekranın cevabı: hardal alan yalnızca burada. */}
             <div className="rounded-[22px] bg-field p-4 text-on-field md:col-span-4 md:p-5">
               <dt className="text-sm font-medium text-on-field-muted">{t('group.perPerson')}</dt>
@@ -84,17 +83,7 @@ export function GroupPage() {
               </dd>
               {d && <dd className="mt-1 text-xs text-on-field-muted">{t('group.perPersonCaption', { count: d.member_count })}</dd>}
             </div>
-            <div className="col-span-2 rounded-[22px] bg-surface p-4 md:col-span-4 md:p-5">
-              <dt className="text-sm font-medium text-muted">{t('group.interestsPanel')}</dt>
-              <dd className="mt-3 flex flex-wrap gap-1.5">
-                {d && d.interests.length === 0 && <span className="text-sm text-muted">{t('group.interestsEmpty')}</span>}
-                {d?.interests.map((i) => (
-                  <span key={i} className="rounded-full bg-soft px-3 py-1 text-sm font-medium text-on-soft">
-                    {i}
-                  </span>
-                ))}
-              </dd>
-            </div>
+            <InterestsTile groupId={id} interests={d?.interests} isAdmin={d?.my_role === 'admin'} />
           </dl>
 
           <div className="mt-4 grid grid-cols-1 items-start gap-4 md:grid-cols-12">

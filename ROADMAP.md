@@ -133,8 +133,8 @@ flowchart LR
 - [x] `src/api/` katmanı (fetch tabanlı; Bearer token localStorage'da; 401 → token silinir, login'e yönlendirilir)
 - [x] Auth sayfaları: Giriş / Kayıt (kayıt sonrası otomatik giriş)
 - [x] Grup listesi + "Yeni Grup" diyaloğu (grup sayfasının ilk sürümü: bütçe, kişi başı, ilgi alanları, üyeler)
-- [ ] **Ana panel (tek ekran):**
-  - [ ] Üst bar: profil, toplam bütçe, kişi başı bütçe
+- [x] **Ana panel (tek ekran):**
+  - [x] Üst bar: profil, toplam bütçe, kişi başı bütçe (2026-10-21: profil ve grup seçici yüzen üst barda; toplam ve kişi başı bütçe grup sayfasının kutucuklarında)
   - [x] Orta: oylama kartları (görsel, başlık, fiyat, skor, ▲/▼, AI/MANUAL rozeti, bütçe üstü etiketi; elenenler altta katlanır bölümde)
   - [x] Kartlarda Trendyol / Amazon TR dinamik arama linkleri (`encodeURIComponent`)
   - [x] MANUAL + `product_url` varsa "Ürüne git" linki
@@ -145,7 +145,12 @@ flowchart LR
 - [x] Optimistic UI ile oylama (yanıt skor döndürmediği için ardından liste yeniden çekilir; oy yalnızca değiştirilebilir)
 - [x] Toast bildirimleri, boş durumlar, iskelet (skeleton) yükleyiciler
 
-**✅ Kabul:** Kayıt → grup kur → üye ekle → AI öner → link ile manuel ekle → oyla akışı uçtan uca çalışır.
+- [x] Grup sayfasında yerinde yönetim (2026-10-21): ilgi alanı ekleme (tüm üyeler) ve silme (admin), toplam bütçeyi düzenleme (admin), grubu onaylı silme (admin)
+- [x] Hesabı silinmiş oturumun kapanması: `/me` 404 dönünce token silinir, giriş ekranına dönülür (2026-10-21)
+- [x] Rota bazlı kod bölme; ana paket 619 kB'den 446 kB'a indi, 500 kB uyarısı kalktı (2026-10-21)
+- [x] Frontend testleri (2026-10-21): Vitest + Testing Library + MSW ile 30 bileşen/akış testi; Playwright ile gerçek API'ye karşı kabul akışı ve Anti-Spoiler senaryosu (masaüstü + telefon)
+
+**✅ Kabul:** Kayıt → grup kur → üye ekle → AI öner → link ile manuel ekle → oyla akışı uçtan uca çalışır. (2026-10-21: Playwright kabul testi kayıt → grup → üye → manuel fikir → oy akışını gerçek API'ye karşı doğruluyor; link önizlemesi dış ağa çıktığı için testte form elle doldurulur. AI önerisi kota harcamamak için otomatik teste alınmadı, aynı gün arayüzden elle denendi.)
 
 ---
 
@@ -170,12 +175,14 @@ flowchart LR
 ---
 
 ## 💡 Gelecek Fikirler (Backlog)
+- [ ] **Hedef kişiyi e-postayla seçme ve sonradan bağlama (2026-10-21):** Grup kurarken hediye alınacak kişi şu an yalnızca isimle giriliyor; `target_user_id` boş kaldığı için Anti-Spoiler koruması devreye girmiyor. Backend `POST /groups` için yalnızca UUID kabul ediyor, frontend e-postadan kimliği bulamıyor. Yöntem henüz seçilmedi: istek gövdesinde `target_email` (sunucu kullanıcıyı bulur, ayrı arama ucu açılmaz, kayıtlı e-postalar sızmaz) ya da ayrı arama ucu. Kullanıcı kararı: admin mevcut gruplara hedef kişiyi sonradan bağlayabilsin (`PATCH /groups/:id/target`, yalnızca admin; hedef kişi grubun üyesiyse reddedilir, kendini hedef seçemez). Kayıtlı değilse yalnızca isim yedeği korunur.
+- [ ] **Frontend cilaları (2026-10-21):** Oy sonrası liste yeniden sıralanınca kartların zıplamaması (yerleşim animasyonu ya da sıralamayı kısa süre sabitleme); Gemini önerisi gelince yeni kartların kısa süre vurgulanması; boş havuzda örnek link ve Gemini butonuyla daha yönlendirici bir boş durum. Azaltılmış hareket tercihine uyulacak.
 - [ ] **Oyu geri alma (2026-10-21):** Backend şu an yalnızca +1/−1 upsert destekliyor; oy kaldırılamıyor. `DELETE /api/v1/ideas/:id/vote` (Anti-Spoiler + üyelik kontrolü, testli) eklenip arayüzde aynı oya tekrar basınca oy kaldırılacak. Kullanıcı isteğiyle sonraya bırakıldı; frontend'de oy yalnızca değiştirilebilir.
 - [ ] **Manuel önerilerden AI tercih çıkarımı (2026-10-19):** Mevcut akış manuel/AI başlıklarını yalnızca tekrar etmeme listesi olarak gönderiyor; oy skorlarını göndermiyor. Manuel önerileri, özellikle beğenilenleri, olumlu tercih örnekleri olarak kullanarak yeni ve farklı ürünler ürettir. Reddedilen/veto edilen fikirleri olumsuz bağlamda tut; mevcut tekrar, kaynak ve fiyat doğrulamalarını koru. Kullanılacak alanlar ve oy ağırlıkları uygulama sırasında netleştirilecek.
 - [ ] **Trendyol önizlemesinin Azure'da çalışması (2026-10-19):** LEGO 76424 / ürün `811478750` yerelde gerçek backend paketiyle eksiksiz önizleme verdi; Azure'daki HTTP kontrolünde aynı ürün `/pl/` Polonya sayfasına yönlenip 403 döndü. `storefrontId=1&countryCode=TR&language=tr` denemesi de yönlendirmeyi engellemedi. Kullanıcı Amazon ve Hepsiburada'nın canlıda çalıştığını bildirdi. Türkiye çıkışlı ayrı önizleme servisini önce doğrula; Türkiye IP'sinin tek başına çözüm olacağı varsayılmamalı. Frontend'e taşıma seçeneği CORS ve sayfa erişimi açısından ayrıca denenecek. Manuel doldurma/partial fallback ve SSRF korumaları korunacak. Çözüm seçilmedi ve canlıya bu konuda değişiklik uygulanmadı.
 - [ ] **Grup Modları:** Tek kişiye sürpriz modu (`SINGLE_TARGET`) vs. Herkes için ortak havuz / çekiliş modu (`ALL_MEMBERS`)
-- [ ] E-posta ile davet linki (kayıtlı olmayan kullanıcılar için)
+- [ ] **E-posta ile davet linki (kayıtlı olmayan kullanıcılar için) (2026-10-21 detaylandı):** Şu an üye eklemek için kişinin önceden kayıtlı olması gerekiyor. Süreli ve tek kullanımlık davet bağlantısı üretilecek; bağlantıyı açan kişi kayıt/giriş sonrası gruba katılacak. Hedef kişi davetle de gruba giremez (Anti-Spoiler). Backend: davet modeli + uçlar; frontend: üyeler panelinde "Davet linki oluştur/kopyala" ve davet karşılama sayfası.
 - [ ] Bireysel katkı takibi (kim ne kadar ödedi)
-- [ ] Hediye "kazanan" seçimi ve grubu kapatma
+- [ ] **Hediye "kazanan" seçimi ve grubu kapatma (2026-10-21 detaylandı):** Modelde `SELECTED` durumu hazır. Admin en çok oyu alan (ya da seçtiği) fikri kazanan yapar; grup "tamamlandı" görünümüne geçer, oylama ve AI önerisi kapanır. Frontend'de kazanan kartı öne çıkar, ana sayfada grup "Tamamlandı" etiketiyle görünür. Backend: seçme ucu (yalnızca admin, Anti-Spoiler korumalı) ve grup durumu.
 - [ ] Önizleme sonuçlarını önbellekleme (aynı URL için 24 saat)
-- [ ] Gerçek zamanlı oy güncellemeleri (WebSocket / SSE)
+- [ ] **Gerçek zamanlı oy güncellemeleri (WebSocket / SSE) (2026-10-21 detaylandı):** Başkasının oyu ve yeni fikirler sayfa yenilenmeden görünsün. İlk adım frontend'de grup sayfası açıkken belirli aralıklarla yeniden çekme (TanStack Query `refetchInterval`, sekme arka plandayken durur); kalıcı çözüm SSE. Hedef kişiye hiçbir olay gitmemeli.

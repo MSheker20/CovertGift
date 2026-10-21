@@ -537,3 +537,14 @@
 - Kullanıcı isteğiyle masaüstündeki sol kenar çubuğu ve telefondaki menü sayfası kaldırıldı; yerine sayfanın üstünde kenarlardan içeride duran, yuvarlatılmış ve opak tek bir bar geldi (bulanıklık yok).
 - Solda işaret (telefonda yalnızca kutu, geniş ekranda kelime işaretiyle), yanında grup seçici: ana sayfada "Tüm gruplar", grup sayfasında o grubun adı; menüde tüm gruplar ve hediye alınacak kişi. Sağda dil anahtarı (telefonda hesap menüsünde) ve hesap menüsü (isim, e-posta, çıkış).
 - Doğrulama: tsc, build, oxlint ve skill lint'i (0 FAIL) geçti; tarayıcıda dar ve 1360 px genişlikte bar, grup seçici ve hesap alanı görüldü, yatay taşma yok.
+
+---
+
+## 2026-10-21 — Grup yönetimi, hayalet oturum, kod bölme ve frontend testleri
+
+- Kullanıcı kararları: hedef kişiyi e-postayla seçme backend kararı gerektirdiği için roadmap'e eklendi (admin sonradan bağlayabilecek); kazanan seçimi, davet linki, gerçek zamanlı oy ve frontend cilaları roadmap backlog'unda detaylandırıldı. Grup yönetimi grup sayfasında yerinde; testler Vitest + Testing Library + Playwright.
+- **Grup yönetimi:** İlgi alanı kutusunda "+ Ekle" (tüm üyeler) ve etiketlerde × (admin); toplam bütçe kutusunda kalemle yerinde düzenleme (admin, iki ondalık ve aralık denetimi); başlıkta admin menüsünden grubu adıyla onaylanan silme. Bütçe değişince grup, liste ve fikirlerin bütçe üstü etiketleri yenilenir. İlgi alanı ekleme butonunun erişilebilir adı üye ekleme butonundan ayrıldı.
+- **Hayalet oturum:** Token geçerli ama kullanıcı silinmişse `/me` 404 döner; artık token silinip giriş ekranına "oturumun sona erdi" mesajıyla dönülür. 4xx yanıtlarda `/me` yeniden denenmez.
+- **Kod bölme:** Sayfalar React Router `lazy` rotalarıyla ayrı parçalara bölündü; ana paket 619 kB → 446 kB, Vite uyarısı kalktı. Koruma bileşenleri `src/routes/guards.tsx`'e taşındı, oxlint uyarıları kalmadı.
+- **Testler:** Vitest (jsdom) + Testing Library + MSW 3 ile 30 test: yardımcılar, API istemcisi (zarf, 401, ağ hatası), kimlik akışı (giriş/kayıt hataları, hayalet oturum), grup sayfası (sürpriz ekranı, kodlanmış pazar yeri linkleri, tahmini fiyat etiketi, iyimser oy ve geri alma, üye/admin yetkileri), yönetim (ilgi alanı, bütçe, grup silme) ve link önizlemeli fikir ekleme. Tanımsız istekler testi durdurur (`onUnhandledFrame: 'error'`). Kapsam yaklaşık %78 satır. Playwright kabul testi gerçek API'ye karşı masaüstü ve telefonda 4/4 geçti; test kullanıcılarının silindiği veritabanından doğrulandı.
+- Doğrulama: tsc, oxlint, build ve skill lint'i (0 FAIL) geçti; yönetim kontrolleri tarayıcıda görüldü.
