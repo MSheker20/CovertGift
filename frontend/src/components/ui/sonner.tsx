@@ -1,10 +1,10 @@
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 
-// shadcn/ui Sonner; tema sabit açık (next-themes kullanılmıyor).
+// shadcn/ui Sonner; tema sistem ayarını izler (next-themes kullanılmıyor).
 function Toaster(props: ToasterProps) {
   return (
     <Sonner
-      theme="light"
+      theme="system"
       position="top-center"
       toastOptions={{
         classNames: {

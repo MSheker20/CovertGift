@@ -129,8 +129,8 @@ export function AddIdeaDialog({ groupId, trigger }: { groupId: string; trigger: 
               role="status"
               className={
                 notice.kind === 'ok'
-                  ? 'rounded-[12px] bg-[#e3f0ee] px-3.5 py-2.5 text-sm text-[#134d47]'
-                  : 'rounded-[12px] bg-[#fffbeb] px-3.5 py-2.5 text-sm text-[#92400e]'
+                  ? 'rounded-[12px] bg-soft px-3.5 py-2.5 text-sm text-on-soft'
+                  : 'rounded-[12px] bg-pill-warn-bg px-3.5 py-2.5 text-sm text-pill-warn-ink'
               }
             >
               {notice.text}
@@ -146,7 +146,7 @@ export function AddIdeaDialog({ groupId, trigger }: { groupId: string; trigger: 
                 src={safeHttpUrl(form.imageUrl)!}
                 alt=""
                 referrerPolicy="no-referrer"
-                className="size-[72px] shrink-0 rounded-[12px] bg-surface object-contain mix-blend-multiply"
+                className="size-[72px] shrink-0 rounded-[12px] bg-white object-contain p-1"
               />
             )}
             <div className="flex-1">

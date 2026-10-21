@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { initials, personColors } from '@/lib/person'
+import { initials, personStyle } from '@/lib/person'
 
 type Props = { name: string; seed?: string; size?: 'sm' | 'md' | 'lg'; className?: string }
 
@@ -9,8 +9,8 @@ export function Avatar({ name, seed, size = 'md', className }: Props) {
   return (
     <span
       aria-hidden="true"
-      style={personColors(seed ?? name)}
-      className={cn('inline-flex shrink-0 items-center justify-center rounded-full font-semibold', SIZES[size], className)}
+      style={personStyle(seed ?? name)}
+      className={cn('avatar inline-flex shrink-0 items-center justify-center rounded-full font-semibold', SIZES[size], className)}
     >
       {initials(name)}
     </span>

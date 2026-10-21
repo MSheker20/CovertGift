@@ -33,7 +33,7 @@ export function IdeaCard({ idea, canReject, canDelete, onVote, onReject, onDelet
   return (
     <article
       className={cn(
-        'rounded-[14px] border border-border bg-raised p-3 transition-colors md:p-3.5',
+        'rounded-[18px] border border-border bg-raised p-3 transition-colors hover:border-control md:p-3.5',
         rejected && 'bg-transparent',
       )}
     >
@@ -45,15 +45,19 @@ export function IdeaCard({ idea, canReject, canDelete, onVote, onReject, onDelet
             {idea.title}
           </h3>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-            <span className="num text-sm whitespace-nowrap">{price > 0 ? formatMoney(price) : t('pool.noPrice')}</span>
-            <Chip>{idea.source_type === 'AI' ? t('pool.ai') : t('pool.manual')}</Chip>
+            <span className="num text-sm font-semibold whitespace-nowrap">{price > 0 ? formatMoney(price) : t('pool.noPrice')}</span>
+            {idea.source_type === 'AI' ? (
+              <Chip className="bg-soft text-on-soft">{t('pool.ai')}</Chip>
+            ) : (
+              <Chip>{t('pool.manual')}</Chip>
+            )}
             {estimated && price > 0 && (
               <Chip className="bg-transparent px-0 font-normal text-muted" title={t('pool.estimatedHint')}>
                 {t('pool.estimated')}
               </Chip>
             )}
             {idea.is_over_budget && !rejected && (
-              <Chip className="bg-[#fffbeb] text-[#92400e]">{t('pool.overBudget')}</Chip>
+              <Chip className="bg-pill-warn-bg text-pill-warn-ink">{t('pool.overBudget')}</Chip>
             )}
             {rejected && <Chip className="bg-pill-negative-bg text-pill-negative-ink">{t('pool.rejectedBadge')}</Chip>}
           </div>
@@ -97,7 +101,9 @@ function Thumb({ idea, dim }: { idea: Idea; dim: boolean }) {
   return (
     <div
       className={cn(
-        'flex size-14 shrink-0 md:size-[72px] items-center justify-center overflow-hidden rounded-[12px] bg-surface',
+        'flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] md:size-[72px]',
+        // Ürün fotoğrafları beyaz zeminli gelir; iki temada da beyaz kutuda gösterilir.
+        src && !failed ? 'bg-white p-1' : 'bg-soft',
         dim && 'opacity-50 grayscale',
       )}
     >
@@ -108,10 +114,10 @@ function Thumb({ idea, dim }: { idea: Idea; dim: boolean }) {
           loading="lazy"
           referrerPolicy="no-referrer"
           onError={() => setFailed(true)}
-          className="size-full object-contain mix-blend-multiply"
+          className="size-full object-contain"
         />
       ) : (
-        <span aria-hidden="true" className="font-serif text-[32px] leading-none text-muted">
+        <span aria-hidden="true" className="font-display text-[24px] leading-none font-bold text-on-soft md:text-[28px]">
           {idea.title.trim().charAt(0).toLocaleUpperCase('tr-TR')}
         </span>
       )}
@@ -121,31 +127,42 @@ function Thumb({ idea, dim }: { idea: Idea; dim: boolean }) {
 
 function VoteColumn({ score, myVote, onVote }: { score: number; myVote: -1 | 0 | 1; onVote: (v: 1 | -1) => void }) {
   const { t } = useTranslation()
+  // Yalnızca az önce basılan buton zıplar; sayfa yüklenirken seçili oylar sabit durur.
+  const [pop, setPop] = useState<-1 | 0 | 1>(0)
+  const vote = (v: 1 | -1) => {
+    if (myVote === v) return
+    setPop(v)
+    onVote(v)
+  }
   return (
     <div className="-my-1 flex w-11 shrink-0 flex-col items-center justify-center gap-0.5" role="group" aria-label={t('pool.score', { score })}>
       <button
         type="button"
         aria-label={t('pool.upvote')}
         aria-pressed={myVote === 1}
-        onClick={() => myVote !== 1 && onVote(1)}
+        onClick={() => vote(1)}
+        onAnimationEnd={() => setPop(0)}
         className={cn(
           'inline-flex size-11 cursor-pointer items-center justify-center rounded-full text-muted transition-[background-color,color,transform] hover:bg-surface hover:text-ink active:scale-90',
-          myVote === 1 && 'bg-[#e3f0ee] text-accent hover:bg-[#e3f0ee] hover:text-accent',
+          myVote === 1 && 'bg-primary text-on-primary hover:bg-primary-hover hover:text-on-primary',
+          pop === 1 && 'animate-[vote-pop_280ms_ease-out]',
         )}
       >
         <ChevronUp className="size-6" strokeWidth={2} />
       </button>
-      <span className="num text-[15px] font-medium">
+      <span className="font-display num text-[15px] font-semibold">
         {score > 0 ? `+${score}` : score}
       </span>
       <button
         type="button"
         aria-label={t('pool.downvote')}
         aria-pressed={myVote === -1}
-        onClick={() => myVote !== -1 && onVote(-1)}
+        onClick={() => vote(-1)}
+        onAnimationEnd={() => setPop(0)}
         className={cn(
           'inline-flex size-11 cursor-pointer items-center justify-center rounded-full text-muted transition-[background-color,color,transform] hover:bg-surface hover:text-ink active:scale-90',
           myVote === -1 && 'bg-pill-negative-bg text-negative hover:bg-pill-negative-bg hover:text-negative',
+          pop === -1 && 'animate-[vote-pop_280ms_ease-out]',
         )}
       >
         <ChevronDown className="size-6" strokeWidth={2} />

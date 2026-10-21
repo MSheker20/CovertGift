@@ -54,7 +54,7 @@ export function GroupPage() {
       ) : (
         <>
           <header className="mt-4">
-            <h1 className="font-serif text-[34px] leading-[1.05] tracking-[-0.02em] md:text-[44px]">
+            <h1 className="font-display text-[26px] leading-[1.12] font-semibold md:text-[40px]">
               {d ? d.group.title : <Bar className="h-10 w-72" />}
             </h1>
             <p className="mt-2 text-[15px] text-muted">
@@ -70,25 +70,26 @@ export function GroupPage() {
           </header>
 
           <dl className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-12">
-            <div className="rounded-[22px] bg-surface p-4 md:col-span-4">
-              <dt className="text-sm text-muted">{t('group.totalBudget')}</dt>
-              <dd className="num mt-2 text-[26px] leading-8 md:text-[32px] md:leading-10">
+            <div className="rounded-[22px] bg-surface p-4 md:col-span-4 md:p-5">
+              <dt className="text-sm font-medium text-muted">{t('group.totalBudget')}</dt>
+              <dd className="font-display num mt-2 text-[22px] leading-8 font-semibold md:text-[32px] md:leading-10">
                 {d ? formatMoney(d.group.total_budget) : <Bar className="h-8 w-28" />}
               </dd>
             </div>
-            <div className="rounded-[22px] bg-surface p-4 md:col-span-4">
-              <dt className="text-sm text-muted">{t('group.perPerson')}</dt>
-              <dd className="num mt-2 text-[26px] leading-8 md:text-[32px] md:leading-10">
+            {/* Kişi başı tutar ekranın cevabı: hardal alan yalnızca burada. */}
+            <div className="rounded-[22px] bg-field p-4 text-on-field md:col-span-4 md:p-5">
+              <dt className="text-sm font-medium text-on-field-muted">{t('group.perPerson')}</dt>
+              <dd className="font-display num mt-2 text-[22px] leading-8 font-semibold md:text-[32px] md:leading-10">
                 {d ? formatMoney(d.per_person_budget) : <Bar className="h-8 w-24" />}
               </dd>
-              {d && <dd className="mt-1 text-xs text-muted">{t('group.perPersonCaption', { count: d.member_count })}</dd>}
+              {d && <dd className="mt-1 text-xs text-on-field-muted">{t('group.perPersonCaption', { count: d.member_count })}</dd>}
             </div>
-            <div className="col-span-2 rounded-[22px] bg-surface p-4 md:col-span-4">
-              <dt className="text-sm text-muted">{t('group.interestsPanel')}</dt>
+            <div className="col-span-2 rounded-[22px] bg-surface p-4 md:col-span-4 md:p-5">
+              <dt className="text-sm font-medium text-muted">{t('group.interestsPanel')}</dt>
               <dd className="mt-3 flex flex-wrap gap-1.5">
                 {d && d.interests.length === 0 && <span className="text-sm text-muted">{t('group.interestsEmpty')}</span>}
                 {d?.interests.map((i) => (
-                  <span key={i} className="rounded-full bg-raised px-3 py-1 text-sm">
+                  <span key={i} className="rounded-full bg-soft px-3 py-1 text-sm font-medium text-on-soft">
                     {i}
                   </span>
                 ))}
@@ -110,7 +111,7 @@ export function GroupPage() {
                       {m.user_id === user?.id && <span className="text-muted"> ({t('group.you')})</span>}
                     </span>
                     {m.role === 'admin' && (
-                      <span className="rounded-full bg-raised px-2 py-0.5 text-xs whitespace-nowrap text-pill-neutral-ink">
+                      <span className="rounded-full bg-soft px-2 py-0.5 text-xs font-medium whitespace-nowrap text-on-soft">
                         {t('home.admin')}
                       </span>
                     )}
@@ -129,13 +130,11 @@ export function GroupPage() {
 function SurpriseScreen() {
   const { t } = useTranslation()
   return (
-    <div className="flex min-h-[calc(100dvh-56px)] items-center justify-center px-4 py-16 lg:min-h-dvh">
-      <div className="flex max-w-[460px] flex-col items-center text-center">
-        <LogoMark className="size-20 origin-bottom animate-[wiggle_2.4s_ease-in-out_infinite]" />
-        <h1 className="mt-8 font-serif text-[44px] leading-[1.02] tracking-[-0.02em] md:text-[56px]">
-          {t('group.surpriseTitle')}
-        </h1>
-        <p className="mt-4 text-[15px] leading-6 text-muted">{t('group.surpriseLead')}</p>
+    <div className="flex min-h-[calc(100dvh-56px)] items-center justify-center p-4 lg:min-h-dvh lg:p-8">
+      <div className="flex w-full max-w-[640px] flex-col items-center rounded-[28px] bg-field px-6 py-14 text-center text-on-field md:py-20">
+        <LogoMark className="size-20 origin-bottom animate-[wiggle_2.4s_ease-in-out_infinite] text-primary" />
+        <h1 className="font-display mt-8 text-[32px] leading-[1.05] font-bold md:text-[48px]">{t('group.surpriseTitle')}</h1>
+        <p className="mt-4 max-w-[420px] text-[16px] leading-6 text-on-field-muted">{t('group.surpriseLead')}</p>
         <Button asChild size="lg" className="mt-8">
           <Link to="/">{t('group.surpriseBack')}</Link>
         </Button>

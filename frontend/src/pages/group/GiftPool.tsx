@@ -89,7 +89,7 @@ export function GiftPool({ groupId, meId, isAdmin }: { groupId: string; meId?: s
     <section className="-mx-1 rounded-[22px] bg-surface p-3 md:mx-0 md:p-5" aria-busy={gemini.isPending}>
       <header className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-3">
         <div className="mr-auto min-w-0">
-          <h2 className="text-sm font-semibold">{t('pool.title')}</h2>
+          <h2 className="font-display text-[15px] font-semibold">{t('pool.title')}</h2>
           {ideas.data && <p className="mt-0.5 text-xs text-muted">{t('pool.lead', { count: active.length })}</p>}
         </div>
         <AddIdeaDialog
@@ -108,8 +108,8 @@ export function GiftPool({ groupId, meId, isAdmin }: { groupId: string; meId?: s
       </header>
 
       {gemini.isPending && (
-        <p role="status" className="mb-2 flex items-center gap-3 rounded-[14px] border border-dashed border-control px-4 py-3.5 text-sm text-muted">
-          <Sparkles className="size-4 shrink-0 text-accent" />
+        <p role="status" className="mb-2 flex items-center gap-3 rounded-[14px] bg-soft px-4 py-3.5 text-sm text-on-soft">
+          <Sparkles className="size-4 shrink-0" />
           {t('pool.geminiWorkingLong')}
         </p>
       )}

@@ -27,7 +27,7 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & { closeLabel: string }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/35 data-[state=open]:animate-[fade-in_150ms_ease-out]" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-overlay data-[state=open]:animate-[fade-in_150ms_ease-out]" />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
@@ -55,7 +55,7 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn('font-serif text-[28px] leading-[1.1] font-normal tracking-[-0.01em]', className)}
+      className={cn('font-display text-[21px] leading-[1.15] font-semibold', className)}
       {...props}
     />
   )

@@ -14,7 +14,7 @@ export function LogoMark({ className }: { className?: string }) {
 
 export function Logo({ className }: { className?: string }) {
   return (
-    <span className={cn('inline-flex items-center gap-2.5 text-[17px] font-semibold tracking-[-0.01em]', className)}>
+    <span className={cn('font-display inline-flex items-center gap-2.5 text-[16px] font-bold', className)}>
       <LogoMark />
       CovertGift
     </span>

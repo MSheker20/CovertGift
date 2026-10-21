@@ -1,33 +1,98 @@
 @import "tailwindcss";
 
 /*
- * CovertGift tasarım token'ları — "Editorial greeting" stili (design-taste-frontend, seed 2035334530).
- * Hareket: serif selamlama başlığı + tonal paneller; teal vurgu yalnızca veride ve tek ana aksiyonda.
- * Yüz: her kişiye sabit pastel avatar tonu (src/lib/person.ts).
+ * CovertGift tasarım token'ları — "Kobalt & hardal" (2026-10-21, kullanıcı seçimi).
+ * Kobalt: tek dolu ana aksiyon, seçili oy, işaret. Hardal: bütçe alanları.
+ * Açık kobalt: AI etiketi ve bilgi notları. Başlık ve rakamlar Unbounded, metin Onest.
+ * Koyu tema sistem ayarını izler; bileşenler yalnızca bu token'ları kullanır.
  */
 :root {
+  color-scheme: light;
   --ground: #ffffff;
-  --surface: #f9f9f9;
+  --surface: #f2f3fa;
   --raised: #ffffff;
-  --active: #ededed;
-  --border: #eaeaea;
-  --rule: #f3f3f3;
-  --control: #d9d9d6;
-  --text: #1f201d;
-  --muted: #636361;
-  --primary: #1f201d;
-  --accent: #1b6e66;
-  --positive: #2e7d32;
-  --negative: #b42318;
-  --pill-negative-bg: #fdecea;
-  --pill-negative-ink: #7a1d14;
-  --pill-neutral-bg: #f3f3f3;
-  --pill-neutral-ink: #3d3d3a;
+  --active: #e6e8f3;
+  --border: #e1e4f2;
+  --rule: #eceef7;
+  --control: #c6cbe2;
+  --text: #0b0b12;
+  --muted: #55586a;
+  --placeholder: #6b6e80;
+
+  --primary: #2436ff;
+  --primary-hover: #1826d6;
+  --on-primary: #ffffff;
+  --accent: #2436ff;
+
+  --field: #ffc93c;
+  --on-field: #2a1f00;
+  --on-field-muted: #5c4500;
+
+  --soft: #e8ebff;
+  --on-soft: #1520a8;
+
+  --positive: #1f7a3d;
+  --negative: #d1242f;
+  --negative-hover: #ad1a24;
+  --on-negative: #ffffff;
+  --pill-negative-bg: #ffe8ea;
+  --pill-negative-ink: #8a1119;
+  --pill-warn-bg: #fff0c2;
+  --pill-warn-ink: #6b4800;
+  --pill-neutral-bg: #eceef7;
+  --pill-neutral-ink: #3a3d4a;
+
+  --overlay: rgb(11 11 18 / 0.45);
+  --selection: #c9cfff;
+  /* Kişi avatarları: ton src/lib/person.ts'den gelir (--h). */
+  --avatar-s: 85%;
+  --avatar-l: 88%;
+  --avatar-ink-l: 24%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --ground: #0b0c14;
+    --surface: #151726;
+    --raised: #1c1f31;
+    --active: #272b43;
+    --border: #272b42;
+    --rule: #1f2236;
+    --control: #3b4062;
+    --text: #f3f4fb;
+    --muted: #a7abc4;
+    --placeholder: #9195b0;
+
+    --primary: #4e5cff;
+    --primary-hover: #6673ff;
+    --accent: #8d97ff;
+
+    --soft: #232a66;
+    --on-soft: #ccd1ff;
+
+    --positive: #5fd38a;
+    --negative: #ff6b74;
+    --negative-hover: #ff858d;
+    --on-negative: #2a0508;
+    --pill-negative-bg: #3d1419;
+    --pill-negative-ink: #ffb3b8;
+    --pill-warn-bg: #3d300a;
+    --pill-warn-ink: #ffd66b;
+    --pill-neutral-bg: #262a3e;
+    --pill-neutral-ink: #c9ccdb;
+
+    --overlay: rgb(0 0 0 / 0.6);
+    --selection: #2f3a99;
+    --avatar-s: 45%;
+    --avatar-l: 30%;
+    --avatar-ink-l: 88%;
+  }
 }
 
 @theme inline {
-  --font-sans: "Instrument Sans", Inter, system-ui, sans-serif;
-  --font-serif: "Instrument Serif", Georgia, serif;
+  --font-sans: "Onest", system-ui, sans-serif;
+  --font-display: "Unbounded", "Onest", system-ui, sans-serif;
 
   --color-ground: var(--ground);
   --color-surface: var(--surface);
@@ -38,17 +103,27 @@
   --color-control: var(--control);
   --color-ink: var(--text);
   --color-muted: var(--muted);
+  --color-placeholder: var(--placeholder);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
   --color-accent: var(--accent);
+  --color-field: var(--field);
+  --color-on-field: var(--on-field);
+  --color-on-field-muted: var(--on-field-muted);
+  --color-soft: var(--soft);
+  --color-on-soft: var(--on-soft);
   --color-positive: var(--positive);
   --color-negative: var(--negative);
+  --color-negative-hover: var(--negative-hover);
+  --color-on-negative: var(--on-negative);
   --color-pill-negative-bg: var(--pill-negative-bg);
   --color-pill-negative-ink: var(--pill-negative-ink);
+  --color-pill-warn-bg: var(--pill-warn-bg);
+  --color-pill-warn-ink: var(--pill-warn-ink);
   --color-pill-neutral-bg: var(--pill-neutral-bg);
   --color-pill-neutral-ink: var(--pill-neutral-ink);
-
-  --radius-card: 22px;
-  --radius-inner: 14px;
+  --color-overlay: var(--overlay);
 }
 
 @layer base {
@@ -59,8 +134,8 @@
     background: var(--ground);
     color: var(--text);
     font-family: var(--font-sans);
-    font-size: 14px;
-    line-height: 20px;
+    font-size: 15px;
+    line-height: 22px;
     -webkit-font-smoothing: antialiased;
   }
   :focus-visible {
@@ -68,8 +143,19 @@
     outline-offset: 2px;
   }
   ::selection {
-    background: #cfe5e2;
+    background: var(--selection);
   }
+}
+
+/* Unbounded geniş bir yüz: başlıklarda sıkı satır aralığı ve hafif negatif aralık. */
+.font-display {
+  letter-spacing: -0.02em;
+  font-feature-settings: "tnum" 1;
+}
+
+.avatar {
+  background: hsl(var(--h) var(--avatar-s) var(--avatar-l));
+  color: hsl(var(--h) 55% var(--avatar-ink-l));
 }
 
 @keyframes fade-in {
@@ -86,6 +172,15 @@
 }
 @keyframes pop-in {
   from { opacity: 0; scale: 0.97; }
+}
+/* Oy verildiğinde seçilen buton bir kez zıplar. */
+@keyframes vote-pop {
+  0% { scale: 1; }
+  40% { scale: 1.22; }
+  100% { scale: 1; }
+}
+@keyframes rise-in {
+  from { opacity: 0; translate: 0 10px; }
 }
 
 .num {

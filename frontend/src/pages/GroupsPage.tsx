@@ -40,7 +40,7 @@ export function GroupsPage() {
     <div className="mx-auto max-w-[1100px] px-4 pt-8 pb-16 md:px-8 lg:box-content lg:pt-[72px]">
       <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
-          <h1 className="font-serif text-[34px] leading-[1.05] tracking-[-0.02em] md:text-[48px]">
+          <h1 className="font-display text-[26px] leading-[1.12] font-semibold md:text-[40px]">
             {t(greetingKey())}
             {firstName && `, ${firstName}`}.
           </h1>
@@ -68,6 +68,7 @@ export function GroupsPage() {
           label={t('home.tileBudget')}
           caption={t('home.tileBudgetCaption')}
           loading={groups.isPending}
+          tone="field"
           className="col-span-2"
         >
           {formatMoney(stats.budget)}
@@ -128,7 +129,7 @@ function GroupList({ state, meId }: { state: UseQueryResult<Group[]>; meId?: str
         <li key={g.id}>
           <Link
             to={`/groups/${g.id}`}
-            className="group flex min-h-[63px] items-center gap-3 rounded-[14px] border border-border bg-raised px-3.5 py-3 transition-colors hover:border-control"
+            className="group flex min-h-[63px] items-center gap-3 rounded-[14px] border border-border bg-raised px-3.5 py-3 transition-[border-color,transform] hover:border-accent active:scale-[0.99]"
           >
             <Avatar name={g.target_person_name} />
             <div className="min-w-0 flex-1">
@@ -138,11 +139,11 @@ function GroupList({ state, meId }: { state: UseQueryResult<Group[]>; meId?: str
               </p>
             </div>
             {g.creator_id === meId && (
-              <span className="hidden rounded-full bg-pill-neutral-bg px-2 py-0.5 text-xs whitespace-nowrap text-pill-neutral-ink sm:inline">
+              <span className="hidden rounded-full bg-soft px-2 py-0.5 text-xs font-medium whitespace-nowrap text-on-soft sm:inline">
                 {t('home.admin')}
               </span>
             )}
-            <span className="num w-[108px] text-right text-sm whitespace-nowrap">{formatMoney(g.total_budget)}</span>
+            <span className="num w-[112px] text-right text-sm font-semibold whitespace-nowrap">{formatMoney(g.total_budget)}</span>
             <ChevronRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
           </Link>
         </li>
@@ -155,22 +156,32 @@ function Tile({
   label,
   caption,
   loading,
+  tone = 'plain',
   className,
   children,
 }: {
   label: string
   caption: string
   loading: boolean
+  tone?: 'plain' | 'field'
   className?: string
   children: React.ReactNode
 }) {
+  // Hardal yalnızca parayı taşıyan kutucukta; sayaçlar tonal yüzeyde kalır.
+  const field = tone === 'field'
   return (
-    <div className={cn('flex min-h-[112px] flex-col rounded-[22px] bg-surface p-4 md:col-span-4 md:min-h-[128px]', className)}>
-      <dt className="text-sm text-muted">{label}</dt>
-      <dd className="num mt-2 text-[26px] leading-8 md:text-[32px] md:leading-10">
+    <div
+      className={cn(
+        'flex min-h-[112px] flex-col rounded-[22px] p-4 md:col-span-4 md:min-h-[128px] md:p-5',
+        field ? 'bg-field text-on-field' : 'bg-surface',
+        className,
+      )}
+    >
+      <dt className={cn('text-sm font-medium', field ? 'text-on-field-muted' : 'text-muted')}>{label}</dt>
+      <dd className="font-display num mt-2 text-[26px] leading-8 font-semibold md:text-[32px] md:leading-10">
         {loading ? <Bar className="mt-1 h-8 w-24" /> : children}
       </dd>
-      <dd className="mt-auto pt-2 text-xs text-muted">{caption}</dd>
+      <dd className={cn('mt-auto pt-2 text-xs', field ? 'text-on-field-muted' : 'text-muted')}>{caption}</dd>
     </div>
   )
 }

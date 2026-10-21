@@ -24,6 +24,6 @@ Ayarlar `.env.example` içinde: `API_TARGET` (geliştirme proxy hedefi), `VITE_A
 
 ## Tasarım
 
-`design-taste-frontend` skill'inin "Editorial greeting" uygulama stili (seed 2035334530): serif selamlama başlığı (Instrument Serif), Instrument Sans gövde, tonal paneller, gölgesiz yüzeyler, teal vurgu (`#1b6e66`) yalnızca veride ve işarette. Her kişiye kimliğinden türeyen sabit bir pastel avatar tonu verilir (`src/lib/person.ts`). Token'lar `src/index.css` içindedir.
+"Kobalt & hardal" stili (2026-10-21, kullanıcı seçimi): kobalt (`#2436ff`) tek dolu ana aksiyonda, seçili oyda ve işarette; hardal (`#ffc93c`) para taşıyan alanlarda (ortak bütçe, kişi başı, sürpriz ekranı); açık kobalt AI etiketi ve bilgi notlarında. Başlık ve rakamlar Unbounded, metin Onest. Koyu tema sistem ayarını (`prefers-color-scheme`) izler. Her kişiye kimliğinden türeyen sabit bir avatar tonu verilir (`src/lib/person.ts`, `.avatar`). Bileşenler yalnızca `src/index.css` token'larını kullanır; sabit renk yazılmaz.
 
 Pazar yeri linkleri ileride `search_query` üzerinden `encodeURIComponent` ile kurulacak; Gemini URL üretmez.

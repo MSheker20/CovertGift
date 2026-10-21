@@ -1,3 +1,5 @@
+import type React from 'react'
+
 // Her kişiye kimliğinden türeyen sabit bir pastel ton verilir (kimlik, veri değil).
 // Tonlar yan yana gelen kişiler için en az 60° aralıklı seçilir.
 const HUES = [24, 150, 210, 300, 85, 345, 180, 260] as const
@@ -8,9 +10,9 @@ export function personHue(key: string): number {
   return HUES[h % HUES.length]
 }
 
-export function personColors(key: string) {
-  const hue = personHue(key)
-  return { background: `hsl(${hue} 70% 90%)`, color: `hsl(${hue} 45% 26%)` }
+// Açık/koyu tema doygunluk ve açıklığı index.css'teki .avatar sınıfından gelir; burada yalnızca ton seçilir.
+export function personStyle(key: string) {
+  return { '--h': String(personHue(key)) } as React.CSSProperties
 }
 
 export function initials(name: string): string {

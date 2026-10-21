@@ -5,14 +5,14 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 // shadcn/ui Button, CovertGift token'larına uyarlanmış: hap köşeler, gölgesiz,
-// tek dolu ana aksiyon koyu mürekkep, ikincil beyaz + 1px kenar.
+// tek dolu ana aksiyon kobalt, ikincil yüzey + 1px kenar.
 const buttonVariants = cva(
-  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full font-medium transition-[background-color,color,transform] duration-150 active:translate-y-px disabled:pointer-events-none disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full font-medium transition-[background-color,color,transform,filter] duration-150 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: 'bg-primary text-white hover:bg-[#3a3b37]',
-        accent: 'bg-accent text-white hover:bg-[#155a53]',
+        default: 'bg-primary font-semibold text-on-primary hover:bg-primary-hover',
+        field: 'bg-field font-semibold text-on-field hover:brightness-[0.96]',
         outline: 'border border-control bg-raised text-ink hover:bg-surface',
         ghost: 'text-ink hover:bg-active',
         link: 'rounded-none px-0 text-ink underline-offset-4 hover:underline',

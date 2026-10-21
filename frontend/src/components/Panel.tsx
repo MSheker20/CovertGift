@@ -19,9 +19,9 @@ export function Panel({
   return (
     <section className={cn('rounded-[22px] bg-surface p-4 md:p-5', className)}>
       <header className="mb-4 flex min-h-[38px] items-center gap-2">
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="font-display text-[15px] font-semibold">{title}</h2>
         {count !== undefined && (
-          <span className="num rounded-full bg-pill-neutral-bg px-2 py-0.5 text-xs text-pill-neutral-ink">{count}</span>
+          <span className="num rounded-full bg-soft px-2 py-0.5 text-xs font-semibold text-on-soft">{count}</span>
         )}
         {action && <div className="ml-auto">{action}</div>}
       </header>

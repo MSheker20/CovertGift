@@ -521,3 +521,13 @@
 - Bulgu ve düzeltme: backend'in "Web araması yapılmadı. Fiyat tahminidir…" notu açıklamanın son paragrafında olduğu için iki satırlık kırpmada görünmüyordu. Fiyatlar doğrulanmış gibi okunuyordu. Kaynaksız AI fikirlerinde fiyatın yanına "Tahmini fiyat" etiketi eklendi (üzerine gelince not görünür); kartta açıklamanın yalnızca ilk paragrafı gösteriliyor.
 - AI fikirlerinde "… önerdi" satırı butona basan kullanıcıyı gösteriyor (backend `created_by`); bu davranış değiştirilmedi.
 - Test kullanıcısı `DELETE /me` ile silindi.
+
+---
+
+## 2026-10-21 — Frontend görsel yenileme: Kobalt & hardal
+
+- Kullanıcı arayüzü soluk ve fontları sıkıcı buldu. Dört yön görsel olarak karşılaştırıldı; seçim "B · Kobalt & hardal", koyu tema sistem ayarını izleyecek, doz "renkli ama düzenli".
+- `src/index.css` baştan yazıldı: açık ve koyu token setleri (`prefers-color-scheme`), kobalt ana aksiyon, hardal para alanları, açık kobalt etiket/not tonu, uyarı/olumsuz pill çiftleri, overlay ve seçim renkleri. Fontlar Instrument Sans/Serif yerine Unbounded (başlık, rakam) ve Onest (metin).
+- Bileşenlerdeki sabit renkler (`#e3f0ee`, `#fffbeb`, `text-white`, `bg-black/35` vb.) token'lara bağlandı. Avatar tonları CSS değişkeniyle iki temaya uyarlandı; ürün görselleri iki temada da beyaz kutuda gösteriliyor. Sonner bildirimleri sistem temasını izliyor.
+- Ekranlar: giriş/kayıt sağ paneli kobalt alan; ana sayfada ortak bütçe ve grup sayfasında kişi başı tutar hardal; ilgi alanları, AI etiketi ve sayaçlar açık kobalt; sürpriz ekranı hardal kart. Seçili beğeni kobalt dolgu; oy verilen buton bir kez zıplar (azaltılmış hareket tercihinde kapalı).
+- Doğrulama: `npm run build`, oxlint ve skill lint'i (0 FAIL; uyarılar diyalog/menü gölgeleri) geçti. Tarayıcıda koyu ve açık temada giriş, ana sayfa, grup sayfası ve oylama; 375 px'te sürpriz ekranı ve yatay taşma kontrolü yapıldı. Fontların yüklendiği doğrulandı. Test kullanıcıları silindi.
