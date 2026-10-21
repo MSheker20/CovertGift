@@ -504,3 +504,12 @@
 - Ekranlar: Giriş, Kayıt (sonrasında otomatik giriş), uygulama kabuğu (masaüstü kenar çubuğu / telefonda üst bar + menü), Gruplar (selamlama, sayaçlar, grup listesi, sürpriz yapılanlar, boş/yükleniyor/hata durumları), Yeni grup diyaloğu, Grup sayfasının ilk sürümü (bütçe, kişi başı, ilgi alanları, üyeler) ve Anti-Spoiler "Bu bir sürpriz!" ekranı.
 - Doğrulama: `npm run build` ve skill lint'i (0 FAIL; tek uyarı diyaloğun gölgesi) geçti. Yerel API ile tarayıcıda kayıt → boş durum → grup kurma (`3200,50` → ₺3.200,50, ilgi alanları ayrıştırıldı) → grup sayfası; hedef kullanıcıyla gerçek 403'te sürpriz ekranı ve listede grubun görünmemesi; 375 px'te İngilizce, yatay taşma yok, fontlar yüklü. Sentetik test hesapları `DELETE /me` ile silindi.
 - Açık: hediye havuzu ve oylama kartları, AI öneri, link önizleme, üye/ilgi alanı/bütçe düzenleme, `target_user_id` seçimi (arayüzde henüz yok), skill inspector'ının tam turu.
+
+---
+
+## 2026-10-21 — Hediye havuzu ve oylama kartları (Faz 7, ikinci iterasyon)
+
+- Kullanıcı kararları: satır kartlar (solda görsel, sağda dikey oy sütunu); elenenler altta katlanır "Elenenler" bölümünde; kapsamda manuel ekleme + link önizleme, "Gemini ile öner", admin vetosu + silme ve e-postayla üye ekleme. Oyu geri alma backend'de desteklenmediği için ROADMAP backlog'una eklendi; arayüzde oy yalnızca değiştirilebilir.
+- Grup sayfasına `GiftPool` (iyimser oy + yeniden çekme, Gemini yükleme durumu ve 429/422/503 mesajları, onaylı veto/silme), `IdeaCard` (fiyat, AI/Manuel ve bütçe üstü etiketleri, Trendyol/Amazon arama linkleri, MANUAL için "Ürüne git", AI kaynakları ve sandbox iframe'de Google önerileri), `AddIdeaDialog` (preview-link ile doldurma, kısmi önizleme uyarısı) ve `AddMemberForm` eklendi. Dış linkler yalnızca http(s) ise gösterilir.
+- Doğrulama: build, oxlint ve skill lint'i (0 FAIL; uyarılar diyalog/menü gölgeleri) geçti. Yerel API'de iki test kullanıcısıyla tarayıcıda: oy verme ve −1→+1 değiştirme (sıralama sunucu skoruyla güncellendi), menüden admin vetosu ve Elenenler bölümü, hepsiburada.com ana sayfasıyla kısmi önizleme → formu düzeltip ekleme ("Ürüne git" ve kodlanmış Trendyol linki), kayıtlı olmayan e-postayla üye eklemede 404 mesajı, 375 px'te taşmasız düzen. Test kullanıcıları `DELETE /me` ile silindi.
+- Denenmedi: canlı Gemini çağrısı (kota harcamamak için), gerçek bir ürün sayfasıyla tam önizleme, üye rolündeki kullanıcının menüsü, AI kaynak/öneri gösteriminin gerçek veriyle görünümü.

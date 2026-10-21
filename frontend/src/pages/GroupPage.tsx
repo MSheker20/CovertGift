@@ -12,8 +12,10 @@ import { Bar, BlockError, Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { errorMessage, isAntiSpoiler } from '@/lib/errors'
 import { formatMoney } from '@/lib/format'
+import { AddMemberForm } from './group/AddMemberForm'
+import { GiftPool } from './group/GiftPool'
 
-// İlk sürüm: grup başlığı, bütçe ve üyeler. Hediye havuzu ve oylama bir sonraki iterasyonda.
+// Grup ekranı: bütçe ve ilgi alanları, hediye havuzu (oylama, AI, manuel ekleme) ve üyeler.
 export function GroupPage() {
   const { t } = useTranslation()
   const { id = '' } = useParams()
@@ -95,11 +97,9 @@ export function GroupPage() {
           </dl>
 
           <div className="mt-4 grid grid-cols-1 items-start gap-4 md:grid-cols-12">
-            <Panel title={t('group.ideasPanel')} className="md:col-span-8">
-              <div className="rounded-[14px] border border-dashed border-control px-4 py-6 text-sm text-muted">
-                {t('group.ideasSoon')}
-              </div>
-            </Panel>
+            <div className="md:col-span-8">
+              {d ? <GiftPool groupId={id} meId={user?.id} isAdmin={d.my_role === 'admin'} /> : <Bar className="h-64 rounded-[22px]" />}
+            </div>
             <Panel title={t('group.membersPanel')} count={d?.member_count} className="md:col-span-4">
               <ul className="flex flex-col gap-1">
                 {(d?.members ?? []).map((m) => (
@@ -117,6 +117,7 @@ export function GroupPage() {
                   </li>
                 ))}
               </ul>
+              {d && <AddMemberForm groupId={id} />}
             </Panel>
           </div>
         </>

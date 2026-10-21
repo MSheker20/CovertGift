@@ -135,15 +135,15 @@ flowchart LR
 - [x] Grup listesi + "Yeni Grup" diyaloğu (grup sayfasının ilk sürümü: bütçe, kişi başı, ilgi alanları, üyeler)
 - [ ] **Ana panel (tek ekran):**
   - [ ] Üst bar: profil, toplam bütçe, kişi başı bütçe
-  - [ ] Orta: oylama kartları (görsel, başlık, fiyat, skor, 👍/👎, AI/MANUAL rozeti)
-  - [ ] Kartlarda Trendyol / Amazon TR dinamik arama linkleri (`encodeURIComponent`)
-  - [ ] MANUAL + `product_url` varsa "Ürüne git" butonu
-  - [ ] Sağ panel: üyeler, üye ekle, **"Gemini ile Öner"** butonu (loading durumu)
-- [ ] "Manuel Ekle" diyaloğu → link yapıştır → önizleme ile form otomatik dolar
-- [ ] AI kaynaklarını (`ai_sources`) ve Google arama önerilerini (`ai_search_suggestions`) izole biçimde göster; geçici panelde bu gösterim henüz yok
+  - [x] Orta: oylama kartları (görsel, başlık, fiyat, skor, ▲/▼, AI/MANUAL rozeti, bütçe üstü etiketi; elenenler altta katlanır bölümde)
+  - [x] Kartlarda Trendyol / Amazon TR dinamik arama linkleri (`encodeURIComponent`)
+  - [x] MANUAL + `product_url` varsa "Ürüne git" linki
+  - [x] Sağ panel: üyeler, üye ekle; **"Gemini ile Öner"** havuz başlığında (loading durumu, 429/422/503 mesajları; canlı Gemini çağrısı arayüzden henüz denenmedi)
+- [x] "Manuel Ekle" diyaloğu → link yapıştır → önizleme ile form otomatik dolar (kısmi önizlemede elle tamamlama)
+- [x] AI kaynaklarını (`ai_sources`) ve Google arama önerilerini (`ai_search_suggestions`) izole biçimde göster (kaynaklar katlanır listede; öneri HTML'i betiksiz sandbox iframe'de; gerçek veriyle henüz görülmedi)
 - [x] 403 Anti-Spoiler için özel "Bu bir sürpriz!" ekranı
-- [ ] Optimistic UI ile oylama
-- [ ] Toast bildirimleri, boş durumlar, iskelet (skeleton) yükleyiciler
+- [x] Optimistic UI ile oylama (yanıt skor döndürmediği için ardından liste yeniden çekilir; oy yalnızca değiştirilebilir)
+- [x] Toast bildirimleri, boş durumlar, iskelet (skeleton) yükleyiciler
 
 **✅ Kabul:** Kayıt → grup kur → üye ekle → AI öner → link ile manuel ekle → oyla akışı uçtan uca çalışır.
 
@@ -170,6 +170,7 @@ flowchart LR
 ---
 
 ## 💡 Gelecek Fikirler (Backlog)
+- [ ] **Oyu geri alma (2026-10-21):** Backend şu an yalnızca +1/−1 upsert destekliyor; oy kaldırılamıyor. `DELETE /api/v1/ideas/:id/vote` (Anti-Spoiler + üyelik kontrolü, testli) eklenip arayüzde aynı oya tekrar basınca oy kaldırılacak. Kullanıcı isteğiyle sonraya bırakıldı; frontend'de oy yalnızca değiştirilebilir.
 - [ ] **Manuel önerilerden AI tercih çıkarımı (2026-10-19):** Mevcut akış manuel/AI başlıklarını yalnızca tekrar etmeme listesi olarak gönderiyor; oy skorlarını göndermiyor. Manuel önerileri, özellikle beğenilenleri, olumlu tercih örnekleri olarak kullanarak yeni ve farklı ürünler ürettir. Reddedilen/veto edilen fikirleri olumsuz bağlamda tut; mevcut tekrar, kaynak ve fiyat doğrulamalarını koru. Kullanılacak alanlar ve oy ağırlıkları uygulama sırasında netleştirilecek.
 - [ ] **Trendyol önizlemesinin Azure'da çalışması (2026-10-19):** LEGO 76424 / ürün `811478750` yerelde gerçek backend paketiyle eksiksiz önizleme verdi; Azure'daki HTTP kontrolünde aynı ürün `/pl/` Polonya sayfasına yönlenip 403 döndü. `storefrontId=1&countryCode=TR&language=tr` denemesi de yönlendirmeyi engellemedi. Kullanıcı Amazon ve Hepsiburada'nın canlıda çalıştığını bildirdi. Türkiye çıkışlı ayrı önizleme servisini önce doğrula; Türkiye IP'sinin tek başına çözüm olacağı varsayılmamalı. Frontend'e taşıma seçeneği CORS ve sayfa erişimi açısından ayrıca denenecek. Manuel doldurma/partial fallback ve SSRF korumaları korunacak. Çözüm seçilmedi ve canlıya bu konuda değişiklik uygulanmadı.
 - [ ] **Grup Modları:** Tek kişiye sürpriz modu (`SINGLE_TARGET`) vs. Herkes için ortak havuz / çekiliş modu (`ALL_MEMBERS`)
