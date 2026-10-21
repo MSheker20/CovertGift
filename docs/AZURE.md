@@ -8,8 +8,12 @@
 > Yerelde `backend/.env`, Azure'da Container App ortam değişkenleri düzenlenir ve uygulama yeniden başlatılır/yeni revision oluşur.
 > Aşağıdaki eski Search araştırması açıklamaları yalnızca Search modu tekrar açılırsa geçerlidir.
 
-Bu dosyalar mevcut Go API ve geçici test panelini ayrı imajlar olarak paketler.
-Kalıcı frontend henüz hazır değildir. PostgreSQL ayrı bir yönetilen serviste çalışır.
+Go API ve kalıcı React frontend ayrı imajlar olarak paketlenir. PostgreSQL ayrı bir yönetilen serviste çalışır.
+
+> **2026-10-21 güncellemesi:** `covertgift-ui` uygulaması artık geçici panel yerine kalıcı React frontend'i
+> (`covertgift-web:ff8bb3c`) çalıştırır. API `covertgift-api:ff8bb3c` imajındadır. Geri dönüş için eski imajlar
+> registry'de durur: API `covertgift-api:search-off-20261021`, panel `covertgift-ui:demo`.
+> Express ortamında `--revision-suffix` desteklenmez; `az containerapp update` yalnızca `--image` ile çalıştırılır.
 
 ## Mevcut demo ortamı
 
@@ -17,7 +21,7 @@ Kalıcı frontend henüz hazır değildir. PostgreSQL ayrı bir yönetilen servi
 - Ortam: `covertgift-env`, Express modu.
 - API: `covertgift-api`, yalnızca ortam içinden erişim, port 8080.
 - Panel: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
-- Registry: `covertgiftmsheker.azurecr.io`; imaj etiketi: `demo`.
+- Registry: `covertgiftmsheker.azurecr.io`; imajlar commit kısa kimliğiyle etiketlenir (ör. `ff8bb3c`). `demo` etiketi ilk dağıtımın imajıdır.
 - PostgreSQL: `covertgift-db-msheker`, sürüm 17, B1ms, 32 GiB.
 - İmaj çekme kimliği: `covertgift-acr-pull` (kullanıcı atanmış), registry kapsamında AcrPull.
 - API: 0.5 vCPU / 1 GiB; panel: 0.25 vCPU / 0.5 GiB. İkisi de 0–1 replica.
@@ -98,7 +102,24 @@ PostgreSQL ağ erişimini API için yapılandırın. Secret değerlerini Docker 
 argümanları olarak vermeyin. `.dockerignore` yerel `.env` dosyalarını dışlar.
 API imajı yalnızca derlenen programı içerir ve ayrıcalıksız kullanıcıyla çalışır.
 
-## Geçici panel uygulaması
+## Frontend uygulaması (kalıcı React frontend)
+
+`frontend/Dockerfile` iki aşamalıdır: Node 22 ile `npm ci` + `npm run build`, ardından ayrıcalıksız
+`nginx-unprivileged` ile `dist/` sunulur. `frontend/nginx.conf.template` başlangıçta `API_TARGET` ile doldurulur.
+
+```sh
+docker build --platform linux/amd64 -t LOGIN_SERVER/covertgift-web:KISA_COMMIT ./frontend
+docker push LOGIN_SERVER/covertgift-web:KISA_COMMIT
+az containerapp update -g covertgift-rg -n covertgift-ui --image LOGIN_SERVER/covertgift-web:KISA_COMMIT
+```
+
+- Uygulama adı `covertgift-ui` olarak kaldı; ingress external, target port 5173 (nginx bu portu dinler).
+- `API_TARGET=https://API_INTERNAL_FQDN` mevcut ortam değişkeni olarak kullanılır. `UI_HOST`/`UI_PORT` artık kullanılmaz.
+- nginx `/api/`, `/health`, `/swagger/`, `/docs` yollarını API'ye iletir; bilinmeyen yollar `index.html`'e düşer.
+- `/api/v1/dev/*` büyük/küçük harften bağımsız olarak nginx'te 403 ile engellenir. Bu kural regex olarak API kuralından **önce** durmalıdır; düz prefix location yazılırsa API regex'i önce eşleşir ve istek API'ye gider. Engeli yalnızca ölü bir hedefle (`API_TARGET=http://127.0.0.1:9`) deneyin, çalışan bir API'ye karşı denemeyin.
+- Güvenlik başlıkları (`nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`) ve `Cache-Control` sunucu düzeyindedir; parmak izli `/assets/` bir yıl, HTML ve API yanıtları `no-cache`.
+
+## Geçici panel uygulaması (eski, geri dönüş için)
 
 - İmaj: `LOGIN_SERVER/covertgift-ui:demo`
 - Aynı Container Apps Environment; Consumption.
