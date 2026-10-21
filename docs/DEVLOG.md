@@ -475,3 +475,76 @@
 - README, teknik şartname, kurulum rehberi, panel rehberi ve roadmap kodla eşitlendi; Azure rehberi bağlantıları eklendi. 429 işi tamamlandı; kaynaksız araştırmanın 422 eşlemesi, geçici servis hatasının 503 eşlemesi ve yerel compose entegrasyonu açık tutuldu.
 - `.gitignore` günlükleri, geçici dosyaları, veritabanı yedeklerini ve özel anahtar/kimlik dosyalarını dışlayacak şekilde genişletildi; `.env.example` takipte kalır.
 - Doğrulama: `go test ./backend/...`, `go vet ./backend/...`, panelin iki JavaScript dosyasında `node --check`, `git diff --check`, yerel doküman bağlantıları ve yaygın gizli anahtar kalıpları kontrolü geçti. `.env`, örnek yedek/anahtar/günlük yollarının dışlandığı ve `.env.example` dosyasının dışlanmadığı doğrulandı. Canlı Gemini çağrısı, Docker imaj derlemesi ve Azure canlı sağlık kontrolü bu oturumda yapılmadı.
+
+
+## 2026-10-21 — Search kapalı öneriler ve dışarıdan model yapılandırması
+
+- Gemini Search varsayılan olarak kapalıdır. Tek yapılandırılmış JSON çağrısı kullanılır; kaynak ve arama HTML'i üretilmez.
+- Kaynaksız mod açıkça işaretlenir; servis açıklamaya doğrulanmamış fiyat/stok notu ekler. Bütçe, tekrar, veto ve Anti-Spoiler kontrolleri korunur.
+- Model kimlikleri üretim Go kodundan kaldırıldı. `GEMINI_MODEL` zorunlu; araştırma modeli boşsa ana model kullanılır. İsteğe bağlı `GEMINI_FALLBACK_MODEL` yalnızca 503 için geçerlidir. 429'da ek çağrı yapılmaz.
+- Yerel ve örnek ayarlar: `GEMINI_MODEL=gemini-3.8-flash`, `GEMINI_SEARCH_ENABLED=false`, araştırma/yedek model boş.
+
+### Oturum durumu — kullanıcı kapatmak için durdurdu
+
+- Branch: `codex/gemini-search-429`; değişiklikler çalışma dizininde, henüz commit edilmedi.
+- Tüm backend testleri ve `go vet ./backend/...` geçti; `git diff --check` temiz.
+- Search kapalı 3.8 canlı testi yaklaşık 149 saniyede Google 504 döndürdü. Ardından `GEMINI_THINKING_LEVEL=low` dış yapılandırması eklendi; ikinci canlı test kullanıcı kapatmak istediği için 75. saniyede durduruldu; başarı doğrulanmadı.
+- Güncel Docker imajı yerelde başarıyla derlendi: `covertgiftmsheker.azurecr.io/covertgift-api:search-off-20261021`.
+- İmaj henüz registry'ye gönderilmedi, Azure uygulaması güncellenmedi. Canlıda eski `covertgift-api:demo` çalışıyor; model ortam değişkenleri tanımlı değil.
+- ACR Tasks `TasksOperationsNotAllowed` nedeniyle kullanılamıyor; yerel Docker açıldı ve `az acr login` başarılı oldu.
+- Devam: canlı model testini sonuçlandır; imajı push et; Container App'e imaj ve `GEMINI_MODEL=gemini-3.8-flash`, `GEMINI_SEARCH_ENABLED=false`, `GEMINI_THINKING_LEVEL=low` ayarlarını ver; yedek modeli boş bırak; sağlık ve öneri akışını doğrula. Secret değerlerini değiştirme veya yazdırma. Eski `demo` imajını geri dönüş için koru.
+
+---
+
+## 2026-10-21 — Kalıcı frontend iskeleti: Auth + Gruplar (Faz 7, ilk iterasyon)
+
+- `frontend/` kuruldu: Vite + React 19 + TypeScript, Tailwind CSS v4, React Router, TanStack Query, i18next (TR varsayılan, EN), Lucide. Kararlar kullanıcıyla soru-cevapla alındı: TanStack Query, sıcak/oyunbaz görünüm, mobil öncelik + TR/EN, token `localStorage`'da, geliştirmede Vite proxy (`:5174` → `:8080`).
+- shadcn CLI'nin bağımlılık kurulumu npm'in `EALLOWSCRIPTS` kuralına takıldı; `components.json` yazıldı, Button/Input/Label/Dialog/Sonner shadcn kalıbıyla (`radix-ui`, `cva`, `clsx`, `tailwind-merge`) elle eklendi.
+- Tasarım `design-taste-frontend` skill'inin uygulama stiliyle seçildi: "Editorial greeting" (seed 2035334530). Yüz: veriden kurulan serif selamlama + kişi başına sabit pastel avatar tonu.
+- Ekranlar: Giriş, Kayıt (sonrasında otomatik giriş), uygulama kabuğu (masaüstü kenar çubuğu / telefonda üst bar + menü), Gruplar (selamlama, sayaçlar, grup listesi, sürpriz yapılanlar, boş/yükleniyor/hata durumları), Yeni grup diyaloğu, Grup sayfasının ilk sürümü (bütçe, kişi başı, ilgi alanları, üyeler) ve Anti-Spoiler "Bu bir sürpriz!" ekranı.
+- Doğrulama: `npm run build` ve skill lint'i (0 FAIL; tek uyarı diyaloğun gölgesi) geçti. Yerel API ile tarayıcıda kayıt → boş durum → grup kurma (`3200,50` → ₺3.200,50, ilgi alanları ayrıştırıldı) → grup sayfası; hedef kullanıcıyla gerçek 403'te sürpriz ekranı ve listede grubun görünmemesi; 375 px'te İngilizce, yatay taşma yok, fontlar yüklü. Sentetik test hesapları `DELETE /me` ile silindi.
+- Açık: hediye havuzu ve oylama kartları, AI öneri, link önizleme, üye/ilgi alanı/bütçe düzenleme, `target_user_id` seçimi (arayüzde henüz yok), skill inspector'ının tam turu.
+
+---
+
+## 2026-10-21 — Hediye havuzu ve oylama kartları (Faz 7, ikinci iterasyon)
+
+- Kullanıcı kararları: satır kartlar (solda görsel, sağda dikey oy sütunu); elenenler altta katlanır "Elenenler" bölümünde; kapsamda manuel ekleme + link önizleme, "Gemini ile öner", admin vetosu + silme ve e-postayla üye ekleme. Oyu geri alma backend'de desteklenmediği için ROADMAP backlog'una eklendi; arayüzde oy yalnızca değiştirilebilir.
+- Grup sayfasına `GiftPool` (iyimser oy + yeniden çekme, Gemini yükleme durumu ve 429/422/503 mesajları, onaylı veto/silme), `IdeaCard` (fiyat, AI/Manuel ve bütçe üstü etiketleri, Trendyol/Amazon arama linkleri, MANUAL için "Ürüne git", AI kaynakları ve sandbox iframe'de Google önerileri), `AddIdeaDialog` (preview-link ile doldurma, kısmi önizleme uyarısı) ve `AddMemberForm` eklendi. Dış linkler yalnızca http(s) ise gösterilir.
+- Doğrulama: build, oxlint ve skill lint'i (0 FAIL; uyarılar diyalog/menü gölgeleri) geçti. Yerel API'de iki test kullanıcısıyla tarayıcıda: oy verme ve −1→+1 değiştirme (sıralama sunucu skoruyla güncellendi), menüden admin vetosu ve Elenenler bölümü, hepsiburada.com ana sayfasıyla kısmi önizleme → formu düzeltip ekleme ("Ürüne git" ve kodlanmış Trendyol linki), kayıtlı olmayan e-postayla üye eklemede 404 mesajı, 375 px'te taşmasız düzen. Test kullanıcıları `DELETE /me` ile silindi.
+- Denenmedi: canlı Gemini çağrısı (kota harcamamak için), gerçek bir ürün sayfasıyla tam önizleme, üye rolündeki kullanıcının menüsü, AI kaynak/öneri gösteriminin gerçek veriyle görünümü.
+
+### Canlı Gemini denemesi (aynı gün)
+
+- Arayüzden tek bir "Gemini ile öner" çağrısı yapıldı (`GEMINI_MODEL=gemini-3.8-flash`, Search kapalı, `GEMINI_THINKING_LEVEL=low`). Yükleme durumu doğru göründü: buton kilitli ve dönen simgeli, 1–2 dakika notu görünür. Yanıt yaklaşık 26 saniyede geldi; 4 öneri eklendi ve toast çıktı. Öneriler ilgi alanlarına uygundu (kahve değirmeni, kafa lambası, trekking bastonu, AeroPress Go), hepsi ₺3.000 bütçenin altındaydı. Görsel yok, AI rozeti ve Trendyol/Amazon arama linkleri var.
+- Search kapalı olduğu için kaynak ve Google öneri HTML'i dönmedi; bu bölüm kartta doğru biçimde gizli kaldı. Kaynaklı gösterim gerçek veriyle hâlâ görülmedi.
+- Bulgu ve düzeltme: backend'in "Web araması yapılmadı. Fiyat tahminidir…" notu açıklamanın son paragrafında olduğu için iki satırlık kırpmada görünmüyordu. Fiyatlar doğrulanmış gibi okunuyordu. Kaynaksız AI fikirlerinde fiyatın yanına "Tahmini fiyat" etiketi eklendi (üzerine gelince not görünür); kartta açıklamanın yalnızca ilk paragrafı gösteriliyor.
+- AI fikirlerinde "… önerdi" satırı butona basan kullanıcıyı gösteriyor (backend `created_by`); bu davranış değiştirilmedi.
+- Test kullanıcısı `DELETE /me` ile silindi.
+
+---
+
+## 2026-10-21 — Frontend görsel yenileme: Kobalt & hardal
+
+- Kullanıcı arayüzü soluk ve fontları sıkıcı buldu. Dört yön görsel olarak karşılaştırıldı; seçim "B · Kobalt & hardal", koyu tema sistem ayarını izleyecek, doz "renkli ama düzenli".
+- `src/index.css` baştan yazıldı: açık ve koyu token setleri (`prefers-color-scheme`), kobalt ana aksiyon, hardal para alanları, açık kobalt etiket/not tonu, uyarı/olumsuz pill çiftleri, overlay ve seçim renkleri. Fontlar Instrument Sans/Serif yerine Unbounded (başlık, rakam) ve Onest (metin).
+- Bileşenlerdeki sabit renkler (`#e3f0ee`, `#fffbeb`, `text-white`, `bg-black/35` vb.) token'lara bağlandı. Avatar tonları CSS değişkeniyle iki temaya uyarlandı; ürün görselleri iki temada da beyaz kutuda gösteriliyor. Sonner bildirimleri sistem temasını izliyor.
+- Ekranlar: giriş/kayıt sağ paneli kobalt alan; ana sayfada ortak bütçe ve grup sayfasında kişi başı tutar hardal; ilgi alanları, AI etiketi ve sayaçlar açık kobalt; sürpriz ekranı hardal kart. Seçili beğeni kobalt dolgu; oy verilen buton bir kez zıplar (azaltılmış hareket tercihinde kapalı).
+- Doğrulama: `npm run build`, oxlint ve skill lint'i (0 FAIL; uyarılar diyalog/menü gölgeleri) geçti. Tarayıcıda koyu ve açık temada giriş, ana sayfa, grup sayfası ve oylama; 375 px'te sürpriz ekranı ve yatay taşma kontrolü yapıldı. Fontların yüklendiği doğrulandı. Test kullanıcıları silindi.
+
+### Yüzen üst bar (aynı gün)
+
+- Kullanıcı isteğiyle masaüstündeki sol kenar çubuğu ve telefondaki menü sayfası kaldırıldı; yerine sayfanın üstünde kenarlardan içeride duran, yuvarlatılmış ve opak tek bir bar geldi (bulanıklık yok).
+- Solda işaret (telefonda yalnızca kutu, geniş ekranda kelime işaretiyle), yanında grup seçici: ana sayfada "Tüm gruplar", grup sayfasında o grubun adı; menüde tüm gruplar ve hediye alınacak kişi. Sağda dil anahtarı (telefonda hesap menüsünde) ve hesap menüsü (isim, e-posta, çıkış).
+- Doğrulama: tsc, build, oxlint ve skill lint'i (0 FAIL) geçti; tarayıcıda dar ve 1360 px genişlikte bar, grup seçici ve hesap alanı görüldü, yatay taşma yok.
+
+---
+
+## 2026-10-21 — Grup yönetimi, hayalet oturum, kod bölme ve frontend testleri
+
+- Kullanıcı kararları: hedef kişiyi e-postayla seçme backend kararı gerektirdiği için roadmap'e eklendi (admin sonradan bağlayabilecek); kazanan seçimi, davet linki, gerçek zamanlı oy ve frontend cilaları roadmap backlog'unda detaylandırıldı. Grup yönetimi grup sayfasında yerinde; testler Vitest + Testing Library + Playwright.
+- **Grup yönetimi:** İlgi alanı kutusunda "+ Ekle" (tüm üyeler) ve etiketlerde × (admin); toplam bütçe kutusunda kalemle yerinde düzenleme (admin, iki ondalık ve aralık denetimi); başlıkta admin menüsünden grubu adıyla onaylanan silme. Bütçe değişince grup, liste ve fikirlerin bütçe üstü etiketleri yenilenir. İlgi alanı ekleme butonunun erişilebilir adı üye ekleme butonundan ayrıldı.
+- **Hayalet oturum:** Token geçerli ama kullanıcı silinmişse `/me` 404 döner; artık token silinip giriş ekranına "oturumun sona erdi" mesajıyla dönülür. 4xx yanıtlarda `/me` yeniden denenmez.
+- **Kod bölme:** Sayfalar React Router `lazy` rotalarıyla ayrı parçalara bölündü; ana paket 619 kB → 446 kB, Vite uyarısı kalktı. Koruma bileşenleri `src/routes/guards.tsx`'e taşındı, oxlint uyarıları kalmadı.
+- **Testler:** Vitest (jsdom) + Testing Library + MSW 3 ile 30 test: yardımcılar, API istemcisi (zarf, 401, ağ hatası), kimlik akışı (giriş/kayıt hataları, hayalet oturum), grup sayfası (sürpriz ekranı, kodlanmış pazar yeri linkleri, tahmini fiyat etiketi, iyimser oy ve geri alma, üye/admin yetkileri), yönetim (ilgi alanı, bütçe, grup silme) ve link önizlemeli fikir ekleme. Tanımsız istekler testi durdurur (`onUnhandledFrame: 'error'`). Kapsam yaklaşık %78 satır. Playwright kabul testi gerçek API'ye karşı masaüstü ve telefonda 4/4 geçti; test kullanıcılarının silindiği veritabanından doğrulandı.
+- Doğrulama: tsc, oxlint, build ve skill lint'i (0 FAIL) geçti; yönetim kontrolleri tarayıcıda görüldü.

@@ -1,5 +1,13 @@
 # Azure demo dağıtımı
 
+> **Güncel AI modu (2026-10-21):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
+> `GEMINI_MODEL=gemini-3.8-flash` ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
+> Model kimlikleri uygulama kodunda sabit değildir. `GEMINI_MODEL` anahtar varsa zorunludur.
+> `GEMINI_FALLBACK_MODEL` boşsa otomatik model geçişi yapılmaz; doluysa yalnızca 503'te denenir.
+> `GEMINI_RESEARCH_MODEL` yalnızca Search açıkken kullanılır; boşsa ana model kullanılır.
+> Yerelde `backend/.env`, Azure'da Container App ortam değişkenleri düzenlenir ve uygulama yeniden başlatılır/yeni revision oluşur.
+> Aşağıdaki eski Search araştırması açıklamaları yalnızca Search modu tekrar açılırsa geçerlidir.
+
 Bu dosyalar mevcut Go API ve geçici test panelini ayrı imajlar olarak paketler.
 Kalıcı frontend henüz hazır değildir. PostgreSQL ayrı bir yönetilen serviste çalışır.
 
@@ -112,3 +120,5 @@ deneyin. Geliştirme sıfırlama endpoint'i panel proxy'sinde engellenir; API'de
 Swagger şemasındaki localhost host değeri düzeltilmeden bulutta Try it out
 özelliği çalışmaz. Gemini kota ve ücretleri Azure kredisinden bağımsızdır.
 Ücretsiz servis uygunluğunu ve registry/log/depolama maliyetlerini portalda kontrol edin.
+
+`GEMINI_THINKING_LEVEL=low` Search kapalı önerilerde düşünme süresini azaltmak için seçilir. Boş bırakılırsa modelin varsayılanı kullanılır; model değiştirilirken desteklenen seviyeler kontrol edilmelidir.

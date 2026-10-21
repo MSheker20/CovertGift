@@ -1,5 +1,13 @@
 # 🛠️ CovertGift — Faz 0 Kurulum Rehberi
 
+> **Güncel AI modu (2026-10-21):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
+> `GEMINI_MODEL=gemini-3.8-flash` ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
+> Model kimlikleri uygulama kodunda sabit değildir. `GEMINI_MODEL` anahtar varsa zorunludur.
+> `GEMINI_FALLBACK_MODEL` boşsa otomatik model geçişi yapılmaz; doluysa yalnızca 503'te denenir.
+> `GEMINI_RESEARCH_MODEL` yalnızca Search açıkken kullanılır; boşsa ana model kullanılır.
+> Yerelde `backend/.env`, Azure'da Container App ortam değişkenleri düzenlenir ve uygulama yeniden başlatılır/yeni revision oluşur.
+> Aşağıdaki eski Search araştırması açıklamaları yalnızca Search modu tekrar açılırsa geçerlidir.
+
 > Bu rehber [ROADMAP.md → Faz 0](../ROADMAP.md) görevlerini **elle** yapman için hazırlandı.
 > Her adımda: **📌 Ne yapıyoruz → 💡 Neden → ⌨️ Komut/Dosya → ✅ Kontrol.**
 > Bir adımı tamamladıkça ROADMAP'teki kutucuğu `[x]` yap, önemli bir şey öğrendiysen [DEVLOG](DEVLOG.md)'a yaz.
@@ -192,7 +200,7 @@ DATABASE_URL=postgres://covertgift:covertgift_dev@localhost:5432/covertgift?sslm
 JWT_SECRET=buraya-uzun-rastgele-bir-deger-yaz
 GEMINI_API_KEY=
 GEMINI_RESEARCH_MODEL=gemini-3.8-flash
-GEMINI_MODEL=gemini-3.5-flash-lite
+GEMINI_MODEL=gemini-3.8-flash
 CORS_ORIGIN=http://localhost:5173
 ```
 
