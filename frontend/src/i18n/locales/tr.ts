@@ -107,6 +107,8 @@ const tr = {
     ai: 'AI',
     manual: 'Manuel',
     overBudget: 'Bütçe üstü',
+    estimated: 'Tahmini fiyat',
+    estimatedHint: 'Web araması yapılmadı; fiyat ve stok satın almadan önce kontrol edilmeli.',
     by: '{{name}} önerdi',
     noPrice: 'Fiyat yok',
     goToProduct: 'Ürüne git',

@@ -513,3 +513,11 @@
 - Grup sayfasına `GiftPool` (iyimser oy + yeniden çekme, Gemini yükleme durumu ve 429/422/503 mesajları, onaylı veto/silme), `IdeaCard` (fiyat, AI/Manuel ve bütçe üstü etiketleri, Trendyol/Amazon arama linkleri, MANUAL için "Ürüne git", AI kaynakları ve sandbox iframe'de Google önerileri), `AddIdeaDialog` (preview-link ile doldurma, kısmi önizleme uyarısı) ve `AddMemberForm` eklendi. Dış linkler yalnızca http(s) ise gösterilir.
 - Doğrulama: build, oxlint ve skill lint'i (0 FAIL; uyarılar diyalog/menü gölgeleri) geçti. Yerel API'de iki test kullanıcısıyla tarayıcıda: oy verme ve −1→+1 değiştirme (sıralama sunucu skoruyla güncellendi), menüden admin vetosu ve Elenenler bölümü, hepsiburada.com ana sayfasıyla kısmi önizleme → formu düzeltip ekleme ("Ürüne git" ve kodlanmış Trendyol linki), kayıtlı olmayan e-postayla üye eklemede 404 mesajı, 375 px'te taşmasız düzen. Test kullanıcıları `DELETE /me` ile silindi.
 - Denenmedi: canlı Gemini çağrısı (kota harcamamak için), gerçek bir ürün sayfasıyla tam önizleme, üye rolündeki kullanıcının menüsü, AI kaynak/öneri gösteriminin gerçek veriyle görünümü.
+
+### Canlı Gemini denemesi (aynı gün)
+
+- Arayüzden tek bir "Gemini ile öner" çağrısı yapıldı (`GEMINI_MODEL=gemini-3.8-flash`, Search kapalı, `GEMINI_THINKING_LEVEL=low`). Yükleme durumu doğru göründü: buton kilitli ve dönen simgeli, 1–2 dakika notu görünür. Yanıt yaklaşık 26 saniyede geldi; 4 öneri eklendi ve toast çıktı. Öneriler ilgi alanlarına uygundu (kahve değirmeni, kafa lambası, trekking bastonu, AeroPress Go), hepsi ₺3.000 bütçenin altındaydı. Görsel yok, AI rozeti ve Trendyol/Amazon arama linkleri var.
+- Search kapalı olduğu için kaynak ve Google öneri HTML'i dönmedi; bu bölüm kartta doğru biçimde gizli kaldı. Kaynaklı gösterim gerçek veriyle hâlâ görülmedi.
+- Bulgu ve düzeltme: backend'in "Web araması yapılmadı. Fiyat tahminidir…" notu açıklamanın son paragrafında olduğu için iki satırlık kırpmada görünmüyordu. Fiyatlar doğrulanmış gibi okunuyordu. Kaynaksız AI fikirlerinde fiyatın yanına "Tahmini fiyat" etiketi eklendi (üzerine gelince not görünür); kartta açıklamanın yalnızca ilk paragrafı gösteriliyor.
+- AI fikirlerinde "… önerdi" satırı butona basan kullanıcıyı gösteriyor (backend `created_by`); bu davranış değiştirilmedi.
+- Test kullanıcısı `DELETE /me` ile silindi.

@@ -109,6 +109,8 @@ const en: Messages = {
     ai: 'AI',
     manual: 'Manual',
     overBudget: 'Over budget',
+    estimated: 'Estimated price',
+    estimatedHint: 'No web search was run; check the price and stock before buying.',
     by: 'Suggested by {{name}}',
     noPrice: 'No price',
     goToProduct: 'View product',

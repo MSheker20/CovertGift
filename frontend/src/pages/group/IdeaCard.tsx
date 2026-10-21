@@ -25,6 +25,10 @@ export function IdeaCard({ idea, canReject, canDelete, onVote, onReject, onDelet
   const price = Number(idea.estimated_price)
   const productUrl = idea.source_type === 'MANUAL' ? safeHttpUrl(idea.product_url) : null
   const sources = (idea.ai_sources ?? []).filter((s) => safeHttpUrl(s.url))
+  // Search kapalıyken AI fiyatı doğrulanmamış bir tahmindir; backend bunu açıklamanın son
+  // paragrafına not olarak ekler. Kartta not ayrı bir etiketle gösterilir, açıklamanın ilk paragrafı kalır.
+  const estimated = idea.source_type === 'AI' && sources.length === 0
+  const summary = idea.description?.split(/\n\s*\n/)[0]?.trim()
 
   return (
     <article
@@ -43,12 +47,21 @@ export function IdeaCard({ idea, canReject, canDelete, onVote, onReject, onDelet
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
             <span className="num text-sm whitespace-nowrap">{price > 0 ? formatMoney(price) : t('pool.noPrice')}</span>
             <Chip>{idea.source_type === 'AI' ? t('pool.ai') : t('pool.manual')}</Chip>
+            {estimated && price > 0 && (
+              <Chip className="bg-transparent px-0 font-normal text-muted" title={t('pool.estimatedHint')}>
+                {t('pool.estimated')}
+              </Chip>
+            )}
             {idea.is_over_budget && !rejected && (
               <Chip className="bg-[#fffbeb] text-[#92400e]">{t('pool.overBudget')}</Chip>
             )}
             {rejected && <Chip className="bg-pill-negative-bg text-pill-negative-ink">{t('pool.rejectedBadge')}</Chip>}
           </div>
-          {idea.description && <p className="mt-1.5 line-clamp-2 text-[13px] leading-5 text-muted">{idea.description}</p>}
+          {summary && (
+            <p className="mt-1.5 line-clamp-2 text-[13px] leading-5 text-muted" title={idea.description}>
+              {summary}
+            </p>
+          )}
         </div>
 
         {!rejected && <VoteColumn score={idea.score} myVote={idea.my_vote} onVote={onVote} />}
@@ -223,9 +236,10 @@ function ExternalLink({ href, children }: { href: string; children: React.ReactN
   )
 }
 
-function Chip({ className, children }: { className?: string; children: React.ReactNode }) {
+function Chip({ className, title, children }: { className?: string; title?: string; children: React.ReactNode }) {
   return (
     <span
+      title={title}
       className={cn(
         'inline-flex h-5 flex-none items-center rounded-full bg-pill-neutral-bg px-2 text-[11px] font-medium whitespace-nowrap text-pill-neutral-ink',
         className,
