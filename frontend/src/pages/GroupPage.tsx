@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, ShieldCheck } from 'lucide-react'
 
 import { ApiError } from '@/api/client'
 import { groupsApi, queryKeys } from '@/api/endpoints'
@@ -62,7 +62,17 @@ export function GroupPage() {
               <p className="mt-2 text-[15px] text-muted">
                 {d ? (
                   <>
-                    {t('group.forPerson', { name: d.group.target_person_name })} ·{' '}
+                    {t('group.forPerson', { name: d.group.target_person_name })}
+                    {d.group.target_user_id && (
+                      <span
+                        title={t('group.targetLinkedHint')}
+                        className="ml-1.5 inline-flex h-6 items-center gap-1 rounded-full bg-soft px-2 align-[1px] text-xs font-medium text-on-soft"
+                      >
+                        <ShieldCheck className="size-3.5" aria-hidden />
+                        {t('group.targetLinked')}
+                      </span>
+                    )}{' '}
+                    ·{' '}
                     {t('group.members', { count: d.member_count })}
                   </>
                 ) : (
@@ -70,7 +80,14 @@ export function GroupPage() {
                 )}
               </p>
             </div>
-            {d?.my_role === 'admin' && <GroupMenu groupId={id} title={d.group.title} />}
+            {d?.my_role === 'admin' && (
+              <GroupMenu
+                groupId={id}
+                title={d.group.title}
+                targetName={d.group.target_person_name}
+                targetLinked={!!d.group.target_user_id}
+              />
+            )}
           </header>
 
           <dl className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-12">

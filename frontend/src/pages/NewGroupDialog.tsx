@@ -4,7 +4,9 @@ import { useNavigate } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
+import { ApiError } from '@/api/client'
 import { groupsApi, queryKeys } from '@/api/endpoints'
+import { useAuth } from '@/auth/AuthProvider'
 import { FormError, FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -13,12 +15,13 @@ import { errorMessage } from '@/lib/errors'
 
 const MONEY = /^\d{1,8}([.,]\d{1,2})?$/
 
-const EMPTY = { title: '', target: '', budget: '', interests: '', notes: '' }
+const EMPTY = { title: '', target: '', targetEmail: '', budget: '', interests: '', notes: '' }
 
 export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -31,6 +34,7 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
       groupsApi.create({
         title: form.title.trim(),
         target_person_name: form.target.trim(),
+        target_email: form.targetEmail.trim() || undefined,
         total_budget: (form.budget.trim() || '0').replace(',', '.'),
         description: form.notes.trim() || undefined,
         // Backend virgül ve satır sonu ayrımlı metni listeye ayrıştırır.
@@ -45,15 +49,22 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
     },
   })
 
+  // Kayıtlı olmayan e-posta alanın altında gösterilir; grup kurulmaz, isim yedeği için alan boşaltılabilir.
+  const emailNotFound = mutation.error instanceof ApiError && mutation.error.status === 404
+  const emailSelf = !!user && form.targetEmail.trim().toLowerCase() === user.email.toLowerCase()
+
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (form.budget.trim() && !MONEY.test(form.budget.trim())) {
       setLocalError(t('newGroup.invalidBudget'))
       return
     }
+    if (emailSelf) return
     setLocalError(null)
     mutation.mutate()
   }
+
+  const emailError = emailSelf ? t('newGroup.targetEmailSelf') : emailNotFound ? t('newGroup.targetEmailNotFound') : null
 
   const onOpenChange = (next: boolean) => {
     setOpen(next)
@@ -72,7 +83,7 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
           <DialogDescription>{t('newGroup.description')}</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          <FormError message={localError ?? (mutation.error ? errorMessage(mutation.error) : null)} />
+          <FormError message={localError ?? (mutation.error && !emailNotFound ? errorMessage(mutation.error) : null)} />
           <FormField id="g-title" label={t('newGroup.groupTitle')}>
             <Input
               id="g-title"
@@ -108,6 +119,32 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
               />
             </FormField>
           </div>
+          <FormField
+            id="g-target-email"
+            label={t('newGroup.targetEmail')}
+            optional={t('newGroup.optional')}
+            hint={t('newGroup.targetEmailHint')}
+          >
+            <Input
+              id="g-target-email"
+              type="email"
+              autoComplete="off"
+              maxLength={150}
+              placeholder={t('newGroup.targetEmailPlaceholder')}
+              aria-describedby={emailError ? 'g-target-email-error g-target-email-hint' : 'g-target-email-hint'}
+              aria-invalid={emailError ? true : undefined}
+              value={form.targetEmail}
+              onChange={(e) => {
+                set('targetEmail')(e)
+                if (emailNotFound) mutation.reset()
+              }}
+            />
+            {emailError && (
+              <p id="g-target-email-error" role="alert" className="text-xs text-negative">
+                {emailError}
+              </p>
+            )}
+          </FormField>
           <FormField
             id="g-interests"
             label={t('newGroup.interests')}

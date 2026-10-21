@@ -151,6 +151,7 @@ func main() {
 				groupSpecific.POST("/interests", groupController.AddInterest)
 				groupSpecific.DELETE("/interests", groupController.DeleteInterest)
 				groupSpecific.PATCH("/budget", groupController.UpdateBudget)
+				groupSpecific.PATCH("/target", groupController.LinkTarget)
 
 				// Hediye Havuzu Rotaları
 				groupSpecific.POST("/ideas", ideaController.AddIdea)

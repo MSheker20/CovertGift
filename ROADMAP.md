@@ -70,6 +70,7 @@ flowchart LR
 - [x] `GET /api/v1/groups` (hedef kişi olduğu gruplar filtrelenir)
 - [x] `GET /api/v1/groups/:id` → `member_count`, `per_person_budget` (anlık hesap, 0'a bölme kontrolü)
 - [x] `POST /api/v1/groups/:id/members` (e-posta ile; hedef kişi üye **eklenemez**; zaten üyeyse 409)
+- [x] Hedef kişiyi e-postayla seçme ve sonradan bağlama (2026-10-21): `POST /groups` isteğe bağlı `target_email` kabul eder (kayıtlı değilse 404, kendini seçme 400, UUID ile birlikte 400). `PATCH /groups/:id/target` yalnızca admin içindir; hedef bir kez bağlanır (bağlıysa 409), grubun üyesi hedef olamaz (409). Kontroller ve üye ekleme grup satırı kilidiyle korunur. Ayrı kullanıcı arama ucu açılmadı.
 - [x] İlgi alanları listesi (2026-10-16): `POST /api/v1/groups/:id/interests` ile tüm üyeler tek tek ekleyebilir; `DELETE` ile yalnızca admin silebilir. Anti-Spoiler korunur. Eski toplu `PATCH` kaldırıldı; geçici panelde liste ve “Ekle” alanı var. Eşzamanlı eklemeler satır kilidiyle korunur.
 - [x] `PATCH /api/v1/groups/:id/budget` — Admin toplam bütçeyi güncelleyebilir (2026-10-16). Kişi başı tutar ve mevcut hediye bütçe aşımı uyarıları yenilenir; geçici panelde admin için bütçe formu eklendi.
 - [x] `DELETE /api/v1/groups/:id` (grubun, fikirlerin, oyların ve üyelerin admin tarafından atomik silinmesi)
@@ -149,6 +150,7 @@ flowchart LR
 - [x] Hesabı silinmiş oturumun kapanması: `/me` 404 dönünce token silinir, giriş ekranına dönülür (2026-10-21)
 - [x] Rota bazlı kod bölme; ana paket 619 kB'den 446 kB'a indi, 500 kB uyarısı kalktı (2026-10-21)
 - [x] Frontend testleri (2026-10-21): Vitest + Testing Library + MSW ile 30 bileşen/akış testi; Playwright ile gerçek API'ye karşı kabul akışı ve Anti-Spoiler senaryosu (masaüstü + telefon)
+- [x] Hedef kişi arayüzü (2026-10-21): yeni grup diyaloğunda isteğe bağlı "Hedef kişinin e-postası" (kayıtlı değilse alan altında uyarı, grup kurulmaz; alan boşaltılınca yalnızca isimle kurulur); admin menüsünde "Hedef kişiyi bağla" (yalnızca hedef bağlı değilken); başlıkta "hesabı bağlı" etiketi. Testler 37 Vitest + 6 Playwright (Anti-Spoiler grubu artık arayüzden kuruluyor)
 
 **✅ Kabul:** Kayıt → grup kur → üye ekle → AI öner → link ile manuel ekle → oyla akışı uçtan uca çalışır. (2026-10-21: Playwright kabul testi kayıt → grup → üye → manuel fikir → oy akışını gerçek API'ye karşı doğruluyor; link önizlemesi dış ağa çıktığı için testte form elle doldurulur. AI önerisi kota harcamamak için otomatik teste alınmadı, aynı gün arayüzden elle denendi.)
 
@@ -175,7 +177,7 @@ flowchart LR
 ---
 
 ## 💡 Gelecek Fikirler (Backlog)
-- [ ] **Hedef kişiyi e-postayla seçme ve sonradan bağlama (2026-10-21):** Grup kurarken hediye alınacak kişi şu an yalnızca isimle giriliyor; `target_user_id` boş kaldığı için Anti-Spoiler koruması devreye girmiyor. Backend `POST /groups` için yalnızca UUID kabul ediyor, frontend e-postadan kimliği bulamıyor. Yöntem henüz seçilmedi: istek gövdesinde `target_email` (sunucu kullanıcıyı bulur, ayrı arama ucu açılmaz, kayıtlı e-postalar sızmaz) ya da ayrı arama ucu. Kullanıcı kararı: admin mevcut gruplara hedef kişiyi sonradan bağlayabilsin (`PATCH /groups/:id/target`, yalnızca admin; hedef kişi grubun üyesiyse reddedilir, kendini hedef seçemez). Kayıtlı değilse yalnızca isim yedeği korunur.
+- [x] ~~**Hedef kişiyi e-postayla seçme ve sonradan bağlama**~~ — 2026-10-21'de tamamlandı (Faz 3 ve Faz 7'ye bakın).
 - [ ] **Frontend cilaları (2026-10-21):** Oy sonrası liste yeniden sıralanınca kartların zıplamaması (yerleşim animasyonu ya da sıralamayı kısa süre sabitleme); Gemini önerisi gelince yeni kartların kısa süre vurgulanması; boş havuzda örnek link ve Gemini butonuyla daha yönlendirici bir boş durum. Azaltılmış hareket tercihine uyulacak.
 - [ ] **Oyu geri alma (2026-10-21):** Backend şu an yalnızca +1/−1 upsert destekliyor; oy kaldırılamıyor. `DELETE /api/v1/ideas/:id/vote` (Anti-Spoiler + üyelik kontrolü, testli) eklenip arayüzde aynı oya tekrar basınca oy kaldırılacak. Kullanıcı isteğiyle sonraya bırakıldı; frontend'de oy yalnızca değiştirilebilir.
 - [ ] **Manuel önerilerden AI tercih çıkarımı (2026-10-19):** Mevcut akış manuel/AI başlıklarını yalnızca tekrar etmeme listesi olarak gönderiyor; oy skorlarını göndermiyor. Manuel önerileri, özellikle beğenilenleri, olumlu tercih örnekleri olarak kullanarak yeni ve farklı ürünler ürettir. Reddedilen/veto edilen fikirleri olumsuz bağlamda tut; mevcut tekrar, kaynak ve fiyat doğrulamalarını koru. Kullanılacak alanlar ve oy ağırlıkları uygulama sırasında netleştirilecek.

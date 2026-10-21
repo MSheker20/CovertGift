@@ -48,6 +48,8 @@ export type CreateGroupInput = {
   total_budget: string
   description?: string
   target_interests?: string
+  // Sunucu kayıtlı kullanıcıyı bulur; bulamazsa 404 döner.
+  target_email?: string
 }
 
 export type AISource = { title: string; url: string }

@@ -26,6 +26,11 @@ var (
 	ErrInterestNotFound           = errors.New("ilgi alanı bulunamadı")
 	ErrUnauthorizedBudgetUpdate   = errors.New("bütçeyi sadece grup yöneticisi (admin) güncelleyebilir")
 	ErrInvalidBudget              = errors.New("bütçe 0–99.999.999,99 ₺ arasında ve en fazla iki ondalık basamaklı olmalıdır")
+	ErrTargetUserNotFound         = errors.New("hedef kişinin e-postası sistemde kayıtlı değil")
+	ErrTargetInputConflict        = errors.New("hedef kişi için target_email veya target_user_id alanlarından yalnızca biri gönderilebilir")
+	ErrUnauthorizedTargetUpdate   = errors.New("hedef kişiyi sadece grup yöneticisi (admin) bağlayabilir")
+	ErrTargetAlreadyLinked        = errors.New("bu grubun hedef kişisi zaten bağlı; değiştirilemez")
+	ErrTargetIsMember             = errors.New("grubun üyesi hedef kişi olarak bağlanamaz")
 )
 
 // GroupDetailResponse grup detay uç noktasının döneceği zenginleştirilmiş veri yapısıdır
@@ -40,13 +45,14 @@ type GroupDetailResponse struct {
 
 // GroupService grup iş mantığını tanımlayan arayüzdür
 type GroupService interface {
-	CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, totalBudget decimal.Decimal) (*models.Group, error)
+	CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, targetEmail string, totalBudget decimal.Decimal) (*models.Group, error)
 	GetUserGroups(userID uuid.UUID) ([]models.Group, error)
 	GetGroupDetail(groupID, userID uuid.UUID) (*GroupDetailResponse, error)
 	AddMemberByEmail(groupID, currentUserID uuid.UUID, email string) (*models.GroupMember, error)
 	AddInterest(groupID, userID uuid.UUID, interest string) ([]string, error)
 	DeleteInterest(groupID, userID uuid.UUID, interest string) ([]string, error)
 	UpdateBudget(groupID, userID uuid.UUID, budget decimal.Decimal) error
+	LinkTarget(groupID, userID uuid.UUID, email string) (*models.Group, error)
 	DeleteGroup(groupID, userID uuid.UUID) error
 }
 
@@ -63,8 +69,24 @@ func NewGroupService(groupRepo repository.GroupRepository, userRepo repository.U
 	}
 }
 
-// CreateGroup yeni grup oluşturur ve oluşturan kişiyi admin üye yapar
-func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, totalBudget decimal.Decimal) (*models.Group, error) {
+// CreateGroup yeni grup oluşturur ve oluşturan kişiyi admin üye yapar.
+// Hedef kişi isteğe bağlı olarak e-postayla seçilir; kimlik sunucuda çözülür.
+func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, targetEmail string, totalBudget decimal.Decimal) (*models.Group, error) {
+	targetEmail = strings.TrimSpace(targetEmail)
+	if targetEmail != "" {
+		if targetUserID != nil {
+			return nil, ErrTargetInputConflict
+		}
+		targetUser, err := s.userRepo.FindByEmail(targetEmail)
+		if err != nil {
+			return nil, err
+		}
+		if targetUser == nil {
+			return nil, ErrTargetUserNotFound
+		}
+		targetUserID = &targetUser.ID
+	}
+
 	// Mantık kontrolü: Kullanıcı kendine sürpriz grubu açamaz
 	if targetUserID != nil && *targetUserID == creatorID {
 		return nil, ErrSelfTarget
@@ -195,6 +217,9 @@ func (s *groupService) AddMemberByEmail(groupID, currentUserID uuid.UUID, email 
 	}
 
 	if err := s.groupRepo.AddMember(newMember); err != nil {
+		if errors.Is(err, repository.ErrMemberIsGroupTarget) {
+			return nil, ErrCannotAddTargetAsMember
+		}
 		return nil, err
 	}
 
@@ -291,6 +316,60 @@ func (s *groupService) UpdateBudget(groupID, userID uuid.UUID, budget decimal.De
 		return ErrInvalidBudget
 	}
 	return s.groupRepo.UpdateBudget(groupID, budget)
+}
+
+// LinkTarget mevcut gruba hedef kişiyi e-postayla bağlar (yalnızca admin, yalnızca bir kez).
+// Hedef bağlandıktan sonra Anti-Spoiler o kişiyi gruptan dışlar.
+func (s *groupService) LinkTarget(groupID, userID uuid.UUID, email string) (*models.Group, error) {
+	group, err := s.groupRepo.GetGroupByID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	if group == nil {
+		return nil, ErrGroupNotFound
+	}
+	if group.TargetUserID != nil && *group.TargetUserID == userID {
+		return nil, ErrAntiSpoilerTriggered
+	}
+	member, err := s.groupRepo.GetMember(groupID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if member == nil {
+		return nil, ErrNotGroupMember
+	}
+	if member.Role != "admin" {
+		return nil, ErrUnauthorizedTargetUpdate
+	}
+
+	targetUser, err := s.userRepo.FindByEmail(strings.TrimSpace(email))
+	if err != nil {
+		return nil, err
+	}
+	if targetUser == nil {
+		return nil, ErrTargetUserNotFound
+	}
+	if targetUser.ID == userID {
+		return nil, ErrSelfTarget
+	}
+
+	// Kontroller satır kilidi altında tekrarlanır; eşzamanlı bağlama veya üye ekleme yarışı kazanamaz.
+	err = s.groupRepo.SetTargetUser(groupID, targetUser.ID, func(current *uuid.UUID, isMember bool) error {
+		if current != nil {
+			return ErrTargetAlreadyLinked
+		}
+		if isMember {
+			return ErrTargetIsMember
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	group.TargetUserID = &targetUser.ID
+	group.TargetUser = targetUser
+	return group, nil
 }
 
 // DeleteGroup grubu ve tüm ilişkili verilerini siler (sadece grup kurucusu / admin üye silebilir)

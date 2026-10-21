@@ -38,6 +38,10 @@ definitions:
       description:
         example: Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu
         type: string
+      target_email:
+        example: ahmet@demo.com
+        maxLength: 150
+        type: string
       target_interests:
         example: Kamp, 3. nesil kahve demleme, trekking, outdoor
         type: string
@@ -76,6 +80,15 @@ definitions:
         type: string
     required:
     - interest
+    type: object
+  controllers.LinkTargetRequest:
+    properties:
+      email:
+        example: ahmet@demo.com
+        maxLength: 150
+        type: string
+    required:
+    - email
     type: object
   controllers.LoginRequest:
     properties:
@@ -527,7 +540,11 @@ paths:
       consumes:
       - application/json
       description: Yeni bir sürpriz hediye grubu açar ve oluşturan kullanıcıyı atomik
-        transaction ile 'admin' rolüyle üye yapar.
+        transaction ile 'admin' rolüyle üye yapar. Hedef kişi isteğe bağlı `target_email`
+        ile seçilir; sunucu kayıtlı kullanıcıyı bulur ve `target_user_id` alanını
+        doldurur. `target_email` ve `target_user_id` birlikte gönderilemez. Hedef
+        seçilmezse yalnızca `target_person_name` kullanılır ve Anti-Spoiler devreye
+        girmez.
       parameters:
       - description: Grup Oluşturma Bilgileri
         in: body
@@ -548,12 +565,16 @@ paths:
                   $ref: '#/definitions/models.Group'
               type: object
         "400":
-          description: Geçersiz parametreler veya kullanıcı kendine sürpriz grubu
-            açamaz
+          description: Geçersiz parametreler, iki hedef alanı birlikte gönderildi
+            veya kullanıcı kendine sürpriz grubu açamaz
           schema:
             $ref: '#/definitions/controllers.Response'
         "401":
           description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Hedef kişinin e-postası kayıtlı değil
           schema:
             $ref: '#/definitions/controllers.Response'
         "500":
@@ -1114,6 +1135,70 @@ paths:
       security:
       - BearerAuth: []
       summary: Gruba E-posta ile Üye Ekle
+      tags:
+      - Hediye Grupları (Groups)
+  /api/v1/groups/{id}/target:
+    patch:
+      consumes:
+      - application/json
+      description: Yalnızca admin, hedef kişisi bağlı olmayan bir gruba kayıtlı bir
+        kullanıcıyı e-postayla hedef olarak bağlar. Hedef bir kez bağlanır; değiştirilemez
+        ve kaldırılamaz. Grubun üyesi olan biri veya admin'in kendisi hedef olamaz.
+        Bağlandıktan sonra hedef kişi Anti-Spoiler nedeniyle grubu göremez. `target_person_name`
+        değişmez.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Hedef kişinin e-postası
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.LinkTargetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Hedef kişi bağlandı
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Group'
+              type: object
+        "400":
+          description: Geçersiz istek, grup kimliği veya kendini hedef seçme
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Sadece admin bağlayabilir; Anti-Spoiler ve üyelik kontrolü
+            zorunlu
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı veya e-posta kayıtlı değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Hedef zaten bağlı veya kişi grubun üyesi
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Hedef Kişiyi Bağla (Admin)
       tags:
       - Hediye Grupları (Groups)
   /api/v1/ideas/{id}:

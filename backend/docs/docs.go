@@ -252,7 +252,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Yeni bir sürpriz hediye grubu açar ve oluşturan kullanıcıyı atomik transaction ile 'admin' rolüyle üye yapar.",
+                "description": "Yeni bir sürpriz hediye grubu açar ve oluşturan kullanıcıyı atomik transaction ile 'admin' rolüyle üye yapar. Hedef kişi isteğe bağlı ` + "`" + `target_email` + "`" + ` ile seçilir; sunucu kayıtlı kullanıcıyı bulur ve ` + "`" + `target_user_id` + "`" + ` alanını doldurur. ` + "`" + `target_email` + "`" + ` ve ` + "`" + `target_user_id` + "`" + ` birlikte gönderilemez. Hedef seçilmezse yalnızca ` + "`" + `target_person_name` + "`" + ` kullanılır ve Anti-Spoiler devreye girmez.",
                 "consumes": [
                     "application/json"
                 ],
@@ -294,13 +294,19 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Geçersiz parametreler veya kullanıcı kendine sürpriz grubu açamaz",
+                        "description": "Geçersiz parametreler, iki hedef alanı birlikte gönderildi veya kullanıcı kendine sürpriz grubu açamaz",
                         "schema": {
                             "$ref": "#/definitions/controllers.Response"
                         }
                     },
                     "401": {
                         "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Hedef kişinin e-postası kayıtlı değil",
                         "schema": {
                             "$ref": "#/definitions/controllers.Response"
                         }
@@ -1174,6 +1180,101 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/groups/{id}/target": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca admin, hedef kişisi bağlı olmayan bir gruba kayıtlı bir kullanıcıyı e-postayla hedef olarak bağlar. Hedef bir kez bağlanır; değiştirilemez ve kaldırılamaz. Grubun üyesi olan biri veya admin'in kendisi hedef olamaz. Bağlandıktan sonra hedef kişi Anti-Spoiler nedeniyle grubu göremez. ` + "`" + `target_person_name` + "`" + ` değişmez.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hediye Grupları (Groups)"
+                ],
+                "summary": "Hedef Kişiyi Bağla (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Hedef kişinin e-postası",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.LinkTargetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Hedef kişi bağlandı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.Group"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz istek, grup kimliği veya kendini hedef seçme",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Sadece admin bağlayabilir; Anti-Spoiler ve üyelik kontrolü zorunlu",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı veya e-posta kayıtlı değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Hedef zaten bağlı veya kişi grubun üyesi",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/ideas/{id}": {
             "delete": {
                 "security": [
@@ -1622,6 +1723,11 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu"
                 },
+                "target_email": {
+                    "type": "string",
+                    "maxLength": 150,
+                    "example": "ahmet@demo.com"
+                },
                 "target_interests": {
                     "type": "string",
                     "example": "Kamp, 3. nesil kahve demleme, trekking, outdoor"
@@ -1669,6 +1775,19 @@ const docTemplate = `{
                 "interest": {
                     "type": "string",
                     "example": "Kamp"
+                }
+            }
+        },
+        "controllers.LinkTargetRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 150,
+                    "example": "ahmet@demo.com"
                 }
             }
         },
