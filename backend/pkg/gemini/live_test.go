@@ -16,7 +16,7 @@ func TestLiveTurkeyProducts(t *testing.T) {
 		t.Skip("enable explicitly with -args -live-ai")
 	}
 	_ = godotenv.Load("../../.env")
-	client, err := NewClientWithModels(os.Getenv("GEMINI_API_KEY"), os.Getenv("GEMINI_RESEARCH_MODEL"), os.Getenv("GEMINI_MODEL"))
+	client, err := NewClientWithOptions(os.Getenv("GEMINI_API_KEY"), Options{Model: os.Getenv("GEMINI_MODEL"), ResearchModel: os.Getenv("GEMINI_RESEARCH_MODEL"), FallbackModel: os.Getenv("GEMINI_FALLBACK_MODEL"), SearchEnabled: os.Getenv("GEMINI_SEARCH_ENABLED") == "true", ThinkingLevel: os.Getenv("GEMINI_THINKING_LEVEL")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +24,13 @@ func TestLiveTurkeyProducts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(ideas) == 0 {
+		t.Fatal("no suggestions")
+	}
 	for _, idea := range ideas {
+		if !client.searchEnabled && (!idea.Unverified || len(idea.Sources) != 0 || idea.SearchSuggestions != "") {
+			t.Fatal("search-free result incorrectly marked verified")
+		}
 		t.Logf("%s | %s TL | query=%s | %d source(s)", idea.Title, idea.EstimatedPrice, idea.SearchQuery, len(idea.Sources))
 	}
 }

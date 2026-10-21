@@ -53,3 +53,7 @@ Thumbs.db
 *.pfx
 credentials*.json
 service-account*.json
+
+# Yerel araç çıktıları
+graphify-out/
+.claude/settings.local.json

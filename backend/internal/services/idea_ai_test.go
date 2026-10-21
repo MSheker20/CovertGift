@@ -101,3 +101,21 @@ func TestAIPromptPreservesLocalMarketAndBudgetRules(t *testing.T) {
 		}
 	}
 }
+
+func TestUnverifiedSuggestionsAreLabelledAndRetainFilters(t *testing.T) {
+	id, user := uuid.New(), uuid.New()
+	groups := &interestsRepository{group: &models.Group{ID: id, TotalBudget: decimal.NewFromInt(1000)}, member: &models.GroupMember{Role: "member"}}
+	ideas := &aiIdeaRepository{existing: []string{"Kamp Termosu"}}
+	item := aiProduct("Kahve Değirmeni", "Kahve Değirmeni")
+	item.Unverified = true
+	duplicate := item
+	duplicate.Title, duplicate.SearchQuery = "Kamp Termosu", "Kamp Termosu"
+	generator := &aiGenerator{items: []gemini.AIIdeaSuggestion{duplicate, item, item}}
+	got, err := NewIdeaService(ideas, groups, generator).GenerateAIIdeas(context.Background(), id, user)
+	if err != nil || len(got) != 1 || len(ideas.written) != 1 {
+		t.Fatalf("got=%+v err=%v", got, err)
+	}
+	if !strings.Contains(got[0].Description, "Fiyat tahminidir") || len(got[0].AISources) != 0 || got[0].AISearchSuggestions != "" || got[0].ProductURL != "" || !got[0].IsOverBudget {
+		t.Fatalf("unexpected result: %+v", got[0])
+	}
+}

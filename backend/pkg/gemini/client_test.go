@@ -12,6 +12,11 @@ import (
 	"google.golang.org/genai"
 )
 
+const (
+	DefaultResearchModel  = "gemini-3.8-flash"
+	DefaultSelectionModel = "gemini-3.5-flash-lite"
+)
+
 type fakeTransport func(*http.Request) (*http.Response, error)
 
 func (f fakeTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
@@ -25,7 +30,7 @@ func testClient(t *testing.T, handler fakeTransport) *Client {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Client{client: client, researchModel: DefaultResearchModel, model: DefaultSelectionModel}
+	return &Client{client: client, researchModel: DefaultResearchModel, model: DefaultSelectionModel, searchEnabled: true, fallbackModel: DefaultSelectionModel}
 }
 
 func jsonResponse(t *testing.T, value any) *http.Response {
@@ -244,5 +249,84 @@ func TestGroundingOffsetsUseUTF8Bytes(t *testing.T) {
 	evidence, _ := groundedEvidence(response)
 	if len(evidence) != 1 || evidence[0].Text != candidate.Content.Parts[0].Text {
 		t.Fatalf("lost Turkish text: %+v", evidence)
+	}
+}
+
+func TestSearchDisabledUsesConfiguredModelAndDiscardsEvidence(t *testing.T) {
+	calls := 0
+	client := testClient(t, func(r *http.Request) (*http.Response, error) {
+		calls++
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(r.URL.Path, "custom-model:") || body["tools"] != nil || body["generationConfig"] == nil {
+			t.Fatalf("unexpected request: %s %+v", r.URL.Path, body)
+		}
+		// Repeated, invalid and fabricated evidence must not reach the service.
+		items := strings.TrimSuffix(selectedProduct, "]") + "," + strings.TrimPrefix(selectedProduct, "[")
+		return jsonResponse(t, textResponse(items, researchResponse().Candidates[0].GroundingMetadata)), nil
+	})
+	client.model, client.searchEnabled = "custom-model", false
+	got, err := client.GenerateGiftIdeas(context.Background(), "Kahve")
+	if err != nil || calls != 1 || len(got) != 1 {
+		t.Fatalf("got=%+v err=%v calls=%d", got, err, calls)
+	}
+	if !got[0].Unverified || len(got[0].Sources) != 0 || len(got[0].EvidenceIDs) != 0 || got[0].SearchSuggestions != "" {
+		t.Fatalf("fabricated verification: %+v", got[0])
+	}
+}
+
+func TestSearchDisabledRejectsInvalidPrice(t *testing.T) {
+	client := testClient(t, func(*http.Request) (*http.Response, error) {
+		return jsonResponse(t, textResponse(strings.Replace(selectedProduct, "2499.90", "-1", 1), nil)), nil
+	})
+	client.searchEnabled = false
+	if _, err := client.GenerateGiftIdeas(context.Background(), "Kahve"); !errors.Is(err, ErrEmptyResponse) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestFallbackIsOptionalAndKeepsSearchDisabled(t *testing.T) {
+	for _, fallback := range []string{"", "custom-primary", "custom-backup"} {
+		t.Run(fallback, func(t *testing.T) {
+			calls := 0
+			client := testClient(t, func(r *http.Request) (*http.Response, error) {
+				calls++
+				data, _ := io.ReadAll(r.Body)
+				if strings.Contains(string(data), "googleSearch") {
+					t.Fatal("fallback enabled Search")
+				}
+				if calls == 1 {
+					return &http.Response{StatusCode: 503, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":503,"message":"busy","status":"UNAVAILABLE"}}`))}, nil
+				}
+				if !strings.Contains(r.URL.Path, "custom-backup:") {
+					t.Fatalf("wrong fallback: %s", r.URL.Path)
+				}
+				return jsonResponse(t, textResponse(selectedProduct, nil)), nil
+			})
+			client.model, client.searchEnabled, client.fallbackModel = "custom-primary", false, fallback
+			_, err := client.GenerateGiftIdeas(context.Background(), "Kahve")
+			if fallback == "custom-backup" {
+				if err != nil || calls != 2 {
+					t.Fatalf("err=%v calls=%d", err, calls)
+				}
+			} else if err == nil || calls != 1 {
+				t.Fatalf("unexpected retry: err=%v calls=%d", err, calls)
+			}
+		})
+	}
+}
+
+func TestModelMustBeConfigured(t *testing.T) {
+	if _, err := NewClientWithOptions("test-key", Options{}); err == nil {
+		t.Fatal("missing model accepted")
+	}
+	client, err := NewClientWithOptions("test-key", Options{Model: " custom-model "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.model != "custom-model" || client.researchModel != "custom-model" || client.searchEnabled || client.fallbackModel != "" {
+		t.Fatalf("unexpected configuration: %+v", client)
 	}
 }

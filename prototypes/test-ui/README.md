@@ -1,5 +1,13 @@
 # Geçici backend test arayüzü
 
+> **Güncel AI modu (2026-10-21):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
+> `GEMINI_MODEL=gemini-3.8-flash` ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
+> Model kimlikleri uygulama kodunda sabit değildir. `GEMINI_MODEL` anahtar varsa zorunludur.
+> `GEMINI_FALLBACK_MODEL` boşsa otomatik model geçişi yapılmaz; doluysa yalnızca 503'te denenir.
+> `GEMINI_RESEARCH_MODEL` yalnızca Search açıkken kullanılır; boşsa ana model kullanılır.
+> Yerelde `backend/.env`, Azure'da Container App ortam değişkenleri düzenlenir ve uygulama yeniden başlatılır/yeni revision oluşur.
+> Aşağıdaki eski Search araştırması açıklamaları yalnızca Search modu tekrar açılırsa geçerlidir.
+
 Son doğrulama: **2026-10-17**. Cloudflare üzerinden panel 200, `/health` 200 (`db: up`) ve oturumsuz `/api/v1/me` 401 döndü.
 
 Paket kurulumu ve derleme gerektirmeyen HTML/CSS/JavaScript paneli. Kalıcı Faz 7 frontend'i değildir; sonradan bu klasör kaldırılabilir. Mobil tarayıcıda da kullanılabilir.

@@ -475,3 +475,21 @@
 - README, teknik şartname, kurulum rehberi, panel rehberi ve roadmap kodla eşitlendi; Azure rehberi bağlantıları eklendi. 429 işi tamamlandı; kaynaksız araştırmanın 422 eşlemesi, geçici servis hatasının 503 eşlemesi ve yerel compose entegrasyonu açık tutuldu.
 - `.gitignore` günlükleri, geçici dosyaları, veritabanı yedeklerini ve özel anahtar/kimlik dosyalarını dışlayacak şekilde genişletildi; `.env.example` takipte kalır.
 - Doğrulama: `go test ./backend/...`, `go vet ./backend/...`, panelin iki JavaScript dosyasında `node --check`, `git diff --check`, yerel doküman bağlantıları ve yaygın gizli anahtar kalıpları kontrolü geçti. `.env`, örnek yedek/anahtar/günlük yollarının dışlandığı ve `.env.example` dosyasının dışlanmadığı doğrulandı. Canlı Gemini çağrısı, Docker imaj derlemesi ve Azure canlı sağlık kontrolü bu oturumda yapılmadı.
+
+
+## 2026-10-21 — Search kapalı öneriler ve dışarıdan model yapılandırması
+
+- Gemini Search varsayılan olarak kapalıdır. Tek yapılandırılmış JSON çağrısı kullanılır; kaynak ve arama HTML'i üretilmez.
+- Kaynaksız mod açıkça işaretlenir; servis açıklamaya doğrulanmamış fiyat/stok notu ekler. Bütçe, tekrar, veto ve Anti-Spoiler kontrolleri korunur.
+- Model kimlikleri üretim Go kodundan kaldırıldı. `GEMINI_MODEL` zorunlu; araştırma modeli boşsa ana model kullanılır. İsteğe bağlı `GEMINI_FALLBACK_MODEL` yalnızca 503 için geçerlidir. 429'da ek çağrı yapılmaz.
+- Yerel ve örnek ayarlar: `GEMINI_MODEL=gemini-3.8-flash`, `GEMINI_SEARCH_ENABLED=false`, araştırma/yedek model boş.
+
+### Oturum durumu — kullanıcı kapatmak için durdurdu
+
+- Branch: `codex/gemini-search-429`; değişiklikler çalışma dizininde, henüz commit edilmedi.
+- Tüm backend testleri ve `go vet ./backend/...` geçti; `git diff --check` temiz.
+- Search kapalı 3.8 canlı testi yaklaşık 149 saniyede Google 504 döndürdü. Ardından `GEMINI_THINKING_LEVEL=low` dış yapılandırması eklendi; ikinci canlı test kullanıcı kapatmak istediği için 75. saniyede durduruldu; başarı doğrulanmadı.
+- Güncel Docker imajı yerelde başarıyla derlendi: `covertgiftmsheker.azurecr.io/covertgift-api:search-off-20261021`.
+- İmaj henüz registry'ye gönderilmedi, Azure uygulaması güncellenmedi. Canlıda eski `covertgift-api:demo` çalışıyor; model ortam değişkenleri tanımlı değil.
+- ACR Tasks `TasksOperationsNotAllowed` nedeniyle kullanılamıyor; yerel Docker açıldı ve `az acr login` başarılı oldu.
+- Devam: canlı model testini sonuçlandır; imajı push et; Container App'e imaj ve `GEMINI_MODEL=gemini-3.8-flash`, `GEMINI_SEARCH_ENABLED=false`, `GEMINI_THINKING_LEVEL=low` ayarlarını ver; yedek modeli boş bırak; sağlık ve öneri akışını doğrula. Secret değerlerini değiştirme veya yazdırma. Eski `demo` imajını geri dönüş için koru.

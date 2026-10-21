@@ -328,7 +328,7 @@ func (s *ideaService) GenerateAIIdeas(ctx context.Context, groupID, currentUserI
 		item.Title = strings.TrimSpace(item.Title)
 		item.Description = strings.TrimSpace(item.Description)
 		item.SearchQuery = strings.TrimSpace(item.SearchQuery)
-		if !gemini.ValidSuggestion(item) || len(item.Sources) == 0 {
+		if !gemini.ValidSuggestion(item) || (len(item.Sources) == 0 && !item.Unverified) {
 			continue
 		}
 		titleKey, queryKey := gemini.NormalizeProduct(item.Title), gemini.NormalizeProduct(item.SearchQuery)
@@ -336,6 +336,10 @@ func (s *ideaService) GenerateAIIdeas(ctx context.Context, groupID, currentUserI
 			continue
 		}
 		seenTitles[titleKey], seenQueries[queryKey] = true, true
+		if item.Unverified {
+			item.Description += "\n\nWeb araması yapılmadı. Fiyat tahminidir; güncel fiyat ve stok satın almadan önce kontrol edilmelidir."
+			item.Sources, item.SearchSuggestions = nil, ""
+		}
 		var sources []models.AISource
 		for _, source := range item.Sources {
 			sources = append(sources, models.AISource{Title: source.Title, URL: source.URL})
