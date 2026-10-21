@@ -57,3 +57,6 @@ service-account*.json
 # Yerel araç çıktıları
 graphify-out/
 .claude/settings.local.json
+
+# design-taste-frontend çalışma dosyaları
+.taste-skill/

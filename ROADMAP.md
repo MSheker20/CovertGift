@@ -128,11 +128,11 @@ flowchart LR
 ## Faz 7 — React Frontend 🎨
 > 2026-10-16: Backend'i tarayıcıdan denemek için bağımsız ve geçici `prototypes/test-ui/` paneli eklendi. HTML/CSS/JavaScript + Node.js yerel proxy kullanır; kalıcı frontend'e sıfırdan başlanacak, aşağıdaki Faz 7 görevleri henüz tamamlanmış sayılmaz. Kalıcı tasarım mobil web önceliklidir.
 
-- [ ] `frontend/` → Vite + React + TypeScript
-- [ ] Tailwind CSS + shadcn/ui kurulumu + Lucide Icons
-- [ ] `src/api/` katmanı (axios instance, JWT interceptor, 401 → login'e yönlendir)
-- [ ] Auth sayfaları: Giriş / Kayıt
-- [ ] Grup listesi + "Yeni Grup" diyaloğu
+- [x] `frontend/` → Vite + React + TypeScript (2026-10-21; React Router, TanStack Query, i18next TR/EN)
+- [x] Tailwind CSS v4 + shadcn/ui (Button, Input, Label, Dialog, Sonner — elle eklendi, `radix-ui`) + Lucide Icons
+- [x] `src/api/` katmanı (fetch tabanlı; Bearer token localStorage'da; 401 → token silinir, login'e yönlendirilir)
+- [x] Auth sayfaları: Giriş / Kayıt (kayıt sonrası otomatik giriş)
+- [x] Grup listesi + "Yeni Grup" diyaloğu (grup sayfasının ilk sürümü: bütçe, kişi başı, ilgi alanları, üyeler)
 - [ ] **Ana panel (tek ekran):**
   - [ ] Üst bar: profil, toplam bütçe, kişi başı bütçe
   - [ ] Orta: oylama kartları (görsel, başlık, fiyat, skor, 👍/👎, AI/MANUAL rozeti)
@@ -141,7 +141,7 @@ flowchart LR
   - [ ] Sağ panel: üyeler, üye ekle, **"Gemini ile Öner"** butonu (loading durumu)
 - [ ] "Manuel Ekle" diyaloğu → link yapıştır → önizleme ile form otomatik dolar
 - [ ] AI kaynaklarını (`ai_sources`) ve Google arama önerilerini (`ai_search_suggestions`) izole biçimde göster; geçici panelde bu gösterim henüz yok
-- [ ] 403 Anti-Spoiler için özel "🎁 Bu bir sürpriz!" ekranı
+- [x] 403 Anti-Spoiler için özel "Bu bir sürpriz!" ekranı
 - [ ] Optimistic UI ile oylama
 - [ ] Toast bildirimleri, boş durumlar, iskelet (skeleton) yükleyiciler
 

@@ -493,3 +493,14 @@
 - İmaj henüz registry'ye gönderilmedi, Azure uygulaması güncellenmedi. Canlıda eski `covertgift-api:demo` çalışıyor; model ortam değişkenleri tanımlı değil.
 - ACR Tasks `TasksOperationsNotAllowed` nedeniyle kullanılamıyor; yerel Docker açıldı ve `az acr login` başarılı oldu.
 - Devam: canlı model testini sonuçlandır; imajı push et; Container App'e imaj ve `GEMINI_MODEL=gemini-3.8-flash`, `GEMINI_SEARCH_ENABLED=false`, `GEMINI_THINKING_LEVEL=low` ayarlarını ver; yedek modeli boş bırak; sağlık ve öneri akışını doğrula. Secret değerlerini değiştirme veya yazdırma. Eski `demo` imajını geri dönüş için koru.
+
+---
+
+## 2026-10-21 — Kalıcı frontend iskeleti: Auth + Gruplar (Faz 7, ilk iterasyon)
+
+- `frontend/` kuruldu: Vite + React 19 + TypeScript, Tailwind CSS v4, React Router, TanStack Query, i18next (TR varsayılan, EN), Lucide. Kararlar kullanıcıyla soru-cevapla alındı: TanStack Query, sıcak/oyunbaz görünüm, mobil öncelik + TR/EN, token `localStorage`'da, geliştirmede Vite proxy (`:5174` → `:8080`).
+- shadcn CLI'nin bağımlılık kurulumu npm'in `EALLOWSCRIPTS` kuralına takıldı; `components.json` yazıldı, Button/Input/Label/Dialog/Sonner shadcn kalıbıyla (`radix-ui`, `cva`, `clsx`, `tailwind-merge`) elle eklendi.
+- Tasarım `design-taste-frontend` skill'inin uygulama stiliyle seçildi: "Editorial greeting" (seed 2035334530). Yüz: veriden kurulan serif selamlama + kişi başına sabit pastel avatar tonu.
+- Ekranlar: Giriş, Kayıt (sonrasında otomatik giriş), uygulama kabuğu (masaüstü kenar çubuğu / telefonda üst bar + menü), Gruplar (selamlama, sayaçlar, grup listesi, sürpriz yapılanlar, boş/yükleniyor/hata durumları), Yeni grup diyaloğu, Grup sayfasının ilk sürümü (bütçe, kişi başı, ilgi alanları, üyeler) ve Anti-Spoiler "Bu bir sürpriz!" ekranı.
+- Doğrulama: `npm run build` ve skill lint'i (0 FAIL; tek uyarı diyaloğun gölgesi) geçti. Yerel API ile tarayıcıda kayıt → boş durum → grup kurma (`3200,50` → ₺3.200,50, ilgi alanları ayrıştırıldı) → grup sayfası; hedef kullanıcıyla gerçek 403'te sürpriz ekranı ve listede grubun görünmemesi; 375 px'te İngilizce, yatay taşma yok, fontlar yüklü. Sentetik test hesapları `DELETE /me` ile silindi.
+- Açık: hediye havuzu ve oylama kartları, AI öneri, link önizleme, üye/ilgi alanı/bütçe düzenleme, `target_user_id` seçimi (arayüzde henüz yok), skill inspector'ının tam turu.
