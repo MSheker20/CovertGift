@@ -30,7 +30,7 @@ export function GroupPage() {
 
   const d = detail.data
   return (
-    <div className="mx-auto max-w-[1100px] px-4 pt-6 pb-16 md:px-8 lg:box-content lg:pt-12">
+    <div className="mx-auto max-w-[1100px] px-4 pt-4 pb-16 md:px-8 md:pt-6 lg:box-content lg:pt-8">
       <Link
         to="/"
         className="-ml-1 inline-flex h-9 items-center gap-1 rounded-full pr-3 pl-1 text-sm text-muted transition-colors hover:text-ink"
@@ -130,7 +130,7 @@ export function GroupPage() {
 function SurpriseScreen() {
   const { t } = useTranslation()
   return (
-    <div className="flex min-h-[calc(100dvh-56px)] items-center justify-center p-4 lg:min-h-dvh lg:p-8">
+    <div className="flex min-h-[calc(100dvh-88px)] items-center justify-center p-4 lg:p-8">
       <div className="flex w-full max-w-[640px] flex-col items-center rounded-[28px] bg-field px-6 py-14 text-center text-on-field md:py-20">
         <LogoMark className="size-20 origin-bottom animate-[wiggle_2.4s_ease-in-out_infinite] text-primary" />
         <h1 className="font-display mt-8 text-[32px] leading-[1.05] font-bold md:text-[48px]">{t('group.surpriseTitle')}</h1>

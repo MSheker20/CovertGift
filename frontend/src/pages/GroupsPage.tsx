@@ -37,7 +37,7 @@ export function GroupsPage() {
   )
 
   return (
-    <div className="mx-auto max-w-[1100px] px-4 pt-8 pb-16 md:px-8 lg:box-content lg:pt-[72px]">
+    <div className="mx-auto max-w-[1100px] px-4 pt-7 pb-16 md:px-8 md:pt-10 lg:box-content lg:pt-12">
       <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
           <h1 className="font-display text-[26px] leading-[1.12] font-semibold md:text-[40px]">

@@ -9,10 +9,10 @@ const tr = {
     unknownError: 'Bir şeyler ters gitti.',
   },
   nav: {
-    groups: 'Gruplar',
-    menu: 'Menü',
     logout: 'Çıkış yap',
-    main: 'Ana menü',
+    allGroups: 'Tüm gruplar',
+    switchGroup: 'Grup değiştir',
+    account: 'Hesap menüsü',
   },
   auth: {
     loginTitle: 'Giriş yap',

@@ -531,3 +531,9 @@
 - Bileşenlerdeki sabit renkler (`#e3f0ee`, `#fffbeb`, `text-white`, `bg-black/35` vb.) token'lara bağlandı. Avatar tonları CSS değişkeniyle iki temaya uyarlandı; ürün görselleri iki temada da beyaz kutuda gösteriliyor. Sonner bildirimleri sistem temasını izliyor.
 - Ekranlar: giriş/kayıt sağ paneli kobalt alan; ana sayfada ortak bütçe ve grup sayfasında kişi başı tutar hardal; ilgi alanları, AI etiketi ve sayaçlar açık kobalt; sürpriz ekranı hardal kart. Seçili beğeni kobalt dolgu; oy verilen buton bir kez zıplar (azaltılmış hareket tercihinde kapalı).
 - Doğrulama: `npm run build`, oxlint ve skill lint'i (0 FAIL; uyarılar diyalog/menü gölgeleri) geçti. Tarayıcıda koyu ve açık temada giriş, ana sayfa, grup sayfası ve oylama; 375 px'te sürpriz ekranı ve yatay taşma kontrolü yapıldı. Fontların yüklendiği doğrulandı. Test kullanıcıları silindi.
+
+### Yüzen üst bar (aynı gün)
+
+- Kullanıcı isteğiyle masaüstündeki sol kenar çubuğu ve telefondaki menü sayfası kaldırıldı; yerine sayfanın üstünde kenarlardan içeride duran, yuvarlatılmış ve opak tek bir bar geldi (bulanıklık yok).
+- Solda işaret (telefonda yalnızca kutu, geniş ekranda kelime işaretiyle), yanında grup seçici: ana sayfada "Tüm gruplar", grup sayfasında o grubun adı; menüde tüm gruplar ve hediye alınacak kişi. Sağda dil anahtarı (telefonda hesap menüsünde) ve hesap menüsü (isim, e-posta, çıkış).
+- Doğrulama: tsc, build, oxlint ve skill lint'i (0 FAIL) geçti; tarayıcıda dar ve 1360 px genişlikte bar, grup seçici ve hesap alanı görüldü, yatay taşma yok.

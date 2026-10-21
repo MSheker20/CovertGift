@@ -11,10 +11,10 @@ const en: Messages = {
     unknownError: 'Something went wrong.',
   },
   nav: {
-    groups: 'Groups',
-    menu: 'Menu',
     logout: 'Log out',
-    main: 'Main menu',
+    allGroups: 'All groups',
+    switchGroup: 'Switch group',
+    account: 'Account menu',
   },
   auth: {
     loginTitle: 'Log in',

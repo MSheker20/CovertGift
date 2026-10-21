@@ -1,32 +1,42 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { NavLink, Outlet } from 'react-router'
-import { Gift, LogOut, Menu } from 'lucide-react'
+import { Link, Outlet, useMatch, useNavigate } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
+import { Check, ChevronDown, LayoutGrid, LogOut } from 'lucide-react'
 
+import { groupsApi, queryKeys } from '@/api/endpoints'
 import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
 import { LanguageSwitch } from '@/components/LanguageSwitch'
-import { Logo } from '@/components/Logo'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { cn } from '@/lib/utils'
+import { Logo, LogoMark } from '@/components/Logo'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { LANGUAGES } from '@/i18n'
 
-// "Open plane" kabuğu: masaüstünde sayfa zemininde etiketli kenar çubuğu (232px, 1px ayraç),
-// telefonda 56px üst bar + menü sayfası.
+// Yüzen üst bar (kullanıcı isteği, 2026-10-21): sayfanın üstünde, kenarlardan içeride duran
+// yuvarlatılmış tek bar. Solda işaret, yanında grup seçici; sağda dil ve hesap menüsü.
+// Opak yüzey ve 1px kenar; bulanıklık yok. Telefonda aynı bar, kelime işareti ve dil anahtarı gizli.
 export function AppShell() {
   return (
-    <div className="min-h-dvh bg-ground lg:grid lg:grid-cols-[232px_minmax(0,1fr)]">
-      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-border px-3 py-5 lg:flex">
-        <div className="px-2.5">
-          <Logo />
-        </div>
-        <Nav className="mt-8" />
-        <div className="mt-auto flex flex-col gap-4">
-          <LanguageSwitch className="mx-2.5 self-start" />
-          <UserRow />
-        </div>
-      </aside>
-      <MobileBar />
+    <div className="min-h-dvh bg-ground">
+      <div className="sticky top-0 z-40 px-3 pt-3 md:px-6 md:pt-4">
+        <header className="mx-auto flex h-14 max-w-[1148px] items-center gap-1 rounded-full border border-border bg-raised py-2 pr-2 pl-3 md:h-16 md:gap-2 md:pl-5">
+          <Link to="/" className="mr-1 inline-flex shrink-0 items-center rounded-full md:mr-3" aria-label="CovertGift">
+            <LogoMark className="size-7 sm:hidden" />
+            <Logo className="hidden sm:inline-flex" />
+          </Link>
+          <GroupSwitcher />
+          <div className="ml-auto flex items-center gap-2">
+            <LanguageSwitch className="hidden md:inline-flex" />
+            <AccountMenu />
+          </div>
+        </header>
+      </div>
       <main className="min-w-0">
         <Outlet />
       </main>
@@ -34,67 +44,101 @@ export function AppShell() {
   )
 }
 
-function Nav({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
+// Grup seçici: ana sayfada "Tüm gruplar", grup sayfasında o grubun adı. Menüde tüm gruplar listelenir.
+function GroupSwitcher() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const match = useMatch('/groups/:id')
+  const currentId = match?.params.id
+  const groups = useQuery({ queryKey: queryKeys.groups, queryFn: ({ signal }) => groupsApi.list(signal) })
+  const current = groups.data?.find((g) => g.id === currentId)
+  const label = current ? current.title : t('nav.allGroups')
+
   return (
-    <nav aria-label={t('nav.main')} className={className}>
-      <NavLink
-        to="/"
-        end={false}
-        onClick={onNavigate}
-        className={({ isActive }) =>
-          cn(
-            'flex h-10 items-center gap-2.5 rounded-[10px] px-2.5 text-sm text-ink transition-colors hover:bg-surface lg:h-8',
-            isActive && 'bg-active hover:bg-active',
-          )
-        }
-      >
-        <Gift className="size-4 text-muted" strokeWidth={1.6} />
-        {t('nav.groups')}
-      </NavLink>
-    </nav>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={t('nav.switchGroup')}
+          className="inline-flex h-10 min-w-0 cursor-pointer items-center gap-2 rounded-full bg-surface pr-3 pl-1.5 text-sm font-medium transition-colors hover:bg-active data-[state=open]:bg-active md:h-11 md:pr-4"
+        >
+          {current ? (
+            <Avatar name={current.target_person_name} size="sm" />
+          ) : (
+            <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-soft text-on-soft">
+              <LayoutGrid className="size-3.5" />
+            </span>
+          )}
+          <span className="max-w-[38vw] truncate sm:max-w-[260px]">{label}</span>
+          <ChevronDown className="size-4 shrink-0 text-muted" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-[min(320px,calc(100vw-24px))]">
+        <DropdownMenuItem onSelect={() => navigate('/')}>
+          <LayoutGrid />
+          <span className="flex-1">{t('nav.allGroups')}</span>
+          {!currentId && <Check className="!text-accent" />}
+        </DropdownMenuItem>
+        {(groups.data?.length ?? 0) > 0 && <DropdownMenuSeparator />}
+        {groups.data?.map((g) => (
+          <DropdownMenuItem key={g.id} onSelect={() => navigate(`/groups/${g.id}`)} className="h-auto min-h-11 py-2">
+            <Avatar name={g.target_person_name} size="sm" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate">{g.title}</span>
+              <span className="block truncate text-xs text-muted">{t('home.forPerson', { name: g.target_person_name })}</span>
+            </span>
+            {g.id === currentId && <Check className="!text-accent" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
-function UserRow() {
-  const { t } = useTranslation()
+function AccountMenu() {
+  const { t, i18n } = useTranslation()
   const { user, logout } = useAuth()
-  if (!user) return <div className="h-12" />
+  if (!user) return <span className="size-10" />
   return (
-    <div className="flex items-center gap-2.5 px-2.5">
-      <Avatar name={user.name} seed={user.id} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{user.name}</p>
-        <p className="truncate text-xs text-muted">{user.email}</p>
-      </div>
-      <Button variant="ghost" size="icon" onClick={logout} aria-label={t('nav.logout')} title={t('nav.logout')}>
-        <LogOut />
-      </Button>
-    </div>
-  )
-}
-
-function MobileBar() {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  return (
-    <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-ground px-4 lg:hidden">
-      <Logo />
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label={t('nav.menu')}>
-            <Menu className="size-5" />
-          </Button>
-        </DialogTrigger>
-        <DialogContent closeLabel={t('common.close')} aria-describedby={undefined}>
-          <DialogTitle className="mb-4 font-sans text-base font-semibold">{t('nav.menu')}</DialogTitle>
-          <Nav onNavigate={() => setOpen(false)} />
-          <div className="mt-6 flex flex-col gap-5 border-t border-rule pt-5">
-            <LanguageSwitch className="mx-2.5 self-start" />
-            <UserRow />
-          </div>
-        </DialogContent>
-      </Dialog>
-    </header>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={t('nav.account')}
+          className="inline-flex h-10 cursor-pointer items-center gap-2.5 rounded-full pr-1 pl-1 transition-colors hover:bg-surface data-[state=open]:bg-surface md:h-11 md:pr-3"
+        >
+          <Avatar name={user.name} seed={user.id} />
+          <span className="hidden max-w-[160px] min-w-0 text-left lg:block">
+            <span className="block truncate text-sm leading-5 font-medium">{user.name}</span>
+            <span className="block truncate text-xs leading-4 text-muted">{user.email}</span>
+          </span>
+          <ChevronDown className="hidden size-4 text-muted lg:block" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel className="flex items-center gap-3 py-2.5">
+          <Avatar name={user.name} seed={user.id} />
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium text-ink">{user.name}</span>
+            <span className="block truncate text-xs">{user.email}</span>
+          </span>
+        </DropdownMenuLabel>
+        {/* Telefonda dil anahtarı barda yer almadığı için menüde. */}
+        <div className="md:hidden">
+          <DropdownMenuSeparator />
+          {LANGUAGES.map((lng) => (
+            <DropdownMenuItem key={lng} onSelect={() => void i18n.changeLanguage(lng)}>
+              <span className="flex-1">{lng === 'tr' ? 'Türkçe' : 'English'}</span>
+              {i18n.language === lng && <Check className="!text-accent" />}
+            </DropdownMenuItem>
+          ))}
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={logout}>
+          <LogOut />
+          {t('nav.logout')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
