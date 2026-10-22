@@ -18,10 +18,10 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - **Backend:** Go (Golang) + **Gin Framework** (`github.com/gin-gonic/gin`)
 - **Veritabanı:** PostgreSQL (Docker üzerinde) + **GORM**
 - **Kimlik Doğrulama:** JWT (JSON Web Tokens) ve özel Gin middleware'i
-- **Frontend:** React (Vite) + Tailwind CSS + shadcn/ui + Lucide Icons
-- **Geçici test paneli:** `prototypes/test-ui/` altında HTML/CSS/JavaScript + Node.js 22+ statik sunucu ve API proxy'si; kalıcı frontend Faz 7'de geliştirilecek
-- **Yapay Zekâ Katmanı:** `google.golang.org/genai` ile Google Search araştırması + `response_schema` ile JSON seçimi. Araştırma modeli `GEMINI_RESEARCH_MODEL` (varsayılan `gemini-3.8-flash`), JSON seçim modeli `GEMINI_MODEL` (varsayılan `gemini-3.5-flash-lite`) ile ayrı ayarlanır. 503 hatasında çağrılan model farklıysa `gemini-3.5-flash-lite` yedeği denenir; kota ve erişim kullanılan API hesabına bağlıdır.
-- **Konteynerizasyon:** Yerelde PostgreSQL için Docker Compose; API ve geçici panel için ayrı Dockerfile dosyaları. Azure demo dağıtımı: [docs/AZURE.md](docs/AZURE.md)
+- **Frontend:** `frontend/` — React 19 (Vite) + TypeScript + Tailwind CSS v4 + shadcn tarzı bileşenler (`radix-ui`) + Lucide Icons; React Router (lazy rotalar), TanStack Query, i18next (TR/EN). Testler: Vitest + Testing Library + MSW, Playwright. Üretimde ayrıcalıksız nginx statik dosyaları sunar ve `/api`'yi API'ye iletir.
+- **Eski geçici test paneli:** `prototypes/test-ui/` altında HTML/CSS/JavaScript + Node.js 22+ statik sunucu ve API proxy'si; React frontend yerini aldı, yeni uçları (ör. `PATCH /groups/:id/target`) desteklemez.
+- **Yapay Zekâ Katmanı:** `google.golang.org/genai`. Güncel mod üstteki nottadır (Search kapalı, `GEMINI_MODEL` ile tek yapılandırılmış JSON çağrısı). Search açıkken araştırma `GEMINI_RESEARCH_MODEL`, JSON seçimi `GEMINI_MODEL` ile yapılır; `GEMINI_FALLBACK_MODEL` yalnızca doluysa 503'te denenir. Kota/istek sınırı hatası 429 döner.
+- **Konteynerizasyon:** Yerelde PostgreSQL için Docker Compose; API (`backend/Dockerfile`) ve frontend (`frontend/Dockerfile`, nginx) için ayrı imajlar. Azure demo dağıtımı: [docs/AZURE.md](docs/AZURE.md)
 
 ---
 
@@ -155,7 +155,8 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 
 ### Sistem & Test
 - `POST /api/v1/dev/reset-db` -> Test ve sunum ortamında tüm tabloları TRUNCATE CASCADE ile sıfırlar (Production ortamında güvenlik için devre dışıdır)
-- Geçici panel proxy'si yalnızca auth, profil, grup, hediye ve oy yollarıyla `/health`, `/swagger/*`, `/docs` yollarını iletir. Geliştirme uçları 403 ile engellenir. Cloudflare tüneli bu proxy'nin 5173 portuna bağlanır.
+- Üretim frontend'inin nginx'i `/api/`, `/health`, `/swagger/`, `/docs` yollarını API'ye iletir; `/api/v1/dev/*` büyük/küçük harften bağımsız olarak 403 ile engellenir. Geliştirmede Vite proxy'si bu ucu **engellemez**; yerel API'de çağrılırsa yerel veritabanı sıfırlanır.
+- Eski geçici panel proxy'si yalnızca auth, profil, grup, hediye ve oy yollarıyla `/health`, `/swagger/*`, `/docs` yollarını iletir; geliştirme uçlarını 403 ile engeller.
 
 ---
 
@@ -181,5 +182,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
   - JSON yanıtları standart formatta dönmelidir: `{"success": true, "data": ...}` veya `{"success": false, "error": "mesaj"}`.
 
 - **React Frontend:**
-  - Tek ekranlı modern panel tasarımı: Üst barda kullanıcı profili ve bütçe durumu; orta alanda oylama kartları; sağ yan panelde grup üyeleri ve Gemini öneri butonu.
-  - API istekleri temiz bir `api/` katmanı üzerinden `fetch` veya `axios` ile yönetilmelidir.
+  - Düzen: üstte yüzen bar (işaret, grup seçici, dil, hesap menüsü); grup sayfasında bütçe/kişi başı/ilgi alanı kutuları, ortada oylama kartları, sağda üyeler. Mobil öncelikli.
+  - API istekleri `src/api/` katmanında `fetch` ile yönetilir (`{success, data | error}` zarfı, Bearer token, 401'de oturum kapanır). Sunucu durumu TanStack Query ile tutulur.
+  - Renkler yalnızca `src/index.css` token'larından gelir; bileşenlerde sabit renk yazılmaz. Ana renk iki temada kobalt `#2f5bff`, para alanları hardal `#ffc93c`, koyu tema "Nötr grafit". Metin kontrastı en az 4.5:1 tutulur.
+  - Tüm metinler i18next sözlüklerinde (TR varsayılan, EN). Anti-Spoiler 403'ünde özel "Bu bir sürpriz!" ekranı gösterilir.

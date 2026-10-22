@@ -572,3 +572,24 @@
 - Dağıtım: `covertgift-api:ff8bb3c` ve `covertgift-web:ff8bb3c` ACR'ye gönderildi; `az containerapp update --image` ile iki uygulama güncellendi (Express ortamı `--revision-suffix` desteklemiyor). Şema değişikliği yok.
 - Canlı doğrulama: `/` 200 ve React paketi, SPA yolu 200, `/health` 200 `db: up`, oturumsuz `/me` 401, `/api/v1/dev/x` nginx'te 403, güvenlik başlıkları mevcut. Geçici hesaplarla: kayıtsız `target_email` 404; e-postayla kurulan grupta hedef 403 alır ve listede 0 grup görür; sonradan bağlama 200, ikinci bağlama 409, bağlanan hedef 403. Hesaplar `DELETE /me` ile silindi. Tarayıcıda canlı giriş ekranı görüldü. Gemini çağrısı yapılmadı.
 - Geri dönüş: `covertgift-api:search-off-20261021` ve `covertgift-ui:demo` registry'de duruyor.
+
+---
+
+## 2026-10-22 — Koyu tema "Nötr grafit" ve giriş ekranı düzeni
+
+- Geri bildirim: arayüz koyu temada Discord'a çok benziyordu. Ölçüm: eski koyu ana renk `#4e5cff`, Discord blurple'ı (`#5865F2`) ile aynı tonda (235°); mavi-gri yüzeyler (`#151726` vb.) benzerliği artırıyordu.
+- Üç alternatif (A · Sıcak kömür, B · Hardal öncü, C · Nötr grafit) koddan önce gerçek ekranlarda (ana sayfa, grup sayfası) geçici CSS ile karşılaştırıldı. Kullanıcı seçimi: **C · Nötr grafit**.
+- `src/index.css` koyu token'ları: renksiz grafit yüzeyler (`--ground #0c0c0d`, `--surface #161618`, `--raised #1e1e21` …), saf kobalt `--primary #2f5bff` (227°), `--accent #86a0ff`, `--soft #1b2550`. Hardal alanlar ve açık tema değişmedi. Kontrastlar: beyaz/ana renk 5.17, accent/yüzey 7.30, muted/yüzey 7.65.
+- Giriş/kayıt çerçevesi: sol form bloğu 400 → 340 px, başlık 44 → 36 px. Sağ ürün paneli artık tam yükseklik değil; içeriği kadar uzar ve dikeyde ortalanır, içerideki boşluk kalktı.
+- Doğrulama: Vitest 37/37, build ve oxlint geçti. 1280×860'ta koyu ve açık temada giriş ekranı Playwright ekran görüntüsüyle kontrol edildi. Karşılaştırma için açılan geçici demo hesapları silindi.
+- Kullanıcı isteğiyle açık tema da aynı kobalta geçti: `--primary`/`--accent #2f5bff`, `--primary-hover #1f45e0`, `--soft #e6ecff`, `--on-soft #1636b0`, `--selection #c9d6ff`; favicon da güncellendi. Kontrastlar: beyaz/ana renk 5.17, ana renk metni beyaz zeminde 5.17 ve yüzeyde 4.67, on-soft/soft 8.14. `--active` üzerinde 4.24 kalan accent yalnızca menü onay simgelerinde (simge için 3:1 yeterli). Giriş panelindeki sabit `#e3e6ff` açıklama metni yeni mavide 4.19'a düşüyordu; iki temada da `text-on-primary` (beyaz, 5.17) yapıldı.
+- Yerel: `.claude/launch.json` API için `"autoPort": false` aldı (API'nin 8081'e kayıp Vite proxy'sinin boşa düşmesini önler).
+
+---
+
+## 2026-10-22 — Doküman güncellemesi ve yeni fikir
+
+- Kullanıcı isteğiyle yeni işe başlanmadı; tüm proje dokümanları güncel duruma çekildi: `CLAUDE.md` (frontend artık var, frontend komutları, reset-db uyarısı), `README.md` (Faz 7 tamam, Faz 8 sürüyor, frontend hızlı başlangıcı, güncel AI modu, teknoloji ve klasör yapısı), `PROJECT_CONTEXT.md` (frontend yığını, nginx proxy kuralları, React frontend standartları), `ROADMAP.md`, `docs/SETUP.md` (Adım 7a artık React frontend, yedek komutu), `docs/AZURE.md` (commit etiketli derleme/dağıtım komutları, bekleyen tasarım dağıtımı), `frontend/README.md` (yapı, Nötr grafit tasarımı, üretim imajı) ve `prototypes/test-ui/README.md` (eski olarak işaretlendi).
+- Backlog'a **hediye tarihi / doğum günü** fikri eklendi: isteğe bağlı `event_date`, geri sayım, yaklaşan tarihe göre sıralama, hatırlatma ve tarih geçince grubu tamamlama önerisi; Anti-Spoiler korunur. Tekrar eden mi tek seferlik mi, saat dilimi ve bildirim kanalı kararları sonraya bırakıldı.
+- Faz 8'e yerel veri koruması maddesi eklendi (yerel `reset-db` ucu Vite proxy'sinde engellenmiyor); karar verilmedi.
+- `.claude/` altındaki genel agent/skill dosyaları projeye özel olmadığı için değiştirilmedi.

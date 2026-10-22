@@ -14,6 +14,9 @@ Go API ve kalıcı React frontend ayrı imajlar olarak paketlenir. PostgreSQL ay
 > (`covertgift-web:ff8bb3c`) çalıştırır. API `covertgift-api:ff8bb3c` imajındadır. Geri dönüş için eski imajlar
 > registry'de durur: API `covertgift-api:search-off-20261021`, panel `covertgift-ui:demo`.
 > Express ortamında `--revision-suffix` desteklenmez; `az containerapp update` yalnızca `--image` ile çalıştırılır.
+>
+> **2026-10-22:** `9f796da` tasarım güncellemesi (Nötr grafit, giriş ekranı düzeni) henüz dağıtılmadı; canlıda `ff8bb3c` çalışıyor.
+> Canlıya almak için yalnızca frontend imajını yeni commit kimliğiyle derleyip `covertgift-ui`'yi güncellemek yeterlidir (API değişmedi).
 
 ## Mevcut demo ortamı
 
@@ -57,11 +60,13 @@ gizli ayarlar ve yedek dosyaları Git'e eklenmedi.
 
 ## İmajları hazırlama
 
-Proje kökünden, Azure Container Apps için Linux/AMD64 imajları oluşturun:
+Proje kökünden, Azure Container Apps için Linux/AMD64 imajları oluşturun. Etiket olarak commit kısa kimliğini kullanın;
+eski etiketlerin üzerine yazmayın, geri dönüş için registry'de kalsınlar:
 
 ```sh
-docker build --platform linux/amd64 -t covertgift-api:demo ./backend
-docker build --platform linux/amd64 -t covertgift-ui:demo ./prototypes/test-ui
+TAG=$(git rev-parse --short HEAD)
+docker build --platform linux/amd64 -t LOGIN_SERVER/covertgift-api:$TAG ./backend
+docker build --platform linux/amd64 -t LOGIN_SERVER/covertgift-web:$TAG ./frontend
 ```
 
 İmajları Azure Container Registry'ye gönderin. Kayıt defterinin Overview ekranındaki
@@ -69,11 +74,14 @@ Login server değerini kullanın; adresi kayıt defteri adından türetmeyin:
 
 ```sh
 az acr login --name KAYIT_DEFTERI_ADI
-docker tag covertgift-api:demo LOGIN_SERVER/covertgift-api:demo
-docker tag covertgift-ui:demo LOGIN_SERVER/covertgift-ui:demo
-docker push LOGIN_SERVER/covertgift-api:demo
-docker push LOGIN_SERVER/covertgift-ui:demo
+docker push LOGIN_SERVER/covertgift-api:$TAG
+docker push LOGIN_SERVER/covertgift-web:$TAG
+az containerapp update -g covertgift-rg -n covertgift-api --image LOGIN_SERVER/covertgift-api:$TAG
+az containerapp update -g covertgift-rg -n covertgift-ui --image LOGIN_SERVER/covertgift-web:$TAG
 ```
+
+Yerelde smoke test yaparken frontend imajını `API_TARGET=http://127.0.0.1:9` gibi ölü bir hedefle çalıştırın;
+engel kurallarını çalışan bir API'ye karşı denemeyin. Eski panel imajı `./prototypes/test-ui` klasöründen derlenir.
 
 Yer tutucuları kendi değerlerinizle değiştirin. Container Apps'in yönetilen kimliğine,
 kayıt defterinin izin modeline uygun imaj çekme yetkisini verin.

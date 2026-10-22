@@ -5,6 +5,9 @@
  * Kobalt: tek dolu ana aksiyon, seçili oy, işaret. Hardal: bütçe alanları.
  * Açık kobalt: AI etiketi ve bilgi notları. Başlık ve rakamlar Unbounded, metin Onest.
  * Koyu tema sistem ayarını izler; bileşenler yalnızca bu token'ları kullanır.
+ * Koyu tema "Nötr grafit" (2026-10-22, kullanıcı seçimi): renksiz grafit yüzeyler ve saf kobalt.
+ * Eski mavi-gri yüzeyler ve #4e5cff, Discord'un blurple tonuyla (235°) aynı olduğu için bırakıldı.
+ * Ana renk iki temada da aynı saf kobalt: #2f5bff (227°); beyaz metinle 5.17 kontrast.
  */
 :root {
   color-scheme: light;
@@ -19,17 +22,17 @@
   --muted: #55586a;
   --placeholder: #6b6e80;
 
-  --primary: #2436ff;
-  --primary-hover: #1826d6;
+  --primary: #2f5bff;
+  --primary-hover: #1f45e0;
   --on-primary: #ffffff;
-  --accent: #2436ff;
+  --accent: #2f5bff;
 
   --field: #ffc93c;
   --on-field: #2a1f00;
   --on-field-muted: #5c4500;
 
-  --soft: #e8ebff;
-  --on-soft: #1520a8;
+  --soft: #e6ecff;
+  --on-soft: #1636b0;
 
   --positive: #1f7a3d;
   --negative: #d1242f;
@@ -43,7 +46,7 @@
   --pill-neutral-ink: #3a3d4a;
 
   --overlay: rgb(11 11 18 / 0.45);
-  --selection: #c9cfff;
+  --selection: #c9d6ff;
   /* Kişi avatarları: ton src/lib/person.ts'den gelir (--h). */
   --avatar-s: 85%;
   --avatar-l: 88%;
@@ -53,23 +56,23 @@
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --ground: #0b0c14;
-    --surface: #151726;
-    --raised: #1c1f31;
-    --active: #272b43;
-    --border: #272b42;
-    --rule: #1f2236;
-    --control: #3b4062;
-    --text: #f3f4fb;
-    --muted: #a7abc4;
-    --placeholder: #9195b0;
+    --ground: #0c0c0d;
+    --surface: #161618;
+    --raised: #1e1e21;
+    --active: #2a2a2e;
+    --border: #29292d;
+    --rule: #1d1d20;
+    --control: #45454b;
+    --text: #f4f4f5;
+    --muted: #a8a8b0;
+    --placeholder: #8d8d95;
 
-    --primary: #4e5cff;
-    --primary-hover: #6673ff;
-    --accent: #8d97ff;
+    --primary: #2f5bff;
+    --primary-hover: #4a70ff;
+    --accent: #86a0ff;
 
-    --soft: #232a66;
-    --on-soft: #ccd1ff;
+    --soft: #1b2550;
+    --on-soft: #c8d3ff;
 
     --positive: #5fd38a;
     --negative: #ff6b74;
@@ -79,11 +82,11 @@
     --pill-negative-ink: #ffb3b8;
     --pill-warn-bg: #3d300a;
     --pill-warn-ink: #ffd66b;
-    --pill-neutral-bg: #262a3e;
-    --pill-neutral-ink: #c9ccdb;
+    --pill-neutral-bg: #262629;
+    --pill-neutral-ink: #cfcfd6;
 
     --overlay: rgb(0 0 0 / 0.6);
-    --selection: #2f3a99;
+    --selection: #2a3f99;
     --avatar-s: 45%;
     --avatar-l: 30%;
     --avatar-ink-l: 88%;
