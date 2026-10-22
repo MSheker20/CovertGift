@@ -17,10 +17,10 @@ export function AuthLayout({ title, lead, children }: { title: string; lead: str
             <LanguageSwitch />
           </header>
           <main className="flex flex-1 items-center py-10">
-            <div className="w-full max-w-[400px] lg:ml-[clamp(0px,6vw,72px)]">
-              <h1 className="font-display text-[34px] leading-[1.05] font-bold md:text-[44px]">{title}</h1>
-              <p className="mt-3 text-[15px] leading-6 text-muted">{lead}</p>
-              <div className="mt-8">{children}</div>
+            <div className="w-full max-w-[340px] lg:ml-[clamp(0px,6vw,72px)]">
+              <h1 className="font-display text-[30px] leading-[1.05] font-bold md:text-[36px]">{title}</h1>
+              <p className="mt-2.5 text-[15px] leading-6 text-muted">{lead}</p>
+              <div className="mt-7">{children}</div>
             </div>
           </main>
         </div>
@@ -35,10 +35,11 @@ function ProductGlimpse() {
   const ideas = t('auth.asideIdeas', { returnObjects: true })
   const people = ['Mustafa', 'Zeynep', 'Can', 'Elif']
   return (
-    <aside className="hidden flex-col justify-between gap-10 rounded-[28px] bg-primary p-10 text-on-primary lg:flex">
+    // İçerik kadar uzar ve dikeyde ortalanır; altında ve üstünde sayfa zemini görünür.
+    <aside className="hidden flex-col gap-8 self-center rounded-[28px] bg-primary p-10 text-on-primary lg:flex">
       <div className="max-w-[440px]">
         <p className="font-display text-[30px] leading-[1.12] font-bold">{t('auth.asideTitle')}</p>
-        <p className="mt-4 text-[16px] leading-6 text-[#e3e6ff]">{t('auth.asideLead')}</p>
+        <p className="mt-4 text-[16px] leading-6 text-on-primary">{t('auth.asideLead')}</p>
       </div>
 
       <div data-ui className="rounded-[20px] bg-raised p-5 text-ink" aria-hidden="true">
