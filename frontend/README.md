@@ -30,10 +30,16 @@ Ayarlar `.env.example` içinde: `API_TARGET` (geliştirme proxy hedefi), `VITE_A
 - `src/api/` — fetch istemcisi (`{success, data | error}` zarfı, Bearer token, 401 olayı), uç noktalar ve tipler
 - `src/auth/` — oturum durumu; token `localStorage`'da (`covertgift.token`)
 - `src/i18n/` — `tr.ts` ana sözlük, `en.ts` aynı tipte; dil `covertgift.lang` anahtarında saklanır
-- `src/pages/` — Giriş, Kayıt, uygulama kabuğu, Gruplar, Grup (Anti-Spoiler sürpriz ekranı dahil)
+- `src/pages/` — Giriş, Kayıt, uygulama kabuğu (yüzen üst bar + grup seçici), Gruplar, Yeni grup diyaloğu (hedef kişinin e-postası dahil), Grup (Anti-Spoiler sürpriz ekranı dahil)
+- `src/pages/group/` — hediye havuzu ve oy kartları, manuel ekleme + link önizleme, üye ekleme, yerinde yönetim (ilgi alanı, bütçe, grubu silme, hedef kişiyi bağlama)
+- `src/test/` — MSW sunucusu, örnek veriler ve render yardımcıları; `e2e/` — Playwright senaryoları
 
 ## Tasarım
 
-"Kobalt & hardal" stili (2026-10-21, kullanıcı seçimi): kobalt (`#2436ff`) tek dolu ana aksiyonda, seçili oyda ve işarette; hardal (`#ffc93c`) para taşıyan alanlarda (ortak bütçe, kişi başı, sürpriz ekranı); açık kobalt AI etiketi ve bilgi notlarında. Başlık ve rakamlar Unbounded, metin Onest. Koyu tema sistem ayarını (`prefers-color-scheme`) izler. Her kişiye kimliğinden türeyen sabit bir avatar tonu verilir (`src/lib/person.ts`, `.avatar`). Bileşenler yalnızca `src/index.css` token'larını kullanır; sabit renk yazılmaz.
+"Kobalt & hardal" stili (2026-10-21), koyu tema 2026-10-22'de "Nötr grafit"e güncellendi (Discord benzerliği nedeniyle). Kobalt `#2f5bff` iki temada da tek dolu ana aksiyonda, seçili oyda ve işarette (beyaz metinle 5.17:1); hardal `#ffc93c` para taşıyan alanlarda (ortak bütçe, kişi başı, sürpriz ekranı); açık kobalt AI etiketi ve bilgi notlarında. Koyu temada yüzeyler renksiz grafittir (`#0c0c0d`, `#161618`, `#1e1e21`). Başlık ve rakamlar Unbounded, metin Onest. Koyu tema sistem ayarını (`prefers-color-scheme`) izler. Her kişiye kimliğinden türeyen sabit bir avatar tonu verilir (`src/lib/person.ts`, `.avatar`). Bileşenler yalnızca `src/index.css` token'larını kullanır; sabit renk yazılmaz. Metin kontrastı en az 4.5:1.
 
-Pazar yeri linkleri ileride `search_query` üzerinden `encodeURIComponent` ile kurulacak; Gemini URL üretmez.
+Pazar yeri linkleri `search_query` üzerinden `encodeURIComponent` ile kurulur (`src/lib/marketplace.ts`); Gemini URL üretmez.
+
+## Üretim imajı
+
+`Dockerfile` iki aşamalıdır (Node 22 derleme → `nginx-unprivileged`). `nginx.conf.template` başlangıçta `API_TARGET` ile doldurulur; `/api`, `/health`, `/swagger`, `/docs` yollarını API'ye iletir, bilinmeyen yolları `index.html`'e düşürür ve `/api/v1/dev/*` yolunu 403 ile engeller. Port 5173. Azure adımları: [docs/AZURE.md](../docs/AZURE.md).

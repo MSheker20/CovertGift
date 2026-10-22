@@ -348,39 +348,41 @@ docker compose start db
 
 ---
 
-## Adım 7a — Geçici Panel ve Cloudflare (Güncel Çalıştırma)
+## Adım 7a — React Frontend (Güncel Çalıştırma)
 
-Docker Desktop açıkken proje kökünde `docker compose up -d --wait`, ardından `backend/` içinde `go run ./cmd/api` çalıştırın. Yeni terminalde proje kökünden:
-
-```bash
-node prototypes/test-ui/server.mjs
-```
-
-[Paneli açın](http://127.0.0.1:5173). Proxy sağlık kontrolü:
+Docker Desktop açıkken proje kökünde `docker compose up -d --wait`, ardından `backend/` içinde `go run ./cmd/api` çalıştırın. Yeni terminalde proje kökünden (Node.js 22+):
 
 ```bash
-curl --fail http://127.0.0.1:5173/health
+npm --prefix frontend install
+npm --prefix frontend run dev
 ```
 
-İnternetten erişim gerekiyorsa üçüncü terminalde:
+[Uygulamayı açın](http://localhost:5174). Vite, `/api` ve `/health` isteklerini `127.0.0.1:8080`'e iletir:
 
 ```bash
-cloudflared tunnel --url http://127.0.0.1:5173 --no-autoupdate
+curl --fail http://localhost:5174/health
 ```
 
-Cloudflared'in yazdığı geçici HTTPS adresini kullanın. Bilgisayar, API, panel ve tünel çalışmaya devam etmelidir. Tünel panelin 5173 portunu kullanır; sınırlı proxy geliştirme sıfırlama yolunu engeller. `.env` ve proje dosyaları statik sunucuda sunulmaz. Kalıcı React frontend Faz 7'de geliştirilecek.
+> ⚠️ Yerel API'deki `POST /api/v1/dev/reset-db` tüm tabloları siler ve Vite proxy'si bu ucu engellemez. Test veya script'lerde çalışan bir API'ye bu ucu çağırtmayın; yerel veri için düzenli yedek alın:
+>
+> ```bash
+> docker exec covertgift-db pg_dump -U covertgift -d covertgift -Fc > ~/covertgift-$(date +%F).dump
+> ```
 
 Doğrulama (proje kökünden):
 
 ```bash
 go test ./backend/...
-node --check prototypes/test-ui/server.mjs
-node --check prototypes/test-ui/app.js
+npm --prefix frontend test
+npm --prefix frontend run build
+npm --prefix frontend run test:e2e   # API çalışırken; ilk kurulumda: npx --prefix frontend playwright install chromium
 ```
+
+Eski geçici paneli (`prototypes/test-ui/`) ve Cloudflare tünelini çalıştırmak gerekirse: [panel rehberi](../prototypes/test-ui/README.md). Panel yeni uçları desteklemez.
 
 Swagger'ı modeller ve controller yorumlarından yeniden üretmek için `swag` kurulu ortamda `backend/` içinden `swag init -g cmd/api/main.go --parseInternal` çalıştırın.
 
-Normal Go testleri gerçek Gemini API'sini çağırmaz. Kota kullanan gerçek API testi özellikle istenirse `backend/` içinden `go test ./pkg/gemini -run TestLiveTurkeyProducts -v -args -live-ai` ile açılır. Ayrıntılar: [panel rehberi](../prototypes/test-ui/README.md).
+Normal Go testleri gerçek Gemini API'sini çağırmaz. Kota kullanan gerçek API testi özellikle istenirse `backend/` içinden `go test ./pkg/gemini -run TestLiveTurkeyProducts -v -args -live-ai` ile açılır.
 
 ---
 
@@ -412,6 +414,9 @@ Sonra: ROADMAP'te Faz 0 kutucuklarını işaretle, DEVLOG'a kısa bir kayıt ekl
 | `go mod tidy` | Bağımlılıkları düzenler |
 | `go build -o bin/api ./cmd/api` | Çalıştırılabilir dosya üretir |
 | `go test -v ./...` | Tüm birim testlerini çalıştırır (link önizleme, parser, SSRF kalkanı) |
+| `npm --prefix frontend run dev` | React frontend'i :5174'te başlatır |
+| `npm --prefix frontend test` | Frontend bileşen/akış testleri (Vitest) |
+| `npm --prefix frontend run test:e2e` | Gerçek API'ye karşı uçtan uca testler (Playwright) |
 | `./scripts/demo_presentation.sh` | 🎓 Tüm API uç noktalarını canlı sergileyen akademik interaktif sunum script'i |
 | `./scripts/demo_presentation.sh --auto` | Otomatik demo / test modu |
 

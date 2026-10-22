@@ -2,7 +2,7 @@
 
 > Referans: [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md)
 > İlerledikçe kutucukları `[x]` olarak işaretle. Her fazın sonunda **✅ Kabul Kriterleri** sağlanmadan sonraki faza geçme.
-> Son doğrulama: **2026-10-17** — Backend birim testleri ve panel JavaScript sözdizimi kontrolleri geçti; Cloudflare üzerinden arayüz/API/DB erişimi doğrulandı. Kalıcı React frontend henüz başlamadı.
+> Son doğrulama: **2026-10-22** — Go testleri, Vitest 37/37 ve build geçti; Playwright 6/6 (2026-10-21, gerçek API). Azure'da API ve React frontend `ff8bb3c` canlı ve doğrulandı; 2026-10-22 tasarım güncellemesi henüz dağıtılmadı.
 
 ```mermaid
 flowchart LR
@@ -127,7 +127,7 @@ flowchart LR
 ---
 
 ## Faz 7 — React Frontend 🎨
-> 2026-10-16: Backend'i tarayıcıdan denemek için bağımsız ve geçici `prototypes/test-ui/` paneli eklendi. HTML/CSS/JavaScript + Node.js yerel proxy kullanır; kalıcı frontend'e sıfırdan başlanacak, aşağıdaki Faz 7 görevleri henüz tamamlanmış sayılmaz. Kalıcı tasarım mobil web önceliklidir.
+> 2026-10-16: Backend'i tarayıcıdan denemek için geçici `prototypes/test-ui/` paneli eklenmişti. 2026-10-21'de kalıcı React frontend `frontend/` altında tamamlandı ve Azure'da panelin yerini aldı. Tasarım mobil web önceliklidir.
 
 - [x] `frontend/` → Vite + React + TypeScript (2026-10-21; React Router, TanStack Query, i18next TR/EN)
 - [x] Tailwind CSS v4 + shadcn/ui (Button, Input, Label, Dialog, Sonner — elle eklendi, `radix-ui`) + Lucide Icons
@@ -149,6 +149,8 @@ flowchart LR
 - [x] Grup sayfasında yerinde yönetim (2026-10-21): ilgi alanı ekleme (tüm üyeler) ve silme (admin), toplam bütçeyi düzenleme (admin), grubu onaylı silme (admin)
 - [x] Hesabı silinmiş oturumun kapanması: `/me` 404 dönünce token silinir, giriş ekranına dönülür (2026-10-21)
 - [x] Rota bazlı kod bölme; ana paket 619 kB'den 446 kB'a indi, 500 kB uyarısı kalktı (2026-10-21)
+- [x] Görsel yenileme (2026-10-22): koyu tema Discord'a benzediği için "Nötr grafit"e geçti (renksiz grafit yüzeyler); ana renk iki temada saf kobalt `#2f5bff` (eski `#4e5cff`/`#2436ff` Discord blurple'ı ile aynı 235° tonundaydı). Giriş/kayıt ekranında form daraltıldı, ürün paneli içeriği kadar ortalandı. Üç alternatif gerçek ekranlarda karşılaştırılarak seçildi.
+- [x] Azure dağıtımı (2026-10-21): `frontend/Dockerfile` + nginx (`/api` proxy, SPA, güvenlik başlıkları, `/api/v1/dev/*` 403); `covertgift-ui` uygulaması React frontend'i çalıştırıyor. Ayrıntı: [docs/AZURE.md](docs/AZURE.md)
 - [x] Frontend testleri (2026-10-21): Vitest + Testing Library + MSW ile 30 bileşen/akış testi; Playwright ile gerçek API'ye karşı kabul akışı ve Anti-Spoiler senaryosu (masaüstü + telefon)
 - [x] Hedef kişi arayüzü (2026-10-21): yeni grup diyaloğunda isteğe bağlı "Hedef kişinin e-postası" (kayıtlı değilse alan altında uyarı, grup kurulmaz; alan boşaltılınca yalnızca isimle kurulur); admin menüsünde "Hedef kişiyi bağla" (yalnızca hedef bağlı değilken); başlıkta "hesabı bağlı" etiketi. Testler 37 Vitest + 6 Playwright (Anti-Spoiler grubu artık arayüzden kuruluyor)
 
@@ -168,8 +170,9 @@ flowchart LR
 - [ ] CORS ayarları, istek boyutu limitleri, input validasyonu (`binding:"required,email"` vb.)
 - [ ] Hata loglama (yapılandırılmış log)
 - [ ] Seed script (demo kullanıcılar + grup)
+- [ ] Yerel veri koruması (2026-10-22): yerel API'de `POST /api/v1/dev/reset-db` açık ve Vite geliştirme proxy'si onu engellemiyor; 2026-10-21'de bir smoke testi yerel veritabanını bu uçla sildi. Seçenekler: ucu ayrı bir ortam bayrağına bağlamak, onay parametresi istemek veya Vite proxy'sinde engellemek; düzenli `pg_dump` yedeği. Karar verilmedi.
 - [x] `README.md` → ilk `.env` kurulumu, backend/panel/tünel komutları ve doğrulama adımları (2026-10-17)
-- [x] Backend ve geçici panel için Dockerfile ve `.dockerignore`; Azure demo dağıtım rehberi
+- [x] Backend, frontend (nginx) ve eski panel için Dockerfile ve `.dockerignore`; Azure demo dağıtım rehberi
 - [ ] (Opsiyonel) Backend ve paneli yerel Docker Compose yapılandırmasına ekleme
 
 **✅ Kabul:** Temiz bir makinede README adımlarıyla proje 10 dakikada ayağa kalkar.
@@ -178,6 +181,7 @@ flowchart LR
 
 ## 💡 Gelecek Fikirler (Backlog)
 - [x] ~~**Hedef kişiyi e-postayla seçme ve sonradan bağlama**~~ — 2026-10-21'de tamamlandı (Faz 3 ve Faz 7'ye bakın).
+- [ ] **Hediye tarihi / doğum günü (2026-10-22):** Gruba isteğe bağlı bir tarih alanı (`event_date`: doğum günü ya da hediyenin verileceği gün). Grup listesinde ve grup sayfasında geri sayım ("12 gün kaldı"), yaklaşan tarihe göre sıralama; yaklaşırken hatırlatma (ileride e-posta veya bildirim); tarih geçince grubu tamamlamayı önerme (kazanan seçimiyle bağlantılı). Hedef kişinin hesabındaki hiçbir bilgiye bağlanmaz ve hedefe hiçbir şey göstermez (Anti-Spoiler). Uygulama sırasında karar verilecekler: her yıl tekrar eden doğum günü mü tek seferlik tarih mi, saat dilimi (Europe/Istanbul), geçmiş tarihin kabulü, bildirim kanalı. Şema değişikliği GORM AutoMigrate ile.
 - [ ] **Frontend cilaları (2026-10-21):** Oy sonrası liste yeniden sıralanınca kartların zıplamaması (yerleşim animasyonu ya da sıralamayı kısa süre sabitleme); Gemini önerisi gelince yeni kartların kısa süre vurgulanması; boş havuzda örnek link ve Gemini butonuyla daha yönlendirici bir boş durum. Azaltılmış hareket tercihine uyulacak.
 - [ ] **Oyu geri alma (2026-10-21):** Backend şu an yalnızca +1/−1 upsert destekliyor; oy kaldırılamıyor. `DELETE /api/v1/ideas/:id/vote` (Anti-Spoiler + üyelik kontrolü, testli) eklenip arayüzde aynı oya tekrar basınca oy kaldırılacak. Kullanıcı isteğiyle sonraya bırakıldı; frontend'de oy yalnızca değiştirilebilir.
 - [ ] **Manuel önerilerden AI tercih çıkarımı (2026-10-19):** Mevcut akış manuel/AI başlıklarını yalnızca tekrar etmeme listesi olarak gönderiyor; oy skorlarını göndermiyor. Manuel önerileri, özellikle beğenilenleri, olumlu tercih örnekleri olarak kullanarak yeni ve farklı ürünler ürettir. Reddedilen/veto edilen fikirleri olumsuz bağlamda tut; mevcut tekrar, kaynak ve fiyat doğrulamalarını koru. Kullanılacak alanlar ve oy ağırlıkları uygulama sırasında netleştirilecek.

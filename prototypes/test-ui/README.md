@@ -10,7 +10,9 @@
 
 Son doğrulama: **2026-10-17**. Cloudflare üzerinden panel 200, `/health` 200 (`db: up`) ve oturumsuz `/api/v1/me` 401 döndü.
 
-Paket kurulumu ve derleme gerektirmeyen HTML/CSS/JavaScript paneli. Kalıcı Faz 7 frontend'i değildir; sonradan bu klasör kaldırılabilir. Mobil tarayıcıda da kullanılabilir.
+> **Eski (2026-10-21'den beri):** Kalıcı React frontend (`frontend/`) bu panelin yerini aldı; Azure'da da artık React frontend çalışıyor. Panel yeni uçları desteklemez (ör. `PATCH /groups/:id/target`; proxy allowlist'i bu yolu geçirmez). Yalnızca eski akışı denemek için tutuluyor; ileride kaldırılabilir.
+
+Paket kurulumu ve derleme gerektirmeyen HTML/CSS/JavaScript paneli. Mobil tarayıcıda da kullanılabilir.
 
 Proje kökünden, Node.js 22 veya üzeriyle:
 

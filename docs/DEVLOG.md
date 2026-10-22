@@ -584,3 +584,12 @@
 - Doğrulama: Vitest 37/37, build ve oxlint geçti. 1280×860'ta koyu ve açık temada giriş ekranı Playwright ekran görüntüsüyle kontrol edildi. Karşılaştırma için açılan geçici demo hesapları silindi.
 - Kullanıcı isteğiyle açık tema da aynı kobalta geçti: `--primary`/`--accent #2f5bff`, `--primary-hover #1f45e0`, `--soft #e6ecff`, `--on-soft #1636b0`, `--selection #c9d6ff`; favicon da güncellendi. Kontrastlar: beyaz/ana renk 5.17, ana renk metni beyaz zeminde 5.17 ve yüzeyde 4.67, on-soft/soft 8.14. `--active` üzerinde 4.24 kalan accent yalnızca menü onay simgelerinde (simge için 3:1 yeterli). Giriş panelindeki sabit `#e3e6ff` açıklama metni yeni mavide 4.19'a düşüyordu; iki temada da `text-on-primary` (beyaz, 5.17) yapıldı.
 - Yerel: `.claude/launch.json` API için `"autoPort": false` aldı (API'nin 8081'e kayıp Vite proxy'sinin boşa düşmesini önler).
+
+---
+
+## 2026-10-22 — Doküman güncellemesi ve yeni fikir
+
+- Kullanıcı isteğiyle yeni işe başlanmadı; tüm proje dokümanları güncel duruma çekildi: `CLAUDE.md` (frontend artık var, frontend komutları, reset-db uyarısı), `README.md` (Faz 7 tamam, Faz 8 sürüyor, frontend hızlı başlangıcı, güncel AI modu, teknoloji ve klasör yapısı), `PROJECT_CONTEXT.md` (frontend yığını, nginx proxy kuralları, React frontend standartları), `ROADMAP.md`, `docs/SETUP.md` (Adım 7a artık React frontend, yedek komutu), `docs/AZURE.md` (commit etiketli derleme/dağıtım komutları, bekleyen tasarım dağıtımı), `frontend/README.md` (yapı, Nötr grafit tasarımı, üretim imajı) ve `prototypes/test-ui/README.md` (eski olarak işaretlendi).
+- Backlog'a **hediye tarihi / doğum günü** fikri eklendi: isteğe bağlı `event_date`, geri sayım, yaklaşan tarihe göre sıralama, hatırlatma ve tarih geçince grubu tamamlama önerisi; Anti-Spoiler korunur. Tekrar eden mi tek seferlik mi, saat dilimi ve bildirim kanalı kararları sonraya bırakıldı.
+- Faz 8'e yerel veri koruması maddesi eklendi (yerel `reset-db` ucu Vite proxy'sinde engellenmiyor); karar verilmedi.
+- `.claude/` altındaki genel agent/skill dosyaları projeye özel olmadığı için değiştirilmedi.
