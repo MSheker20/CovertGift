@@ -1,7 +1,8 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 // Faz 7 kabul akışı (Gemini hariç): kayıt → grup kur → üye ekle → manuel fikir ekle → oyla.
-// Ayrıca Anti-Spoiler: hediye alınacak kişi grup adresini açınca yalnızca sürpriz ekranını görür.
+// Ayrıca Anti-Spoiler: hedef kişi arayüzden e-postayla seçilir veya sonradan bağlanır;
+// grup adresini açınca yalnızca sürpriz ekranını görür.
 
 const API = 'http://localhost:5174/api/v1'
 const PASSWORD = 'e2e-Test-7731'
@@ -24,6 +25,24 @@ async function registerViaApi(request: APIRequestContext, a: Account) {
 
 async function tokenOf(page: Page) {
   return page.evaluate(() => localStorage.getItem('covertgift.token'))
+}
+
+async function login(page: Page, a: Account) {
+  await page.goto('/login')
+  await page.getByLabel('E-posta').fill(a.email)
+  await page.getByLabel('Şifre').fill(PASSWORD)
+  await page.getByRole('button', { name: 'Giriş yap' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: new RegExp(`${a.name.split(' ')[0]}\\.$`) })).toBeVisible()
+}
+
+// Hedef kişi grubu listesinde görmez; adresini açınca yalnızca sürpriz ekranını görür.
+async function expectSurpriseFor(page: Page, target: Account, title: string, groupUrl: string) {
+  await page.evaluate(() => localStorage.removeItem('covertgift.token'))
+  await login(page, target)
+  await expect(page.getByText(title)).toHaveCount(0)
+  await page.goto(groupUrl)
+  await expect(page.getByRole('heading', { name: 'Bu bir sürpriz!' })).toBeVisible()
+  await expect(page.getByText('Hediye havuzu')).toHaveCount(0)
 }
 
 async function deleteAccounts(request: APIRequestContext, accounts: Account[]) {
@@ -89,30 +108,62 @@ test.describe('acceptance flow', () => {
     await expect(page.getByRole('article').filter({ hasText: 'Stanley termos 1 L' }).getByRole('group', { name: 'Skor 1' })).toBeVisible()
   })
 
-  test('the gift recipient only sees the surprise screen', async ({ page, request }, info) => {
+  test('a group created with the recipient’s email hides itself from them', async ({ page, request }, info) => {
     const admin = account('Deniz Aksoy', 'owner', info.project.name)
     const target = account('Kaan Demir', 'target', info.project.name)
     accounts.push(admin, target)
     await registerViaApi(request, admin)
     await registerViaApi(request, target)
 
-    // Hedef kişiyi arayüzden seçmek henüz yok (roadmap); grup API ile hedefe bağlanarak kurulur.
-    const res = await request.post(`${API}/groups`, {
-      headers: { Authorization: `Bearer ${admin.token}` },
-      data: { title: 'Kaan’ın sürprizi', target_person_name: 'Kaan', target_user_id: target.id, total_budget: '2000' },
-    })
-    expect(res.status()).toBe(201)
-    const groupId = (await res.json()).data.id as string
+    // Admin grubu arayüzden kurar; hedef kişiyi e-postasıyla seçer.
+    await login(page, admin)
+    await page.getByRole('button', { name: 'Yeni grup' }).first().click()
+    const create = page.getByRole('dialog')
+    await create.getByLabel('Grup adı').fill('Kaan’ın sürprizi')
+    await create.getByLabel('Hediye kimin için?').fill('Kaan')
+    await create.getByLabel(/Hedef kişinin e-postası/).fill(target.email)
+    await create.getByLabel('Toplam bütçe (₺)').fill('2000')
+    await create.getByRole('button', { name: 'Grubu kur' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Kaan’ın sürprizi' })).toBeVisible()
+    await expect(page.getByText('hesabı bağlı')).toBeVisible()
+    const groupUrl = page.url()
 
-    await page.goto('/login')
-    await page.getByLabel('E-posta').fill(target.email)
-    await page.getByLabel('Şifre').fill(PASSWORD)
-    await page.getByRole('button', { name: 'Giriş yap' }).click()
-    await expect(page.getByRole('heading', { level: 1, name: /Kaan\.$/ })).toBeVisible()
-    await expect(page.getByText('Kaan’ın sürprizi')).toHaveCount(0)
+    await expectSurpriseFor(page, target, 'Kaan’ın sürprizi', groupUrl)
+  })
 
-    await page.goto(`/groups/${groupId}`)
-    await expect(page.getByRole('heading', { name: 'Bu bir sürpriz!' })).toBeVisible()
-    await expect(page.getByText('Hediye havuzu')).toHaveCount(0)
+  test('an unregistered email stops the dialog; the admin links the recipient later', async ({ page, request }, info) => {
+    const admin = account('Deniz Aksoy', 'linker', info.project.name)
+    const target = account('Kaan Demir', 'later', info.project.name)
+    accounts.push(admin, target)
+    await registerViaApi(request, admin)
+
+    await login(page, admin)
+    await page.getByRole('button', { name: 'Yeni grup' }).first().click()
+    const create = page.getByRole('dialog')
+    await create.getByLabel('Grup adı').fill('Kaan’ın hediyesi')
+    await create.getByLabel('Hediye kimin için?').fill('Kaan')
+    const email = create.getByLabel(/Hedef kişinin e-postası/)
+    await email.fill(target.email)
+    await create.getByRole('button', { name: 'Grubu kur' }).click()
+    await expect(create.getByText(/Bu e-posta kayıtlı değil/)).toBeVisible()
+
+    // İsim yedeğiyle kurulur; hedef kişi henüz bağlı değildir.
+    await email.clear()
+    await create.getByRole('button', { name: 'Grubu kur' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Kaan’ın hediyesi' })).toBeVisible()
+    await expect(page.getByText('hesabı bağlı')).toHaveCount(0)
+    const groupUrl = page.url()
+
+    // Kişi kayıt olduktan sonra admin menüden bağlar.
+    await registerViaApi(request, target)
+    await page.getByRole('button', { name: 'Grup işlemleri' }).click()
+    await page.getByRole('menuitem', { name: 'Hedef kişiyi bağla' }).click()
+    const link = page.getByRole('dialog')
+    await link.getByLabel('E-posta').fill(target.email)
+    await link.getByRole('button', { name: 'Bağla' }).click()
+    await expect(page.getByText('Kaan artık bu grubu göremez.', { exact: false })).toBeVisible()
+    await expect(page.getByText('hesabı bağlı')).toBeVisible()
+
+    await expectSurpriseFor(page, target, 'Kaan’ın hediyesi', groupUrl)
   })
 })

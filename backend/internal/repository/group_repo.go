@@ -11,6 +11,9 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// ErrMemberIsGroupTarget eklenmek istenen kullanıcı grubun hedef kişisi olduğunda döner.
+var ErrMemberIsGroupTarget = errors.New("member is the group's target")
+
 // GroupRepository grup ve üyelik veritabanı işlemlerini tanımlayan arayüzdür
 type GroupRepository interface {
 	CreateGroupWithAdmin(group *models.Group, adminUserID uuid.UUID) error
@@ -22,6 +25,7 @@ type GroupRepository interface {
 	AddMember(member *models.GroupMember) error
 	MutateInterests(groupID uuid.UUID, change func([]string) ([]string, error)) ([]string, error)
 	UpdateBudget(groupID uuid.UUID, budget decimal.Decimal) error
+	SetTargetUser(groupID, targetID uuid.UUID, guard func(current *uuid.UUID, isMember bool) error) error
 	DeleteGroup(groupID uuid.UUID) error
 }
 
@@ -120,9 +124,20 @@ func (r *groupRepository) GetMembers(groupID uuid.UUID) ([]models.GroupMember, e
 	return members, err
 }
 
-// AddMember gruba yeni bir üye kaydı ekler
+// AddMember gruba yeni bir üye kaydı ekler. Grup satırı kilitlenir; böylece eşzamanlı
+// hedef bağlama ile yarışan hedef kişi üye olarak eklenemez.
 func (r *groupRepository) AddMember(member *models.GroupMember) error {
-	return r.db.Create(member).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var group models.Group
+		if err := tx.Select("id", "target_user_id").Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&group, "id = ?", member.GroupID).Error; err != nil {
+			return err
+		}
+		if group.TargetUserID != nil && *group.TargetUserID == member.UserID {
+			return ErrMemberIsGroupTarget
+		}
+		return tx.Create(member).Error
+	})
 }
 
 // MutateInterests locks the row so concurrent additions cannot overwrite each other.
@@ -164,6 +179,26 @@ func (r *groupRepository) UpdateBudget(groupID uuid.UUID, budget decimal.Decimal
 		}
 		return tx.Model(&models.GiftIdea{}).Where("group_id = ?", groupID).
 			Update("is_over_budget", overBudget).Error
+	})
+}
+
+// SetTargetUser locks the group row so the guard sees the current target and membership.
+func (r *groupRepository) SetTargetUser(groupID, targetID uuid.UUID, guard func(current *uuid.UUID, isMember bool) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var group models.Group
+		if err := tx.Select("id", "target_user_id").Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&group, "id = ?", groupID).Error; err != nil {
+			return err
+		}
+		var memberCount int64
+		if err := tx.Model(&models.GroupMember{}).Where("group_id = ? AND user_id = ?", groupID, targetID).
+			Count(&memberCount).Error; err != nil {
+			return err
+		}
+		if err := guard(group.TargetUserID, memberCount > 0); err != nil {
+			return err
+		}
+		return tx.Model(&models.Group{}).Where("id = ?", groupID).Update("target_user_id", targetID).Error
 	})
 }
 

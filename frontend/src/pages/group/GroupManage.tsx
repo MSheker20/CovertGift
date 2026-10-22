@@ -2,14 +2,16 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { MoreHorizontal, Pencil, Plus, Trash2, UserCheck, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
 import { groupsApi, queryKeys } from '@/api/endpoints'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { FormField } from '@/components/FormField'
 import { Bar } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { errorMessage } from '@/lib/errors'
@@ -225,12 +227,115 @@ export function BudgetTile({ groupId, total, isAdmin }: { groupId: string; total
   )
 }
 
+// Hedef kişiyi e-postayla bir kez bağlar. Sonrasında Anti-Spoiler o kişiyi gruptan dışlar.
+function LinkTargetDialog({
+  groupId,
+  targetName,
+  open,
+  onOpenChange,
+}: {
+  groupId: string
+  targetName: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [email, setEmail] = useState('')
+
+  const link = useMutation({
+    mutationFn: () => groupsApi.linkTarget(groupId, email.trim()),
+    onSuccess: () => {
+      toast.success(t('manage.linked', { name: targetName }))
+      onOpenChange(false)
+      setEmail('')
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
+    },
+  })
+
+  const error = link.error
+    ? link.error instanceof ApiError && link.error.status === 404
+      ? t('manage.linkNotFound')
+      : link.error instanceof ApiError && link.error.status === 400 && /kendi/i.test(link.error.message)
+        ? t('manage.linkSelf')
+        : errorMessage(link.error)
+    : null
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    link.mutate()
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (link.isPending) return
+        onOpenChange(o)
+        if (!o) link.reset()
+      }}
+    >
+      <DialogContent closeLabel={t('common.close')} className="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle className="text-[19px]">{t('manage.linkTitle')}</DialogTitle>
+          <DialogDescription className="text-[15px] leading-6">{t('manage.linkBody', { name: targetName })}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <FormField id="link-target-email" label={t('manage.linkEmail')}>
+            <Input
+              id="link-target-email"
+              type="email"
+              required
+              autoFocus
+              autoComplete="off"
+              maxLength={150}
+              placeholder={t('newGroup.targetEmailPlaceholder')}
+              aria-describedby={error ? 'link-target-error' : undefined}
+              aria-invalid={error ? true : undefined}
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                if (link.error) link.reset()
+              }}
+            />
+            {error && (
+              <p id="link-target-error" role="alert" className="text-xs text-negative">
+                {error}
+              </p>
+            )}
+          </FormField>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={link.isPending}>
+              {t('manage.cancel')}
+            </Button>
+            <Button type="submit" disabled={link.isPending}>
+              {link.isPending ? t('common.loading') : t('manage.linkSubmit')}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // Başlıktaki admin menüsü. Silme geri alınamaz; onay grubun adını anar.
-export function GroupMenu({ groupId, title }: { groupId: string; title: string }) {
+// Hedef kişi yalnızca bağlı değilse bağlanabilir; bağlantı değiştirilemez.
+export function GroupMenu({
+  groupId,
+  title,
+  targetName,
+  targetLinked,
+}: {
+  groupId: string
+  title: string
+  targetName: string
+  targetLinked: boolean
+}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirm, setConfirm] = useState(false)
+  const [linking, setLinking] = useState(false)
 
   const remove = useMutation({
     mutationFn: () => groupsApi.remove(groupId),
@@ -253,6 +358,12 @@ export function GroupMenu({ groupId, title }: { groupId: string; title: string }
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {!targetLinked && (
+            <DropdownMenuItem onSelect={() => setLinking(true)}>
+              <UserCheck />
+              {t('manage.linkTarget')}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem variant="destructive" onSelect={() => setConfirm(true)}>
             <Trash2 />
             {t('manage.deleteGroup')}
@@ -269,6 +380,7 @@ export function GroupMenu({ groupId, title }: { groupId: string; title: string }
         pending={remove.isPending}
         onConfirm={() => remove.mutate()}
       />
+      <LinkTargetDialog groupId={groupId} targetName={targetName} open={linking} onOpenChange={setLinking} />
     </>
   )
 }

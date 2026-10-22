@@ -41,7 +41,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `description`: TEXT
 - `target_person_name`: VARCHAR(100), boş geçilemez
 - `target_interests`: TEXT -- Hedef kişinin ilgi alanları. Liste öğeleri satır sonuyla saklanır; eski virgül/noktalı virgül ayrımlı metinler de okunur. Grup detayındaki `interests: string[]` alanı arayüz için ayrıştırılmış listedir. Gemini bağlamı bu metinden üretilir.
-- `target_user_id`: UUID (Opsiyonel, Foreign Key -> `users.id`) -- Anti-Spoiler kontrolü için kullanılır
+- `target_user_id`: UUID (Opsiyonel, Foreign Key -> `users.id`) -- Anti-Spoiler kontrolü için kullanılır. Grup kurulurken `target_email` ile ya da sonradan admin tarafından `PATCH /groups/:id/target` ile doldurulur; bir kez bağlanır, değiştirilmez ve kaldırılmaz. Boşsa yalnızca `target_person_name` kullanılır ve Anti-Spoiler devreye girmez.
 - `total_budget`: NUMERIC(10, 2), varsayılan 0.00
 - `creator_id`: UUID (Foreign Key -> `users.id`), boş geçilemez
 - `created_at`: TIMESTAMP, varsayılan now()
@@ -135,12 +135,13 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 
 ### Grup İşlemleri
 - `GET /api/v1/groups` -> Kullanıcının üye olduğu grupları listeler (hedef kişi olduğu gruplar filtrelenir)
-- `POST /api/v1/groups` -> Yeni grup açar (oluşturan kişi `admin` üye yapılır)
+- `POST /api/v1/groups` -> Yeni grup açar (oluşturan kişi `admin` üye yapılır). İsteğe bağlı `target_email` ile hedef kişi seçilir: sunucu kayıtlı kullanıcıyı büyük/küçük harf duyarsız bulur ve `target_user_id` alanını doldurur. Kayıtlı değilse 404 döner ve grup kurulmaz; kişi kendini seçerse 400 döner. Ayrı kullanıcı arama ucu yoktur. Eski `target_user_id` (UUID) alanı geriye dönük uyumluluk için kabul edilir; iki alan birlikte gönderilirse 400 döner. `target_person_name` her durumda kullanıcının yazdığı isim olarak kalır.
 - `GET /api/v1/groups/:id` -> Grup detayları, üye sayısı, kişi başı bütçe (Anti-Spoiler korumalı)
 - `POST /api/v1/groups/:id/members` -> Gruba e-posta ile üye ekler
 - `POST /api/v1/groups/:id/interests` -> `{ interest: string }` ile listeye tek ilgi alanı ekler; tüm grup üyeleri ekleyebilir. Başındaki/sonundaki boşluklar temizlenir; 1–100 karakter, virgül/noktalı virgül/satır sonu içermez. Tekrar ekleme 409 döner. Yanıt `{ interests: string[] }` olur.
 - `DELETE /api/v1/groups/:id/interests` -> `{ interest: string }` ile yalnızca **admin** bir öğeyi silebilir; normal üye kendi eklediğini de silemez (403). Anti-Spoiler ve üyelik kontrolü her iki uçta da zorunludur. Eski toplu `PATCH` yolu kaldırılmıştır; tüm listeyi değiştirerek silme yetkisi aşılamaz. Eşzamanlı eklemeler transaction + satır kilidiyle korunur.
 - `PATCH /api/v1/groups/:id/budget` -> `{ total_budget: decimal }` ile yalnızca **admin** toplam bütçeyi günceller. Aralık 0–99999999.99, en fazla iki ondalık basamaktır. Kişi başı tutar anlık hesaplanır; mevcut hediye bütçe aşımı bayrakları aynı transaction'da güncellenir ve listelemede güncel bütçeye göre hesaplanır. Mevcut kurala uygun olarak 0 bütçe aşımı uyarılarını kapatır. Anti-Spoiler ve üyelik kontrolü zorunludur.
+- `PATCH /api/v1/groups/:id/target` -> `{ email }` ile yalnızca **admin**, hedefi boş olan gruba kayıtlı bir kullanıcıyı hedef olarak bağlar. Kayıtlı değilse 404; hedef zaten bağlıysa veya kişi grubun üyesiyse 409; admin kendini seçerse 400; admin olmayan üye 403 alır. Kontroller grup satırı kilitlenerek transaction içinde tekrarlanır; eşzamanlı üye ekleme de aynı kilidi kullandığı için hedef kişi üye yapılamaz. `target_person_name` değişmez. Bağlandıktan sonra hedef kişi grubu listede görmez ve tüm `/groups/:id/*` uçlarında 403 alır.
 - `DELETE /api/v1/groups/:id` -> Grubu ve bağlı tüm verileri siler (Sadece grup admini silebilir; Anti-Spoiler korumalı)
 
 ### Hediye Havuzu ve Oylama

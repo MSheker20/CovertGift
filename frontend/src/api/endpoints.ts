@@ -31,6 +31,8 @@ export const groupsApi = {
     api<{ interests: string[] }>(`/groups/${id}/interests`, { method: 'DELETE', body: { interest } }),
   updateBudget: (id: string, totalBudget: string) =>
     api<unknown>(`/groups/${id}/budget`, { method: 'PATCH', body: { total_budget: totalBudget } }),
+  linkTarget: (id: string, email: string) =>
+    api<Group>(`/groups/${id}/target`, { method: 'PATCH', body: { email } }),
   remove: (id: string) => api<unknown>(`/groups/${id}`, { method: 'DELETE' }),
 }
 

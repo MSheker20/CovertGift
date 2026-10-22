@@ -1,0 +1,16 @@
+**
+!package.json
+!package-lock.json
+!index.html
+!tsconfig.json
+!tsconfig.app.json
+!tsconfig.node.json
+!vite.config.ts
+!nginx.conf.template
+!public/
+!public/**
+!src/
+!src/**
+**/.env
+**/.env.*
+**/.DS_Store

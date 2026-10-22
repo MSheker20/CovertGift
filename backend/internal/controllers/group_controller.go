@@ -28,12 +28,18 @@ type CreateGroupRequest struct {
 	TargetPersonName string          `json:"target_person_name" binding:"required,min=2,max=100" example:"Ahmet"`
 	TargetInterests  string          `json:"target_interests" example:"Kamp, 3. nesil kahve demleme, trekking, outdoor"`
 	TargetUserID     *uuid.UUID      `json:"target_user_id,omitempty" format:"uuid" example:"b49770ed-7518-40e6-839d-5810f79bbd86"`
+	TargetEmail      string          `json:"target_email,omitempty" binding:"omitempty,email,max=150" example:"ahmet@demo.com"`
 	TotalBudget      decimal.Decimal `json:"total_budget" example:"2500.00"`
 }
 
 // AddMemberRequest gruba üye ekleme isteği için DTO
 type AddMemberRequest struct {
 	Email string `json:"email" binding:"required,email" example:"zeynep@demo.com"`
+}
+
+// LinkTargetRequest mevcut gruba hedef kişiyi bağlama isteği için DTO
+type LinkTargetRequest struct {
+	Email string `json:"email" binding:"required,email,max=150" example:"ahmet@demo.com"`
 }
 
 type InterestRequest struct {
@@ -50,15 +56,16 @@ type UpdateBudgetRequest struct {
 
 // CreateGroup yeni grup oluşturur
 // @Summary      Yeni Hediye Grubu Oluştur
-// @Description  Yeni bir sürpriz hediye grubu açar ve oluşturan kullanıcıyı atomik transaction ile 'admin' rolüyle üye yapar.
+// @Description  Yeni bir sürpriz hediye grubu açar ve oluşturan kullanıcıyı atomik transaction ile 'admin' rolüyle üye yapar. Hedef kişi isteğe bağlı `target_email` ile seçilir; sunucu kayıtlı kullanıcıyı bulur ve `target_user_id` alanını doldurur. `target_email` ve `target_user_id` birlikte gönderilemez. Hedef seçilmezse yalnızca `target_person_name` kullanılır ve Anti-Spoiler devreye girmez.
 // @Tags         Hediye Grupları (Groups)
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Param        request body CreateGroupRequest true "Grup Oluşturma Bilgileri"
 // @Success      201 {object} Response{data=models.Group} "Grup başarıyla oluşturuldu"
-// @Failure      400 {object} Response "Geçersiz parametreler veya kullanıcı kendine sürpriz grubu açamaz"
+// @Failure      400 {object} Response "Geçersiz parametreler, iki hedef alanı birlikte gönderildi veya kullanıcı kendine sürpriz grubu açamaz"
 // @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      404 {object} Response "Hedef kişinin e-postası kayıtlı değil"
 // @Failure      500 {object} Response "Sunucu hatası"
 // @Router       /api/v1/groups [post]
 func (ctl *GroupController) CreateGroup(c *gin.Context) {
@@ -81,11 +88,16 @@ func (ctl *GroupController) CreateGroup(c *gin.Context) {
 		req.TargetPersonName,
 		req.TargetInterests,
 		req.TargetUserID,
+		req.TargetEmail,
 		req.TotalBudget,
 	)
 	if err != nil {
-		if errors.Is(err, services.ErrSelfTarget) {
+		switch {
+		case errors.Is(err, services.ErrSelfTarget), errors.Is(err, services.ErrTargetInputConflict):
 			RespondErr(c, http.StatusBadRequest, err.Error())
+			return
+		case errors.Is(err, services.ErrTargetUserNotFound):
+			RespondErr(c, http.StatusNotFound, err.Error())
 			return
 		}
 		RespondErr(c, http.StatusInternalServerError, "Grup oluşturulurken bir hata oluştu")
@@ -367,6 +379,58 @@ func (ctl *GroupController) UpdateBudget(c *gin.Context) {
 		return
 	}
 	RespondOK(c, MessageData{Message: "Bütçe güncellendi"})
+}
+
+// LinkTarget mevcut gruba hedef kişiyi e-postayla bağlar
+// @Summary      Hedef Kişiyi Bağla (Admin)
+// @Description  Yalnızca admin, hedef kişisi bağlı olmayan bir gruba kayıtlı bir kullanıcıyı e-postayla hedef olarak bağlar. Hedef bir kez bağlanır; değiştirilemez ve kaldırılamaz. Grubun üyesi olan biri veya admin'in kendisi hedef olamaz. Bağlandıktan sonra hedef kişi Anti-Spoiler nedeniyle grubu göremez. `target_person_name` değişmez.
+// @Tags         Hediye Grupları (Groups)
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Param        request body LinkTargetRequest true "Hedef kişinin e-postası"
+// @Success      200 {object} Response{data=models.Group} "Hedef kişi bağlandı"
+// @Failure      400 {object} Response "Geçersiz istek, grup kimliği veya kendini hedef seçme"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Sadece admin bağlayabilir; Anti-Spoiler ve üyelik kontrolü zorunlu"
+// @Failure      404 {object} Response "Grup bulunamadı veya e-posta kayıtlı değil"
+// @Failure      409 {object} Response "Hedef zaten bağlı veya kişi grubun üyesi"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/groups/{id}/target [patch]
+func (ctl *GroupController) LinkTarget(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+		return
+	}
+	var req LinkTargetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: geçerli bir e-posta adresi zorunludur")
+		return
+	}
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+	group, err := ctl.groupService.LinkTarget(groupID, userID, req.Email)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrAntiSpoilerTriggered), errors.Is(err, services.ErrNotGroupMember), errors.Is(err, services.ErrUnauthorizedTargetUpdate):
+			RespondErr(c, http.StatusForbidden, err.Error())
+		case errors.Is(err, services.ErrGroupNotFound), errors.Is(err, services.ErrTargetUserNotFound):
+			RespondErr(c, http.StatusNotFound, err.Error())
+		case errors.Is(err, services.ErrSelfTarget):
+			RespondErr(c, http.StatusBadRequest, err.Error())
+		case errors.Is(err, services.ErrTargetAlreadyLinked), errors.Is(err, services.ErrTargetIsMember):
+			RespondErr(c, http.StatusConflict, err.Error())
+		default:
+			RespondErr(c, http.StatusInternalServerError, "Hedef kişi bağlanırken bir hata oluştu")
+		}
+		return
+	}
+	RespondOK(c, group)
 }
 
 // DeleteGroup grubu ve tüm ilişkili verilerini siler
