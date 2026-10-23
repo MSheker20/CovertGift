@@ -15,8 +15,21 @@ Go API ve kalıcı React frontend ayrı imajlar olarak paketlenir. PostgreSQL ay
 > registry'de durur: API `covertgift-api:search-off-20261021`, panel `covertgift-ui:demo`.
 > Express ortamında `--revision-suffix` desteklenmez; `az containerapp update` yalnızca `--image` ile çalıştırılır.
 >
-> **2026-10-22:** `9f796da` tasarım güncellemesi (Nötr grafit, giriş ekranı düzeni) henüz dağıtılmadı; canlıda `ff8bb3c` çalışıyor.
-> Canlıya almak için yalnızca frontend imajını yeni commit kimliğiyle derleyip `covertgift-ui`'yi güncellemek yeterlidir (API değişmedi).
+> **2026-10-23 — ORTAM KAPALI.** Son dağıtım: frontend `covertgift-web:2e0d1e7` (Nötr grafit tasarımı), API `covertgift-api:ff8bb3c` (backend kodu `2e0d1e7` ile aynı). Ardından kullanıcı isteğiyle `covertgift-ui`, `covertgift-api` ve `covertgift-db-msheker` durduruldu; hiçbir kaynak silinmedi.
+>
+> ⚠️ **Azure, durdurulan PostgreSQL esnek sunucusunu 7 gün sonra kendiliğinden yeniden başlatır.** Kapalı tutmak için her hafta yeniden `stop` çalıştırılmalıdır (ya da uzun süreli kullanılmayacaksa yedek alınıp sunucu silinir). Durdurulmuş sunucuda depolama (32 GiB) ve yedekler, registry'de ise ACR ücreti işlemeye devam eder.
+>
+> Yeniden açmak (sıra önemli: önce veritabanı):
+>
+> ```sh
+> az postgres flexible-server start -g covertgift-rg -n covertgift-db-msheker
+> for a in covertgift-api covertgift-ui; do
+>   az rest --method post --url "https://management.azure.com$(az containerapp show -g covertgift-rg -n $a --query id -o tsv)/start?api-version=2024-03-01"
+> done
+> ```
+>
+> Bu CLI sürümünde `az containerapp stop/start` yok; durdurma ve başlatma REST API'nin `stop`/`start` uçlarıyla yapılır (`.../stop?api-version=2024-03-01`).
+> Yeniden açmadan önce ROADMAP Faz 8'deki güvenlik güncellemeleri (Go 1.27.3, nginx 1.30.6+) uygulanmalıdır; çalışan imajlar Go 1.27.1 ve nginx 1.27.5 içerir.
 
 ## Mevcut demo ortamı
 

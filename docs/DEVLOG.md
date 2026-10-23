@@ -593,3 +593,22 @@
 - Backlog'a **hediye tarihi / doğum günü** fikri eklendi: isteğe bağlı `event_date`, geri sayım, yaklaşan tarihe göre sıralama, hatırlatma ve tarih geçince grubu tamamlama önerisi; Anti-Spoiler korunur. Tekrar eden mi tek seferlik mi, saat dilimi ve bildirim kanalı kararları sonraya bırakıldı.
 - Faz 8'e yerel veri koruması maddesi eklendi (yerel `reset-db` ucu Vite proxy'sinde engellenmiyor); karar verilmedi.
 - `.claude/` altındaki genel agent/skill dosyaları projeye özel olmadığı için değiştirilmedi.
+
+---
+
+## 2026-10-23 — Güvenlik taraması (bilinen açıklar)
+
+- Kullanıcı gündemdeki açıkları sordu; `govulncheck` (Go vuln DB 2026-10-21), `npm audit` ve web/birincil kaynak araştırması yapıldı. Kullanıcı kararıyla güncellemeler şimdilik yapılmadı; ayrıntılı yapılacaklar ROADMAP Faz 8'in başında.
+- **Go:** Kodun çağırdığı yollarda 16 açık: Go 1.27.1 standart kütüphanesi (12; eMudhra ara CA engeli GO-2026-6809 / CVE-2026-111943 Go 1.27.3'te, diğerleri 1.27.2'de), `x/net` HTTP/2 açıkları, Gin üzerinden `grpc` ve `quic-go`. API iç ağda ve nginx arkasında olduğu için doğrudan risk düşük; CA engeli giden TLS bağlantıları (Gemini, link önizleme, PostgreSQL) için önemli.
+- **nginx:** Canlı frontend imajı nginx 1.27.5 (desteksiz hat; Alpine 3.21.3, OpenSSL 3.3.3). 2026 bildirimlerinin 22'si 1.27'yi kapsıyor; yapılandırmamızla kesişen CVE-2026-42533 (map + regex, yakalama yok) ve CVE-2026-1642 (TLS upstream). Hedef 1.30.6+ stable. İmaj seçimi bu dağıtımda yapılmıştı.
+- **Node:** 21 Ekim güvenlik sürümü (22.23.4 / 26.12.1); Node yalnızca derleme aşamasında.
+- **Temiz/etkisiz:** `npm audit` 0 açık; `@tanstack/react-query` 5.104.5 Mayıs tedarik zinciri saldırısında etkilenmeyen paketlerden. Yerel PostgreSQL 17.11 güncel. PHP2Shell, BeyondTrust, Fortinet ve Microsoft Patch Tuesday yığınımızda yok.
+
+---
+
+## 2026-10-23 — Son dağıtım ve Azure ortamının kapatılması
+
+- Kullanıcı isteğiyle projenin son hali dağıtıldı, ardından ortam bir süreliğine kapatıldı.
+- Dağıtım: yalnızca frontend değişmişti (Nötr grafit, giriş ekranı, favicon); `covertgift-web:2e0d1e7` derlendi, ölü hedefle yerelde denendi (sayfa ve SPA 200, `/api/v1/DEV/...` 403, CSS'te `#2f5bff`), ACR'ye gönderildi ve `covertgift-ui` güncellendi. Backend kodu `ff8bb3c` ile aynı olduğu için API yeniden dağıtılmadı. Canlıda CSS'te yeni ana renk, `/health` 200 (`db: up`), oturumsuz `/me` 401, `/api/v1/dev/x` 403 ve koyu temada giriş ekranı görüntüsüyle doğrulandı.
+- Kapatma: `covertgift-ui` ve `covertgift-api` REST API `stop` ucuyla (CLI'de `containerapp stop` yok), `covertgift-db-msheker` `az postgres flexible-server stop` ile durduruldu; üçü de `Stopped`, canlı adres 502. Hiçbir kaynak, imaj veya veri silinmedi.
+- Dikkat: Azure durdurulmuş PostgreSQL esnek sunucusunu 7 gün sonra kendiliğinden başlatır; kapalı tutmak için haftalık `stop` gerekir. Depolama, yedek ve ACR ücretleri sürer. Yeniden açma adımları `docs/AZURE.md` başında.
