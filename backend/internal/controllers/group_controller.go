@@ -24,9 +24,9 @@ func NewGroupController(groupService services.GroupService) *GroupController {
 // CreateGroupRequest yeni grup açma isteği için DTO
 type CreateGroupRequest struct {
 	Title            string          `json:"title" binding:"required,min=2,max=150" example:"Ahmet'in 30. Yaş Sürprizi"`
-	Description      string          `json:"description" example:"Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu"`
+	Description      string          `json:"description" binding:"max=2000" example:"Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu"`
 	TargetPersonName string          `json:"target_person_name" binding:"required,min=2,max=100" example:"Ahmet"`
-	TargetInterests  string          `json:"target_interests" example:"Kamp, 3. nesil kahve demleme, trekking, outdoor"`
+	TargetInterests  string          `json:"target_interests" binding:"max=2000" example:"Kamp, 3. nesil kahve demleme, trekking, outdoor"`
 	TargetUserID     *uuid.UUID      `json:"target_user_id,omitempty" format:"uuid" example:"b49770ed-7518-40e6-839d-5810f79bbd86"`
 	TargetEmail      string          `json:"target_email,omitempty" binding:"omitempty,email,max=150" example:"ahmet@demo.com"`
 	TotalBudget      decimal.Decimal `json:"total_budget" example:"2500.00"`
@@ -34,7 +34,7 @@ type CreateGroupRequest struct {
 
 // AddMemberRequest gruba üye ekleme isteği için DTO
 type AddMemberRequest struct {
-	Email string `json:"email" binding:"required,email" example:"zeynep@demo.com"`
+	Email string `json:"email" binding:"required,email,max=150" example:"zeynep@demo.com"`
 }
 
 // LinkTargetRequest mevcut gruba hedef kişiyi bağlama isteği için DTO
@@ -93,7 +93,7 @@ func (ctl *GroupController) CreateGroup(c *gin.Context) {
 	)
 	if err != nil {
 		switch {
-		case errors.Is(err, services.ErrSelfTarget), errors.Is(err, services.ErrTargetInputConflict):
+		case errors.Is(err, services.ErrSelfTarget), errors.Is(err, services.ErrTargetInputConflict), errors.Is(err, services.ErrInvalidBudget):
 			RespondErr(c, http.StatusBadRequest, err.Error())
 			return
 		case errors.Is(err, services.ErrTargetUserNotFound):

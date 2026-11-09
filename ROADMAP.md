@@ -174,7 +174,7 @@ flowchart LR
 - [x] Backend Anti-Spoiler entegrasyon testleri (2026-11-09): gerçek router + geçici `test-db` ile 14 korumalı uç, grup listesi, üye olmayan, hedefi üye ekleme ve sonradan bağlama senaryoları (`backend/cmd/api/antispoiler_integration_test.go`). Diğer akışlar için entegrasyon testleri henüz yok.
 - [x] Gemini kota/istek sınırı hatasını HTTP 429 olarak döndür; istemci ve controller testleriyle doğrula
 - [ ] Kalan AI hata yanıtlarını ayrıştır: kaynaksız araştırma şu an 500 döner; 422 eşlemesi ve geçici servis hataları için 503 yanıtı ekle
-- [ ] CORS ayarları, istek boyutu limitleri, input validasyonu (`binding:"required,email"` vb.)
+- [x] CORS ayarları, istek boyutu limitleri, input validasyonu (2026-11-09): tüm isteklerde 1 MiB gövde limiti (aşılırsa 413); oluşturmada bütçe ve manuel fikirde fiyat doğrulaması (0–99.999.999,99, iki ondalık); metin alanlarına sütun boyutlarıyla uyumlu `max`, `product_url`/`image_url` için `http_url`, oy için `oneof=1 -1`. CORS bilinçli olarak yok (aynı origin); kullanılmayan `CORS_ORIGIN` kaldırıldı.
 - [ ] Hata loglama (yapılandırılmış log)
 - [ ] Seed script (demo kullanıcılar + grup)
 - [x] Yerel veri koruması (2026-10-22, 2026-11-09'da çözüldü: uç `ALLOW_DB_RESET=true` olmadan 403, açıkken gövdede `{"confirm": "RESET"}` yoksa 400; düzenli `pg_dump` yedeği SETUP'ta önerili): yerel API'de `POST /api/v1/dev/reset-db` açık ve Vite geliştirme proxy'si onu engellemiyor; 2026-10-21'de bir smoke testi yerel veritabanını bu uçla sildi. Seçenekler: ucu ayrı bir ortam bayrağına bağlamak, onay parametresi istemek veya Vite proxy'sinde engellemek; düzenli `pg_dump` yedeği. Karar verilmedi.

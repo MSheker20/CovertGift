@@ -201,7 +201,7 @@ JWT_SECRET=buraya-uzun-rastgele-bir-deger-yaz
 GEMINI_API_KEY=
 GEMINI_RESEARCH_MODEL=gemini-3.8-flash
 GEMINI_MODEL=gemini-3.8-flash
-CORS_ORIGIN=http://localhost:5173
+ALLOW_DB_RESET=false
 ```
 
 ```bash
@@ -218,7 +218,9 @@ openssl rand -hex 32     # çıkan değeri .env içindeki JWT_SECRET'e yapışt�
 | `GEMINI_RESEARCH_MODEL` | Google Search araştırması; varsayılan `gemini-3.8-flash` |
 | `GEMINI_MODEL` | JSON seçimi (Search kapalı); varsayılan `gemini-3.5-flash-lite` |
 | `APP_ENV` | Varsayılan `development`; `production` geliştirme veritabanı sıfırlama ucunu kapatır |
-| `CORS_ORIGIN` | Config'de okunur; mevcut backend'de CORS middleware'i henüz bağlı değildir. Geçici panel aynı origin'deki proxy'yi kullanır |
+| `ALLOW_DB_RESET` | Varsayılan `false`; `true` olursa `POST /api/v1/dev/reset-db` açılır ve gövdede `{"confirm": "RESET"}` ister |
+
+CORS ayarı yoktur: frontend API'ye her ortamda aynı origin'den (Vite proxy'si ya da nginx) erişir, bu yüzden API CORS başlığı göndermez ve tarayıcılar başka sitelerden gelen istekleri engeller. Eski `CORS_ORIGIN` değişkeni 2026-11-09'da kaldırıldı; `.env` dosyanızda kaldıysa yok sayılır.
 
 ✅ `git status` → `.env.example` görünüyor, `.env` **görünmüyor**.
 
@@ -247,7 +249,6 @@ type Config struct {
 	DatabaseURL string
 	JWTSecret   string
 	GeminiKey   string
-	CORSOrigin  string
 }
 
 func Load() *Config {
@@ -259,7 +260,6 @@ func Load() *Config {
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		JWTSecret:   os.Getenv("JWT_SECRET"),
 		GeminiKey:   os.Getenv("GEMINI_API_KEY"),
-		CORSOrigin:  getEnv("CORS_ORIGIN", "http://localhost:5173"),
 	}
 	if cfg.DatabaseURL == "" || cfg.JWTSecret == "" {
 		log.Fatal("❌ DATABASE_URL ve JWT_SECRET zorunludur")

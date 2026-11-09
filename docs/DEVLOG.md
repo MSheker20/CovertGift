@@ -286,6 +286,7 @@
 | K38 | 10-17 | AI ürün araştırması Google Search grounding ve ayrı JSON seçimiyle yapılır; kaynak adresleri metadata'dan alınır | Kaynaksız ürün/fiyatları elemek ve modelin URL üretmesini önlemek |
 | K39 | 11-09 | `reset-db` varsayılan kapalı: `ALLOW_DB_RESET=true` + gövdede `{"confirm":"RESET"}` gerekir; production her durumda 403 | Yerel verinin yanlışlıkla atılan tek bir POST ile silinmesini önlemek |
 | K40 | 11-09 | Entegrasyon testleri gerçek `newRouter` ile ayrı, geçici `test-db`ye (port 55432, tmpfs) karşı çalışır; `TEST_DATABASE_URL` yoksa atlanır, adı `_test` ile bitmeyen DB reddedilir | Gerçek middleware zincirini sınamak ve testlerin gerçek veriyi silmesini imkânsız kılmak |
+| K41 | 11-09 | API CORS başlığı göndermez; frontend her ortamda aynı origin (Vite proxy / nginx) üzerinden erişir. Kullanılmayan `CORS_ORIGIN` kaldırıldı | Gereksiz bir izin yüzeyi açmamak; başka sitelerin tarayıcıdan API çağırmasını varsayılan olarak engelli tutmak |
 
 
 ---
@@ -642,3 +643,13 @@
 - `docker-compose.yml`'a `test` profiliyle `test-db` servisi eklendi: ayrı konteyner, port 55432, veri tmpfs'te (konteyner durunca silinir). Asıl `db` servisine ve verisine dokunulmaz.
 - `cmd/api/antispoiler_integration_test.go` (K40): hedef kişi grup listesinde grubu göremez; 14 korumalı uçta (grup detayı/silme, üye, ilgi alanı, bütçe, hedef, fikirler, önizleme, AI, oy, veto, fikir silme) 403 + sürpriz mesajı alır ve yanıt veri içermez; denemeleri hiçbir şeyi değiştirmez. Üye olmayan 403 alır ama sürpriz mesajı almaz. Hedef üye olarak eklenemez (400). Sonradan bağlama: üye hedef yapılamaz (409), yalnızca admin bağlar, bağlanan hedef anında dışlanır, hedef değiştirilemez (409).
 - **Bulunan açık:** `POST /ideas/:id/reject` ve `DELETE /ideas/:id` hedef kontrolü yapmıyordu; hedef yalnızca üye olamadığı için "bu grubun üyesi değilsiniz" ile engelleniyordu. Kural gereği `ideaService.checkNotTarget` eklendi; iki uç da artık üyelikten önce hedefi kontrol edip 403 + sürpriz mesajı döner.
+
+---
+
+## 2026-11-09 — İstek boyutu limiti ve giriş doğrulaması
+
+- **Gövde limiti:** `middleware.BodyLimit` tüm rotalarda 1 MiB sınırı uygular. `Content-Length` sınırı aşarsa istek okunmadan 413 döner; uzunluğu bildirilmeyen gövdeler `http.MaxBytesReader` ile kesilir ve 400 döner. Önceden sınır yoktu.
+- **Bulunan açıklar:** Grup oluştururken bütçe hiç doğrulanmıyordu (yalnızca `PATCH /budget` doğruluyordu); negatif bütçe kabul ediliyor, `numeric(10,2)`'ye sığmayan değer 500 dönüyordu. Manuel fikirde fiyat da doğrulanmıyordu. İkisi de artık ortak `validMoney` ile 0–99.999.999,99 ve en fazla iki ondalık ister; aksi halde 400.
+- **Binding kuralları:** Grup açıklaması ve ilgi alanları `max=2000`, fikir açıklaması `max=5000`, `search_query` `max=255` (önceden 255 üstü 500 dönüyordu), `product_url` `max=1000,http_url`, `image_url` `max=500,http_url` (`javascript:` gibi şemalar reddedilir), önizleme URL'si `max=2048`, üye e-postası `max=150`, giriş parolası `max=100`, oy `oneof=1 -1`.
+- **CORS (K41):** Eklenmedi. Frontend her ortamda aynı origin'den eriştiği için API CORS başlığı göndermez; okunup hiç kullanılmayan `CORS_ORIGIN` kaldırıldı.
+- Testler: `BodyLimit` birim testi, `validMoney` ile oluşturma/fiyat servis testleri ve gerçek router üzerinden 413 + 10 doğrulama senaryosu içeren entegrasyon testi (`cmd/api/validation_integration_test.go`).

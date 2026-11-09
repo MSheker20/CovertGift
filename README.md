@@ -35,7 +35,7 @@ Faz 0–7 tamamlandı; Faz 8 (test, güvenlik ve cila) sürüyor. Kalıcı React
 | **Faz 6 — Gemini AI Hediye Önerileri** | ✅ Tamamlandı (Search kapalı tek çağrı modu; veto, tekrar ve bütçe filtreleri; 429 kota yanıtı) |
 | **API Dokümantasyonu (Swagger / OpenAPI)** | ✅ Tamamlandı (Canlı UI: `/swagger/index.html` veya `/docs`) |
 | **Faz 7 — Frontend** | ✅ Tamamlandı (`frontend/`: React 19 + Vite + TypeScript, TR/EN, hediye havuzu, oylama, Gemini, link önizleme, grup yönetimi, hedef kişiyi e-postayla bağlama; Vitest 37 + Playwright 6 test) |
-| **Faz 8 — Test, güvenlik ve cila** | ⏳ Sürüyor (entegrasyon testleri, CORS/limitler, yapılandırılmış log, seed script açık) |
+| **Faz 8 — Test, güvenlik ve cila** | ⏳ Sürüyor (yapılandırılmış log, seed script ve AI hata yanıtları açık) |
 | Geçici test paneli | 🗄️ Eski (`prototypes/test-ui/`; React frontend yerini aldı) |
 
 ---

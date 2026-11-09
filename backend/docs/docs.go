@@ -1694,6 +1694,7 @@ const docTemplate = `{
             "properties": {
                 "description": {
                     "type": "string",
+                    "maxLength": 5000,
                     "example": "Doğa yürüyüşlerinde ve kampta sıcak içecek taşımak için"
                 },
                 "estimated_price": {
@@ -1702,14 +1703,17 @@ const docTemplate = `{
                 },
                 "image_url": {
                     "type": "string",
+                    "maxLength": 500,
                     "example": "https://cdn.dsmcdn.com/product.jpg"
                 },
                 "product_url": {
                     "type": "string",
+                    "maxLength": 1000,
                     "example": "https://www.trendyol.com/brand/product-p-123"
                 },
                 "search_query": {
                     "type": "string",
+                    "maxLength": 255,
                     "example": "Stanley klasik vakumlu termos 1 lt"
                 },
                 "title": {
@@ -1728,6 +1732,7 @@ const docTemplate = `{
             "properties": {
                 "email": {
                     "type": "string",
+                    "maxLength": 150,
                     "example": "zeynep@demo.com"
                 }
             }
@@ -1741,6 +1746,7 @@ const docTemplate = `{
             "properties": {
                 "description": {
                     "type": "string",
+                    "maxLength": 2000,
                     "example": "Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu"
                 },
                 "target_email": {
@@ -1750,6 +1756,7 @@ const docTemplate = `{
                 },
                 "target_interests": {
                     "type": "string",
+                    "maxLength": 2000,
                     "example": "Kamp, 3. nesil kahve demleme, trekking, outdoor"
                 },
                 "target_person_name": {
@@ -1824,6 +1831,7 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string",
+                    "maxLength": 100,
                     "example": "Password123!"
                 }
             }
@@ -1857,6 +1865,7 @@ const docTemplate = `{
             "properties": {
                 "url": {
                     "type": "string",
+                    "maxLength": 2048,
                     "example": "https://ty.gl/gkyyduf4wm8u3"
                 }
             }
@@ -1932,6 +1941,10 @@ const docTemplate = `{
                 "vote_type": {
                     "description": "1: Upvote, -1: Downvote",
                     "type": "integer",
+                    "enum": [
+                        1,
+                        -1
+                    ],
                     "example": 1
                 }
             }

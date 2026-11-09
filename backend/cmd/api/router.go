@@ -56,6 +56,7 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client) *gi
 
 	// Gin web motorunu başlat
 	r := gin.Default()
+	r.Use(middleware.BodyLimit(middleware.DefaultMaxBodyBytes))
 
 	// Sağlık Kontrolü (Healthcheck) Endpoint'i
 	r.GET("/health", healthHandler(sqlDB))

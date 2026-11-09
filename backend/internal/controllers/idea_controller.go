@@ -25,22 +25,22 @@ func NewIdeaController(ideaService services.IdeaService) *IdeaController {
 
 // PreviewLinkRequest ürün linki önizleme isteği için DTO
 type PreviewLinkRequest struct {
-	URL string `json:"url" binding:"required" example:"https://ty.gl/gkyyduf4wm8u3"`
+	URL string `json:"url" binding:"required,max=2048" example:"https://ty.gl/gkyyduf4wm8u3"`
 }
 
 // AddIdeaRequest manuel hediye önerisi için DTO
 type AddIdeaRequest struct {
 	Title          string          `json:"title" binding:"required,min=2,max=200" example:"Stanley Klasik Vakumlu Termos 1.0L"`
-	Description    string          `json:"description" example:"Doğa yürüyüşlerinde ve kampta sıcak içecek taşımak için"`
+	Description    string          `json:"description" binding:"max=5000" example:"Doğa yürüyüşlerinde ve kampta sıcak içecek taşımak için"`
 	EstimatedPrice decimal.Decimal `json:"estimated_price" example:"1450.00"`
-	SearchQuery    string          `json:"search_query" example:"Stanley klasik vakumlu termos 1 lt"`
-	ProductURL     string          `json:"product_url" example:"https://www.trendyol.com/brand/product-p-123"`
-	ImageURL       string          `json:"image_url" example:"https://cdn.dsmcdn.com/product.jpg"`
+	SearchQuery    string          `json:"search_query" binding:"max=255" example:"Stanley klasik vakumlu termos 1 lt"`
+	ProductURL     string          `json:"product_url" binding:"omitempty,max=1000,http_url" example:"https://www.trendyol.com/brand/product-p-123"`
+	ImageURL       string          `json:"image_url" binding:"omitempty,max=500,http_url" example:"https://cdn.dsmcdn.com/product.jpg"`
 }
 
 // VoteRequest oy verme isteği için DTO
 type VoteRequest struct {
-	VoteType int8 `json:"vote_type" binding:"required" example:"1"` // 1: Upvote, -1: Downvote
+	VoteType int8 `json:"vote_type" binding:"required,oneof=1 -1" example:"1"` // 1: Upvote, -1: Downvote
 }
 
 // AddIdea gruba manuel hediye önerisi ekler
@@ -100,6 +100,10 @@ func (ctl *IdeaController) AddIdea(c *gin.Context) {
 		}
 		if errors.Is(err, services.ErrGroupNotFound) {
 			RespondErr(c, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrInvalidPrice) {
+			RespondErr(c, http.StatusBadRequest, err.Error())
 			return
 		}
 		RespondErr(c, http.StatusInternalServerError, "Hediye önerisi eklenirken bir hata oluştu")
