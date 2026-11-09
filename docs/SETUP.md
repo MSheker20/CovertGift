@@ -363,7 +363,7 @@ npm --prefix frontend run dev
 curl --fail http://localhost:5174/health
 ```
 
-> ⚠️ Yerel API'deki `POST /api/v1/dev/reset-db` tüm tabloları siler ve Vite proxy'si bu ucu engellemez. Test veya script'lerde çalışan bir API'ye bu ucu çağırtmayın; yerel veri için düzenli yedek alın:
+> ⚠️ `POST /api/v1/dev/reset-db` tüm tabloları siler. Varsayılan olarak kapalıdır; yalnızca `ALLOW_DB_RESET=true` ve gövdede `{"confirm": "RESET"}` ile çalışır. Bayrağı açtığınız bir API'ye test veya script'lerde bu ucu çağırtmayın; yerel veri için düzenli yedek alın:
 >
 > ```bash
 > docker exec covertgift-db pg_dump -U covertgift -d covertgift -Fc > ~/covertgift-$(date +%F).dump

@@ -22,6 +22,7 @@ type Config struct {
 	GeminiThinkingLevel string
 	CORSOrigin          string
 	AppEnv              string
+	AllowDBReset        bool
 }
 
 // Load .env dosyasını okur ve Config yapısını doldurur
@@ -43,6 +44,7 @@ func Load() *Config {
 		GeminiThinkingLevel: strings.TrimSpace(os.Getenv("GEMINI_THINKING_LEVEL")),
 		CORSOrigin:          getEnv("CORS_ORIGIN", "http://localhost:5173"),
 		AppEnv:              getEnv("APP_ENV", "development"),
+		AllowDBReset:        allowDBReset(),
 	}
 
 	// Kritik değişkenler yoksa sistemi hiç başlatma (Fail-Fast)
@@ -71,4 +73,18 @@ func searchEnabled() bool {
 		log.Fatal("GEMINI_SEARCH_ENABLED true veya false olmalıdır")
 	}
 	return enabled
+}
+
+// allowDBReset yıkıcı POST /api/v1/dev/reset-db ucunu açar. Varsayılan kapalıdır;
+// yalnızca ALLOW_DB_RESET açıkça true verilirse açılır.
+func allowDBReset() bool {
+	raw := strings.TrimSpace(os.Getenv("ALLOW_DB_RESET"))
+	if raw == "" {
+		return false
+	}
+	allowed, err := strconv.ParseBool(raw)
+	if err != nil {
+		log.Fatal("ALLOW_DB_RESET true veya false olmalıdır")
+	}
+	return allowed
 }

@@ -153,7 +153,10 @@ const docTemplate = `{
         },
         "/api/v1/dev/reset-db": {
             "post": {
-                "description": "Test, geliştirme ve canlı sunum ortamında tüm tabloları (users, groups, group_members, gift_ideas, votes) sıfırlar (TRUNCATE CASCADE) ve veritabanını fabrika ayarlarına temiz olarak döndürür.",
+                "description": "Tüm tabloları (users, groups, group_members, gift_ideas, votes) TRUNCATE CASCADE ile siler. Yalnızca API ` + "`" + `ALLOW_DB_RESET=true` + "`" + ` ile başlatıldıysa ve gövdede ` + "`" + `{\"confirm\": \"RESET\"}` + "`" + ` gönderilirse çalışır. Üretimde (` + "`" + `APP_ENV=production` + "`" + `) her durumda kapalıdır.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -161,6 +164,17 @@ const docTemplate = `{
                     "Sistem \u0026 Test"
                 ],
                 "summary": "Veritabanını Sıfırla (Reset Database)",
+                "parameters": [
+                    {
+                        "description": "Onay: confirm alanı tam olarak RESET olmalı",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ResetDBRequest"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "Veritabanı başarıyla sıfırlandı",
@@ -180,8 +194,14 @@ const docTemplate = `{
                             ]
                         }
                     },
+                    "400": {
+                        "description": "Onay ifadesi eksik veya hatalı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
                     "403": {
-                        "description": "Üretim (Production) ortamında bu işlem yapılamaz",
+                        "description": "Üretim ortamı ya da ALLOW_DB_RESET kapalı",
                         "schema": {
                             "$ref": "#/definitions/controllers.Response"
                         }
@@ -1865,6 +1885,15 @@ const docTemplate = `{
                     "maxLength": 100,
                     "minLength": 6,
                     "example": "Password123!"
+                }
+            }
+        },
+        "controllers.ResetDBRequest": {
+            "type": "object",
+            "properties": {
+                "confirm": {
+                    "type": "string",
+                    "example": "RESET"
                 }
             }
         },

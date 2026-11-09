@@ -134,7 +134,7 @@ npm --prefix frontend run dev
 
 [Uygulama](http://localhost:5174), [sağlık kontrolü](http://localhost:5174/health), [Swagger](http://localhost:8080/swagger/index.html). Vite, `/api` ve `/health` isteklerini `127.0.0.1:8080`'deki API'ye iletir. Sağlık kontrolü `{"success":true,"data":{"db":"up","status":"ok"}}` döndürmelidir.
 
-> ⚠️ Yerel API geliştirme modunda `POST /api/v1/dev/reset-db` ucunu açık tutar ve bu uç **tüm tabloları siler**. Vite geliştirme proxy'si bu ucu engellemez; yerel verinizi korumak için düzenli `pg_dump` yedeği alın. Üretimde (`APP_ENV=production`) uç kapalıdır ve frontend'in nginx'i ayrıca 403 döner.
+> ⚠️ `POST /api/v1/dev/reset-db` **tüm tabloları siler**. Uç varsayılan olarak kapalıdır (403); yalnızca API `ALLOW_DB_RESET=true` ile başlatılırsa ve istek gövdesinde `{"confirm": "RESET"}` gönderilirse çalışır. Üretimde (`APP_ENV=production`) her durumda kapalıdır ve frontend'in nginx'i ayrıca 403 döner. Yerel veriniz için yine de düzenli `pg_dump` yedeği alın.
 
 Eski geçici paneli ve Cloudflare tünelini çalıştırmak gerekirse: [test paneli rehberi](prototypes/test-ui/README.md).
 

@@ -284,6 +284,7 @@
 | K36 | 10-16 | İlgi alanlarına tüm üyeler tek tek ekler; yalnızca admin siler, yazımlar satır kilidiyle korunur | Üyelerin katkısını korumak ve eşzamanlı güncellemelerde veri kaybını engellemek |
 | K37 | 10-16 | Bütçeyi yalnızca admin günceller; mevcut hediye uyarıları transaction'da ve listelemede güncellenir | Toplam/kişi başı bütçeyle hediye uyarılarının tutarlı kalması |
 | K38 | 10-17 | AI ürün araştırması Google Search grounding ve ayrı JSON seçimiyle yapılır; kaynak adresleri metadata'dan alınır | Kaynaksız ürün/fiyatları elemek ve modelin URL üretmesini önlemek |
+| K39 | 11-09 | `reset-db` varsayılan kapalı: `ALLOW_DB_RESET=true` + gövdede `{"confirm":"RESET"}` gerekir; production her durumda 403 | Yerel verinin yanlışlıkla atılan tek bir POST ile silinmesini önlemek |
 
 
 ---
@@ -612,3 +613,12 @@
 - Dağıtım: yalnızca frontend değişmişti (Nötr grafit, giriş ekranı, favicon); `covertgift-web:2e0d1e7` derlendi, ölü hedefle yerelde denendi (sayfa ve SPA 200, `/api/v1/DEV/...` 403, CSS'te `#2f5bff`), ACR'ye gönderildi ve `covertgift-ui` güncellendi. Backend kodu `ff8bb3c` ile aynı olduğu için API yeniden dağıtılmadı. Canlıda CSS'te yeni ana renk, `/health` 200 (`db: up`), oturumsuz `/me` 401, `/api/v1/dev/x` 403 ve koyu temada giriş ekranı görüntüsüyle doğrulandı.
 - Kapatma: `covertgift-ui` ve `covertgift-api` REST API `stop` ucuyla (CLI'de `containerapp stop` yok), `covertgift-db-msheker` `az postgres flexible-server stop` ile durduruldu; üçü de `Stopped`, canlı adres 502. Hiçbir kaynak, imaj veya veri silinmedi.
 - Dikkat: Azure durdurulmuş PostgreSQL esnek sunucusunu 7 gün sonra kendiliğinden başlatır; kapalı tutmak için haftalık `stop` gerekir. Depolama, yedek ve ACR ücretleri sürer. Yeniden açma adımları `docs/AZURE.md` başında.
+
+---
+
+## 2026-11-09 — Yerel veri koruması: reset-db varsayılan kapalı
+
+- Sorun: `POST /api/v1/dev/reset-db` yalnızca `APP_ENV=production` ile kapanıyordu; yerelde varsayılan açıktı, oturum istemiyordu ve Vite proxy'si iletiyordu. 2026-10-21'de bir smoke testi yerel veritabanını bu uçla silmişti.
+- Karar (K39): İki katmanlı koruma. (1) `ALLOW_DB_RESET` ortam değişkeni; boş veya `false` ise uç 403 döner, geçersiz değerde API başlamaz. (2) Bayrak açıkken bile gövdede `{"confirm": "RESET"}` (büyük harf, birebir) yoksa 400. Production her durumda 403. Bayrak açıkken API başlangıçta uyarı loglar.
+- Neden: Varsayılanın kapalı olması, ayarı unutan birinin veriyi kaybetmemesini sağlar; onay ifadesi, bayrak açıkken yanlışlıkla atılan çıplak bir POST'u durdurur. Vite proxy engeli eklenmedi: `:8080`'e doğrudan istekleri durdurmadığı için asıl korumayı backend'de tutmak tercih edildi.
+- Testler: reddedilen tüm durumların veritabanına dokunmadan döndüğü (`db` nil) tablo testi ve bayrağın varsayılan kapalı olduğunu doğrulayan config testi. Swagger şeması `ResetDBRequest` gövdesiyle yeniden üretildi.

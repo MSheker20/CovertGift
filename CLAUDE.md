@@ -27,6 +27,6 @@ Oturuma başlamadan önce oku:
 
 ## Notlar
 - `.env`, `JWT_SECRET` ve `GEMINI_API_KEY` commit edilmez.
-- Yerel API'de `POST /api/v1/dev/reset-db` canlıdır ve tüm tabloları siler; testlerde çalışan bir API'ye bu ucu asla çağırtma.
+- `POST /api/v1/dev/reset-db` tüm tabloları siler. Varsayılan kapalıdır; yalnızca `ALLOW_DB_RESET=true` + `{"confirm":"RESET"}` ile çalışır. Yine de testlerde çalışan bir API'ye bu ucu asla çağırtma.
 - Azure dağıtımı: `docs/AZURE.md` (API ve frontend imajları commit kısa kimliğiyle etiketlenir).
 - Bu projede genel ECC plugin'i kapalıdır (`.claude/settings.json`). Gerekli skill, agent ve komutlar `.claude/` altında projeye özel olarak bulunur.

@@ -100,7 +100,10 @@ func main() {
 	authController := controllers.NewAuthController(authService)
 	groupController := controllers.NewGroupController(groupService)
 	ideaController := controllers.NewIdeaController(ideaService)
-	devController := controllers.NewDevController(db, cfg.AppEnv)
+	devController := controllers.NewDevController(db, cfg.AppEnv, cfg.AllowDBReset)
+	if cfg.AllowDBReset && cfg.AppEnv != "production" {
+		log.Println("⚠️  ALLOW_DB_RESET=true: POST /api/v1/dev/reset-db açık ve tüm tabloları silebilir")
+	}
 
 	// 6. Gin web motorunu başlat
 	r := gin.Default()

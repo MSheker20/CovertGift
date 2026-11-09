@@ -145,6 +145,12 @@ definitions:
     - name
     - password
     type: object
+  controllers.ResetDBRequest:
+    properties:
+      confirm:
+        example: RESET
+        type: string
+    type: object
   controllers.Response:
     properties:
       data: {}
@@ -478,9 +484,19 @@ paths:
       - Kimlik Doğrulama (Auth)
   /api/v1/dev/reset-db:
     post:
-      description: Test, geliştirme ve canlı sunum ortamında tüm tabloları (users,
-        groups, group_members, gift_ideas, votes) sıfırlar (TRUNCATE CASCADE) ve veritabanını
-        fabrika ayarlarına temiz olarak döndürür.
+      consumes:
+      - application/json
+      description: 'Tüm tabloları (users, groups, group_members, gift_ideas, votes)
+        TRUNCATE CASCADE ile siler. Yalnızca API `ALLOW_DB_RESET=true` ile başlatıldıysa
+        ve gövdede `{"confirm": "RESET"}` gönderilirse çalışır. Üretimde (`APP_ENV=production`)
+        her durumda kapalıdır.'
+      parameters:
+      - description: 'Onay: confirm alanı tam olarak RESET olmalı'
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ResetDBRequest'
       produces:
       - application/json
       responses:
@@ -493,8 +509,12 @@ paths:
                 data:
                   $ref: '#/definitions/controllers.MessageData'
               type: object
+        "400":
+          description: Onay ifadesi eksik veya hatalı
+          schema:
+            $ref: '#/definitions/controllers.Response'
         "403":
-          description: Üretim (Production) ortamında bu işlem yapılamaz
+          description: Üretim ortamı ya da ALLOW_DB_RESET kapalı
           schema:
             $ref: '#/definitions/controllers.Response'
         "500":
