@@ -10,15 +10,23 @@
 
 Arkadaş gruplarının **ortak hediye** organize ettiği, bütçeyi birleştirdiği, **Gemini 3 Flash** ile yapay zekâ destekli hediye önerileri aldığı, önerileri **oyladığı** (+1 / -1) ve tüm süreci hediye alınacak kişiden **gizlediği** (Anti-Spoiler) işbirlikçi web platformu.
 
+**Neler yapılabilir?**
+- Hediye alınacak kişi için grup kur; kayıtlıysa e-postasıyla bağla — o kişi grubu hiç göremez.
+- Üyeleri e-postayla ekle; toplam bütçe ve kişi başı tutar anlık hesaplanır.
+- Ürün linki yapıştırarak (Trendyol, Amazon TR, Hepsiburada) ya da Gemini'den öneri isteyerek hediye havuzunu doldur.
+- Önerileri oyla, oyunu geri al; admin veto edebilir, çoğunluk istemediği öneriyi eler.
+- Hediye tarihini ekle, geri sayımı takip et; kazananı seçip grubu tamamla.
+- Başka üyelerin oyları ve yeni öneriler sayfa yenilenmeden anında görünür (SSE).
+
 > Eski adı: *GiftlyAI* — telif riski nedeniyle 2026-10-06'da **CovertGift** olarak değiştirildi. Bkz. [DEVLOG](docs/DEVLOG.md).
 
 ---
 
 ## 📍 Mevcut Durum
 
-Doküman güncellemesi: **2026-10-22**. Azure demo dağıtımı ve işletim notları: [Azure rehberi](docs/AZURE.md).
+Doküman güncellemesi: **2026-11-09**. Azure demo dağıtımı ve işletim notları: [Azure rehberi](docs/AZURE.md).
 
-Faz 0–7 tamamlandı; Faz 8 (test, güvenlik ve cila) sürüyor. Kalıcı React frontend 2026-10-21'de Azure'a dağıtıldı ve [canlı demo adresinde](https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io) geçici panelin yerini aldı. 2026-10-22 tasarım güncellemesi ("Nötr grafit") henüz canlıya alınmadı.
+Faz 0–8 tamamlandı; Faz 8'de yalnızca AI hata yanıtları AI bölümünün yeniden tasarımına ertelendi. Backlog'dan kazanan seçimi, oyu geri alma, hediye tarihi ve canlı güncellemeler (SSE) eklendi. [Canlı demo](https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io) `main`'in `7bb8416` sürümünü çalıştırır (2026-11-09).
 
 | Alan | Durum |
 |---|---|
@@ -34,8 +42,9 @@ Faz 0–7 tamamlandı; Faz 8 (test, güvenlik ve cila) sürüyor. Kalıcı React
 | **Faz 5 — Link Önizleme** | ✅ Tamamlandı (`pkg/linkpreview`, Trendyol, Amazon TR, Hepsiburada, SSRF Kalkanı) |
 | **Faz 6 — Gemini AI Hediye Önerileri** | ✅ Tamamlandı (Search kapalı tek çağrı modu; veto, tekrar ve bütçe filtreleri; 429 kota yanıtı) |
 | **API Dokümantasyonu (Swagger / OpenAPI)** | ✅ Tamamlandı (Canlı UI: `/swagger/index.html` veya `/docs`) |
-| **Faz 7 — Frontend** | ✅ Tamamlandı (`frontend/`: React 19 + Vite + TypeScript, TR/EN, hediye havuzu, oylama, Gemini, link önizleme, grup yönetimi, hedef kişiyi e-postayla bağlama; Vitest 37 + Playwright 6 test) |
-| **Faz 8 — Test, güvenlik ve cila** | ⏳ Sürüyor (yalnızca AI hata yanıtları açık; AI yeniden tasarımına ertelendi) |
+| **Faz 7 — Frontend** | ✅ Tamamlandı (`frontend/`: React 19 + Vite + TypeScript, TR/EN, hediye havuzu, oylama, Gemini, link önizleme, grup yönetimi, hedef kişiyi e-postayla bağlama; Vitest + Playwright) |
+| **Faz 8 — Test, güvenlik ve cila** | ✅ Tamamlandı (güvenlik güncellemeleri, Anti-Spoiler entegrasyon testleri, istek limitleri ve doğrulama, yapılandırılmış log, seed, Compose; AI hata yanıtları AI yeniden tasarımına ertelendi) |
+| **Backlog (2026-11-09)** | ✅ Kazanan seçimi ve grubu kapatma, oyu geri alma, hediye tarihi ve geri sayım, SSE ile canlı güncellemeler |
 | Geçici test paneli | 🗄️ Eski (`prototypes/test-ui/`; React frontend yerini aldı) |
 
 ---
@@ -59,11 +68,12 @@ Faz 0–7 tamamlandı; Faz 8 (test, güvenlik ve cila) sürüyor. Kalıcı React
 
 | Katman | Teknoloji |
 |---|---|
-| Backend | Go 1.27 + Gin Framework, GORM |
+| Backend | Go 1.27.3 + Gin Framework, GORM; `log/slog` ile yapılandırılmış log |
 | Veritabanı | PostgreSQL 17 (Docker Compose) |
 | Kimlik doğrulama | JWT (HMAC-SHA256, 24 saat) + Bcrypt + Gin Middleware |
 | Link Önizleme | WhatsApp Bot UA, Cookiejar, Dial-seviyesi SSRF koruması, JSON-LD Scraper |
 | Yapay zekâ | `google.golang.org/genai`; model adları ortam değişkenlerinden (`GEMINI_MODEL=gemini-3.8-flash`, Search kapalı, tek yapılandırılmış JSON çağrısı). Yedek model yalnızca `GEMINI_FALLBACK_MODEL` doluysa 503'te denenir |
+| Canlı güncellemeler | Server-Sent Events (`GET /groups/:id/events`); bağlantı yoksa periyodik yenileme |
 | API Dokümantasyonu | Swagger / OpenAPI 2.0 (`swaggo/swag`, `swaggo/gin-swagger`) |
 | Frontend | React 19 + Vite + TypeScript, Tailwind CSS v4, shadcn tarzı bileşenler (`radix-ui`), Lucide, React Router, TanStack Query, i18next (TR/EN); üretimde nginx |
 | Frontend testleri | Vitest + Testing Library + MSW; Playwright (gerçek API'ye karşı) |
@@ -89,9 +99,10 @@ CovertGift/
 │   ├── linkpreview/        ← Link önizleme prototip ve inceleme laboratuvarı
 │   └── test-ui/            ← Eski geçici tarayıcı paneli + sınırlı API proxy'si
 ├── backend/
-│   ├── cmd/api/            ← HTTP sunucu giriş noktası
+│   ├── cmd/api/            ← HTTP sunucu giriş noktası, router ve entegrasyon testleri
+│   ├── cmd/seed/           ← Demo verisi ekleyen güvenli seed komutu
 │   ├── docs/               ← Swagger / OpenAPI 2.0 şemaları (docs.go, swagger.json, yaml)
-│   ├── internal/           ← Controllers, services, repository, models, middleware
+│   ├── internal/           ← Controllers, services, repository, models, middleware, logging, realtime (SSE)
 │   ├── pkg/
 │   │   ├── gemini/         ← Gemini 3.8 Flash istemcisi & resilient fallback
 │   │   └── linkpreview/    ← Ürün linki önizleme & SSRF kalkanı (Trendyol, Amazon, HB)
@@ -103,7 +114,7 @@ CovertGift/
 
 ## 🚀 Hızlı Başlangıç
 
-Ön koşullar: Go **1.27.1+**, çalışan Docker Desktop / Docker Compose, frontend için Node.js **22+**. Ayrıntılı ortam kurulumu: [docs/SETUP.md](docs/SETUP.md).
+Ön koşullar: Go **1.27.3+**, çalışan Docker Desktop / Docker Compose, frontend için Node.js **22+**. Ayrıntılı ortam kurulumu: [docs/SETUP.md](docs/SETUP.md).
 
 ```bash
 # İlk kurulum: depoyu indir ve proje köküne geç

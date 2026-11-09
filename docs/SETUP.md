@@ -215,8 +215,9 @@ openssl rand -hex 32     # çıkan değeri .env içindeki JWT_SECRET'e yapışt�
 | `DATABASE_URL` | Adım 2'deki compose ayarlarıyla **birebir** aynı kullanıcı/şifre/DB |
 | `JWT_SECRET` | Token imzalama anahtarı — sızarsa herkes sahte token üretebilir |
 | `GEMINI_API_KEY` | Google AI Studio'dan alınacak (Faz 6) |
-| `GEMINI_RESEARCH_MODEL` | Google Search araştırması; varsayılan `gemini-3.8-flash` |
-| `GEMINI_MODEL` | JSON seçimi (Search kapalı); varsayılan `gemini-3.5-flash-lite` |
+| `GEMINI_MODEL` | Öneri modeli (ör. `gemini-3.8-flash`); anahtar varsa zorunlu, kodda varsayılan yok |
+| `GEMINI_RESEARCH_MODEL` | Yalnızca Search açıkken; boşsa `GEMINI_MODEL` kullanılır |
+| `LOG_FORMAT` / `LOG_LEVEL` | `json` ya da `text` (boşsa production'da json) / `debug`, `info`, `warn`, `error` |
 | `APP_ENV` | Varsayılan `development`; `production` geliştirme veritabanı sıfırlama ucunu kapatır |
 | `ALLOW_DB_RESET` | Varsayılan `false`; `true` olursa `POST /api/v1/dev/reset-db` açılır ve gövdede `{"confirm": "RESET"}` ister |
 
