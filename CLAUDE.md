@@ -15,6 +15,7 @@ Oturuma başlamadan önce oku:
 - **Anti-Spoiler:** `/groups/:id/*` ve `/ideas/:id/*` uçlarında `target_user_id` kontrolü zorunlu. Eşleşirse 403 ve sürpriz mesajı döner.
 - **Gemini URL üretmez.** Pazar yeri linkleri frontend'de `search_query` üzerinden `encodeURIComponent` ile oluşturulur.
 - **Link önizleme** (`pkg/linkpreview`): domain allowlist, özel IP engeli, 2 MB limit ve en fazla 10 yönlendirme korunmalı.
+- **Canlı güncellemeler (SSE):** `GET /groups/:id/events` olayları veri taşımaz (`event: changed`); istemci korumalı uçlardan yeniden çeker. Yeni bir değişiklik ucu `/groups/:id/*` veya `/ideas/:id/*` altına eklenirse yayın middleware'i otomatik çalışır. Hub bellek içidir; API tek replica.
 - **Yanıt formatı:** `{"success": true, "data": ...}` veya `{"success": false, "error": "..."}`.
 - **Hata kontrolü** açıkça yapılır (`if err != nil`). Şema değişiklikleri GORM `AutoMigrate` ile yapılır.
 
@@ -30,5 +31,6 @@ Oturuma başlamadan önce oku:
 ## Notlar
 - `.env`, `JWT_SECRET` ve `GEMINI_API_KEY` commit edilmez.
 - `POST /api/v1/dev/reset-db` tüm tabloları siler. Varsayılan kapalıdır; yalnızca `ALLOW_DB_RESET=true` + `{"confirm":"RESET"}` ile çalışır. Yine de testlerde çalışan bir API'ye bu ucu asla çağırtma.
-- Azure dağıtımı: `docs/AZURE.md` (API ve frontend imajları commit kısa kimliğiyle etiketlenir).
+- Azure dağıtımı: `docs/AZURE.md` (imajlar yerel Docker ile derlenir, commit kısa kimliğiyle etiketlenir; `az acr build` kapalı). Canlıda yalnızca okuma kontrolleri yapılır; canlı veriye yazan istek atılmaz.
+- Tarayıcıda denemek için `.claude/launch.json`'daki `api-testdb` + `frontend-testdb` geçici `test-db`'ye bağlanır (yerel veriye dokunmaz; demo verisi `go run ./cmd/seed` ile).
 - Bu projede genel ECC plugin'i kapalıdır (`.claude/settings.json`). Gerekli skill, agent ve komutlar `.claude/` altında projeye özel olarak bulunur.

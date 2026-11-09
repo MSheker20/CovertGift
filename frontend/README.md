@@ -27,11 +27,12 @@ Ayarlar `.env.example` içinde: `API_TARGET` (geliştirme proxy hedefi), `VITE_A
 
 ## Yapı
 
-- `src/api/` — fetch istemcisi (`{success, data | error}` zarfı, Bearer token, 401 olayı), uç noktalar ve tipler
+- `src/api/` — fetch istemcisi (`{success, data | error}` zarfı, Bearer token, 401 olayı), uç noktalar, tipler ve `useGroupEvents` (SSE akışı fetch ile okunur; bağlantı yoksa 10 sn, varken 60 sn yenileme)
 - `src/auth/` — oturum durumu; token `localStorage`'da (`covertgift.token`)
 - `src/i18n/` — `tr.ts` ana sözlük, `en.ts` aynı tipte; dil `covertgift.lang` anahtarında saklanır
 - `src/pages/` — Giriş, Kayıt, uygulama kabuğu (yüzen üst bar + grup seçici), Gruplar, Yeni grup diyaloğu (hedef kişinin e-postası dahil), Grup (Anti-Spoiler sürpriz ekranı dahil)
-- `src/pages/group/` — hediye havuzu ve oy kartları, manuel ekleme + link önizleme, üye ekleme, yerinde yönetim (ilgi alanı, bütçe, grubu silme, hedef kişiyi bağlama)
+- `src/pages/group/` — hediye havuzu ve oy kartları (oyu geri alma, kazanan seçimi), manuel ekleme + link önizleme, üye ekleme, yerinde yönetim (ilgi alanı, bütçe, hediye tarihi, grubu yeniden açma, grubu silme, hedef kişiyi bağlama)
+- `src/lib/eventDate.ts` — hediye tarihi geri sayımı ve yaklaşan tarihe göre sıralama
 - `src/test/` — MSW sunucusu, örnek veriler ve render yardımcıları; `e2e/` — Playwright senaryoları
 
 ## Tasarım

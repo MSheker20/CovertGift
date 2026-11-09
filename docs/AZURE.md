@@ -10,40 +10,57 @@
 
 Go API ve kalıcı React frontend ayrı imajlar olarak paketlenir. PostgreSQL ayrı bir yönetilen serviste çalışır.
 
-> **2026-10-21 güncellemesi:** `covertgift-ui` uygulaması artık geçici panel yerine kalıcı React frontend'i
-> (`covertgift-web:ff8bb3c`) çalıştırır. API `covertgift-api:ff8bb3c` imajındadır. Geri dönüş için eski imajlar
-> registry'de durur: API `covertgift-api:search-off-20261021`, panel `covertgift-ui:demo`.
-> Express ortamında `--revision-suffix` desteklenmez; `az containerapp update` yalnızca `--image` ile çalıştırılır.
->
-> **2026-11-09 (akşam) — `7bb8416` dağıtıldı.** API `covertgift-api:7bb8416`, frontend `covertgift-web:7bb8416` (#5–#10: reset-db koruması, Anti-Spoiler düzeltmesi, limitler ve doğrulama, yapılandırılmış log, kazanan seçimi, oyu geri alma, hediye tarihi, SSE canlı güncellemeler). API başlarken AutoMigrate `groups` tablosuna `status`, `completed_at`, `event_date` ekler. SSE hub'ı bellek içidir; API en fazla 1 replica kalmalıdır. Bu CLI sürümünde `az containerapp logs show` `eventStreamEndpoint` hatası veriyor; loglar portaldan okunur.
->
-> **2026-11-09 — ORTAM AÇIK.** Faz 8 güvenlik güncellemeleriyle (Go 1.27.3, nginx 1.30.6, Node 22.23.4) API `covertgift-api:security-20261109`, frontend `covertgift-web:security-20261109` imajındadır. `az acr build` bu abonelikte kapalıdır (`TasksOperationsNotAllowed`); imajlar yerel Docker ile derlenip gönderilir.
->
-> **2026-10-23 — (eski) ORTAM KAPALI.** Son dağıtım: frontend `covertgift-web:2e0d1e7` (Nötr grafit tasarımı), API `covertgift-api:ff8bb3c` (backend kodu `2e0d1e7` ile aynı). Ardından kullanıcı isteğiyle `covertgift-ui`, `covertgift-api` ve `covertgift-db-msheker` durduruldu; hiçbir kaynak silinmedi.
->
-> ⚠️ **Azure, durdurulan PostgreSQL esnek sunucusunu 7 gün sonra kendiliğinden yeniden başlatır.** Kapalı tutmak için her hafta yeniden `stop` çalıştırılmalıdır (ya da uzun süreli kullanılmayacaksa yedek alınıp sunucu silinir). Durdurulmuş sunucuda depolama (32 GiB) ve yedekler, registry'de ise ACR ücreti işlemeye devam eder.
->
-> Yeniden açmak (sıra önemli: önce veritabanı):
->
-> ```sh
-> az postgres flexible-server start -g covertgift-rg -n covertgift-db-msheker
-> for a in covertgift-api covertgift-ui; do
->   az rest --method post --url "https://management.azure.com$(az containerapp show -g covertgift-rg -n $a --query id -o tsv)/start?api-version=2024-03-01"
-> done
-> ```
->
-> Bu CLI sürümünde `az containerapp stop/start` yok; durdurma ve başlatma REST API'nin `stop`/`start` uçlarıyla yapılır (`.../stop?api-version=2024-03-01`).
+## Güncel durum (2026-11-09)
+
+- **Açık.** API `covertgift-api:7bb8416`, arayüz `covertgift-web:7bb8416` (`main`, #5–#10). Adres: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
+- İmajlar **yerel Docker** ile `linux/amd64` için derlenip gönderilir; bu abonelikte `az acr build` kapalıdır (`TasksOperationsNotAllowed`).
+- API **en fazla 1 replica** kalmalıdır: SSE hub'ı bellek içidir, birden çok kopyada olaylar kopyalar arasında taşınmaz.
+- API başlarken AutoMigrate şemayı günceller (2026-11-09'da `groups.status`, `completed_at`, `event_date` eklendi).
+- Bu CLI sürümünde `az containerapp logs show` `KeyError: 'eventStreamEndpoint'` verir; loglar portaldan okunur. Production'da loglar JSON'dur, her satırda `request_id` vardır.
+- Express ortamında `--revision-suffix` desteklenmez; `az containerapp update` yalnızca `--image` ile çalıştırılır.
+
+## Durdurma ve yeniden açma
+
+Bu CLI sürümünde `az containerapp stop/start` yok; Container App'ler REST API'nin `stop`/`start` uçlarıyla yönetilir.
+
+```sh
+# Durdurma
+for a in covertgift-ui covertgift-api; do
+  az rest --method post --url "https://management.azure.com$(az containerapp show -g covertgift-rg -n $a --query id -o tsv)/stop?api-version=2024-03-01"
+done
+az postgres flexible-server stop -g covertgift-rg -n covertgift-db-msheker
+
+# Yeniden açma (sıra önemli: önce veritabanı)
+az postgres flexible-server start -g covertgift-rg -n covertgift-db-msheker
+for a in covertgift-api covertgift-ui; do
+  az rest --method post --url "https://management.azure.com$(az containerapp show -g covertgift-rg -n $a --query id -o tsv)/start?api-version=2024-03-01"
+done
+```
+
+⚠️ **Azure, durdurulan PostgreSQL esnek sunucusunu 7 gün sonra kendiliğinden yeniden başlatır.** Kapalı tutmak için her hafta yeniden `stop` gerekir (ya da uzun süre kullanılmayacaksa yedek alınıp sunucu silinir). Durdurulmuş sunucuda depolama (32 GiB) ve yedekler, registry'de ACR ücreti işlemeye devam eder.
+
+## Dağıtım geçmişi
+
+Eski etiketler geri dönüş için registry'de durur.
+
+| Tarih | API | Arayüz | Not |
+|---|---|---|---|
+| 2026-11-09 | `covertgift-api:7bb8416` | `covertgift-web:7bb8416` | #5–#10: reset-db koruması, Anti-Spoiler düzeltmesi, limitler ve doğrulama, slog, kazanan seçimi, oyu geri alma, hediye tarihi, SSE |
+| 2026-11-09 | `covertgift-api:security-20261109` | `covertgift-web:security-20261109` | Go 1.27.3, nginx 1.30.6, Node 22.23.4; ortam yeniden açıldı |
+| 2026-10-23 | `covertgift-api:ff8bb3c` | `covertgift-web:2e0d1e7` | "Nötr grafit" tasarımı; ardından ortam durduruldu |
+| 2026-10-21 | `covertgift-api:ff8bb3c` | `covertgift-web:ff8bb3c` | Kalıcı React frontend geçici panelin yerini aldı |
+| 2026-10-21 | `covertgift-api:search-off-20261021` | `covertgift-ui:demo` | Search kapalı AI modu; eski geçici panel |
 
 ## Mevcut demo ortamı
 
 - Bölge: Poland Central; kaynak grubu: `covertgift-rg`.
 - Ortam: `covertgift-env`, Express modu.
 - API: `covertgift-api`, yalnızca ortam içinden erişim, port 8080.
-- Panel: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
-- Registry: `covertgiftmsheker.azurecr.io`; imajlar commit kısa kimliğiyle etiketlenir (ör. `ff8bb3c`). `demo` etiketi ilk dağıtımın imajıdır.
+- Arayüz: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
+- Registry: `covertgiftmsheker.azurecr.io`; imajlar commit kısa kimliğiyle etiketlenir (ör. `7bb8416`). `demo` etiketi ilk dağıtımın imajıdır.
 - PostgreSQL: `covertgift-db-msheker`, sürüm 17, B1ms, 32 GiB.
 - İmaj çekme kimliği: `covertgift-acr-pull` (kullanıcı atanmış), registry kapsamında AcrPull.
-- API: 0.5 vCPU / 1 GiB; panel: 0.25 vCPU / 0.5 GiB. İkisi de 0–1 replica.
+- API: 0.5 vCPU / 1 GiB; arayüz: 0.25 vCPU / 0.5 GiB. İkisi de 0–1 replica (API için 1'in üstüne çıkmayın; SSE).
 - DATABASE_URL, JWT_SECRET ve mevcut GEMINI_API_KEY, API'de secret olarak tanımlıdır.
 
 2026-10-19 tarihinde yerel yedek Azure'a aktarıldı. Aktarım sonrası ve API başladıktan
@@ -111,9 +128,9 @@ kayıt defterinin izin modeline uygun imaj çekme yetkisini verin.
 - HTTP ölçeklendirme: minimum 0, maksimum 1 replica.
 - Ortam değişkenleri: `PORT=8080`, `APP_ENV=production`, `GIN_MODE=release`.
 - Secret üzerinden: `DATABASE_URL`, `JWT_SECRET`; AI için ayrıca `GEMINI_API_KEY`.
-- `GEMINI_RESEARCH_MODEL`: Google Search araştırması; kod varsayılanı `gemini-3.8-flash`.
-- `GEMINI_MODEL`: Search kullanmayan JSON seçimi; kod varsayılanı `gemini-3.5-flash-lite`.
-- Kota/istek sınırı hataları API üzerinden HTTP 429 döner. Bu varsayılanlar yerel kaynak kodunu tarif eder; dağıtımda tanımlanan ortam değişkenlerini ayrıca kontrol edin.
+- `GEMINI_MODEL`: öneri modeli; anahtar varsa **zorunludur**, kodda varsayılan yoktur (canlıda `gemini-3.8-flash`).
+- `GEMINI_RESEARCH_MODEL`: yalnızca Search açıkken kullanılır; boşsa `GEMINI_MODEL` kullanılır.
+- Kota/istek sınırı hataları API üzerinden HTTP 429 döner.
 
 Veritabanında önceden `covertgift` veritabanını oluşturun. API başlangıçta tabloları
 AutoMigrate ile oluşturur. Azure PostgreSQL bağlantısında TLS kullanın:
