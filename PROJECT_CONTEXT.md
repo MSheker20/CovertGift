@@ -45,6 +45,9 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `total_budget`: NUMERIC(10, 2), varsayılan 0.00
 - `creator_id`: UUID (Foreign Key -> `users.id`), boş geçilemez
 - `created_at`: TIMESTAMP, varsayılan now()
+- `event_date`: DATE (Opsiyonel) -- Hediyenin verileceği gün (doğum günü vb.), tek seferlik. JSON'da `"YYYY-MM-DD"`. Bugünden en fazla 1 yıl önce, en fazla 5 yıl sonra olabilir ("bugün" UTC+3'e göre). Frontend geri sayım gösterir ve listeyi yaklaşan tarihe göre sıralar.
+- `status`: VARCHAR(20), varsayılan 'ACTIVE' ('ACTIVE', 'COMPLETED') -- Admin kazananı seçince 'COMPLETED' olur; tamamlanan grupta fikir ekleme, AI önerisi, oy verme/geri alma, veto ve fikir silme 409 döner.
+- `completed_at`: TIMESTAMP (Opsiyonel) -- Grubun tamamlandığı an; yeniden açılınca boşalır.
 
 ### 3. `GroupMember` (Grup Üyelikleri)
 - `id`: UUID (Primary Key)
@@ -61,7 +64,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `description`: TEXT
 - `estimated_price`: NUMERIC(10, 2), varsayılan 0.00
 - `source_type`: VARCHAR(20), varsayılan 'AI' ('AI' veya 'MANUAL')
-- `status`: VARCHAR(20), varsayılan 'ACTIVE' ('ACTIVE', 'REJECTED', 'SELECTED') -- Admin vetosu veya çoğunluk downvote ile 'REJECTED' olur
+- `status`: VARCHAR(20), varsayılan 'ACTIVE' ('ACTIVE', 'REJECTED', 'SELECTED') -- Admin vetosu veya çoğunluk downvote ile 'REJECTED' olur; kazanan seçilince 'SELECTED' olur (grupta en fazla bir tane)
 - `is_over_budget`: BOOLEAN, varsayılan false -- Bütçeyi aşan fikirlerde true olur (fikir elenmez, grubun toleransına bırakılır)
 - `search_query`: VARCHAR(255), boş geçilemez -- Pazar yerleri için optimize edilmiş arama terimi
 - `image_url`: VARCHAR(500), opsiyonel
@@ -141,6 +144,9 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `POST /api/v1/groups/:id/interests` -> `{ interest: string }` ile listeye tek ilgi alanı ekler; tüm grup üyeleri ekleyebilir. Başındaki/sonundaki boşluklar temizlenir; 1–100 karakter, virgül/noktalı virgül/satır sonu içermez. Tekrar ekleme 409 döner. Yanıt `{ interests: string[] }` olur.
 - `DELETE /api/v1/groups/:id/interests` -> `{ interest: string }` ile yalnızca **admin** bir öğeyi silebilir; normal üye kendi eklediğini de silemez (403). Anti-Spoiler ve üyelik kontrolü her iki uçta da zorunludur. Eski toplu `PATCH` yolu kaldırılmıştır; tüm listeyi değiştirerek silme yetkisi aşılamaz. Eşzamanlı eklemeler transaction + satır kilidiyle korunur.
 - `PATCH /api/v1/groups/:id/budget` -> `{ total_budget: decimal }` ile yalnızca **admin** toplam bütçeyi günceller. Aralık 0–99999999.99, en fazla iki ondalık basamaktır. Kişi başı tutar anlık hesaplanır; mevcut hediye bütçe aşımı bayrakları aynı transaction'da güncellenir ve listelemede güncel bütçeye göre hesaplanır. Mevcut kurala uygun olarak 0 bütçe aşımı uyarılarını kapatır. Anti-Spoiler ve üyelik kontrolü zorunludur.
+- `PATCH /api/v1/groups/:id/event-date` -> `{ event_date: "YYYY-MM-DD" | null }` ile yalnızca **admin** hediye tarihini ayarlar veya kaldırır. Aralık dışı veya geçersiz tarih 400.
+- `POST /api/v1/groups/:id/winner` -> `{ idea_id }` ile yalnızca **admin** grubun aktif bir fikrini kazanan seçer: fikir `SELECTED`, grup `COMPLETED`. Fikir başka gruba aitse 400; fikir aktif değilse veya grup zaten tamamlandıysa 409. Grup satırı kilitlenerek transaction içinde yapılır.
+- `DELETE /api/v1/groups/:id/winner` -> Yalnızca **admin**, yanlış seçimi geri almak için grubu yeniden açar: kazanan fikir `ACTIVE`, grup `ACTIVE`. Grup zaten açıksa 409.
 - `PATCH /api/v1/groups/:id/target` -> `{ email }` ile yalnızca **admin**, hedefi boş olan gruba kayıtlı bir kullanıcıyı hedef olarak bağlar. Kayıtlı değilse 404; hedef zaten bağlıysa veya kişi grubun üyesiyse 409; admin kendini seçerse 400; admin olmayan üye 403 alır. Kontroller grup satırı kilitlenerek transaction içinde tekrarlanır; eşzamanlı üye ekleme de aynı kilidi kullandığı için hedef kişi üye yapılamaz. `target_person_name` değişmez. Bağlandıktan sonra hedef kişi grubu listede görmez ve tüm `/groups/:id/*` uçlarında 403 alır.
 - `DELETE /api/v1/groups/:id` -> Grubu ve bağlı tüm verileri siler (Sadece grup admini silebilir; Anti-Spoiler korumalı)
 
@@ -150,6 +156,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `POST /api/v1/groups/:id/ideas/preview-link` -> İstek: `{ url }` -> `200 OK` + `{ title, description, image_url, price, final_url, search_query }` (Veritabanına yazmaz, sadece önizleme döner; Anti-Spoiler korumalı)
 - `POST /api/v1/groups/:id/ideas/generate-ai` -> Google Search araştırması ve JSON seçimiyle en fazla 5 kaynaklı öneriyi kaydeder; `201` + `GiftIdea[]` döner. `ai_sources` ve `ai_search_suggestions` yanıta dahildir. 3'ten az sonuç dönebilir; mevcut hata eşlemeleri İş Kuralı 4'te açıklanır.
 - `POST /api/v1/ideas/:id/vote` -> Oy verir veya günceller `{ vote_type: 1 | -1 }` (Conflict durumunda güncelleme; downvote sayısı çoğunluğu aşarsa fikri otomatik REJECTED yapar)
+- `DELETE /api/v1/ideas/:id/vote` -> Kullanıcının bu fikre verdiği oyu kaldırır; oy yoksa da 200 (idempotent). Çoğunluk vetosuyla reddedilmiş fikir kendiliğinden geri açılmaz. Anti-Spoiler ve üyelik kontrolü zorunludur.
 - `POST /api/v1/ideas/:id/reject` -> Grup admini doğrudan hediye fikrini veto eder (`status = REJECTED`)
 - `DELETE /api/v1/ideas/:id` -> Hediyeyi kaldırır (Sadece öneren kişi veya grup admini silebilir)
 

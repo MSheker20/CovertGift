@@ -12,10 +12,11 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input, Textarea } from '@/components/ui/input'
 import { errorMessage } from '@/lib/errors'
+import { eventDateBounds } from '@/lib/eventDate'
 
 const MONEY = /^\d{1,8}([.,]\d{1,2})?$/
 
-const EMPTY = { title: '', target: '', targetEmail: '', budget: '', interests: '', notes: '' }
+const EMPTY = { title: '', target: '', targetEmail: '', budget: '', interests: '', notes: '', eventDate: '' }
 
 export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
   const { t } = useTranslation()
@@ -25,6 +26,7 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [localError, setLocalError] = useState<string | null>(null)
+  const bounds = eventDateBounds()
 
   const set = (key: keyof typeof EMPTY) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }))
@@ -39,6 +41,7 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
         description: form.notes.trim() || undefined,
         // Backend virgül ve satır sonu ayrımlı metni listeye ayrıştırır.
         target_interests: form.interests.trim() || undefined,
+        event_date: form.eventDate || undefined,
       }),
     onSuccess: (group) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
@@ -57,6 +60,10 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
     e.preventDefault()
     if (form.budget.trim() && !MONEY.test(form.budget.trim())) {
       setLocalError(t('newGroup.invalidBudget'))
+      return
+    }
+    if (form.eventDate && (form.eventDate < bounds.min || form.eventDate > bounds.max)) {
+      setLocalError(t('manage.eventDateInvalid'))
       return
     }
     if (emailSelf) return
@@ -144,6 +151,17 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
                 {emailError}
               </p>
             )}
+          </FormField>
+          <FormField id="g-event-date" label={t('newGroup.eventDate')} optional={t('newGroup.optional')} hint={t('newGroup.eventDateHint')}>
+            <Input
+              id="g-event-date"
+              type="date"
+              min={bounds.min}
+              max={bounds.max}
+              aria-describedby="g-event-date-hint"
+              value={form.eventDate}
+              onChange={set('eventDate')}
+            />
           </FormField>
           <FormField
             id="g-interests"

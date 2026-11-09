@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/MSheker20/CovertGift/backend/internal/models"
@@ -31,6 +32,13 @@ var (
 	ErrUnauthorizedTargetUpdate   = errors.New("hedef kişiyi sadece grup yöneticisi (admin) bağlayabilir")
 	ErrTargetAlreadyLinked        = errors.New("bu grubun hedef kişisi zaten bağlı; değiştirilemez")
 	ErrTargetIsMember             = errors.New("grubun üyesi hedef kişi olarak bağlanamaz")
+	ErrGroupCompleted             = errors.New("grup tamamlandı; hediye fikirleri ve oylar kapalı")
+	ErrGroupNotCompleted          = errors.New("grup zaten açık")
+	ErrUnauthorizedWinner         = errors.New("kazananı seçme ve grubu yeniden açma yetkisi sadece grup yöneticisindedir (admin)")
+	ErrWinnerNotInGroup           = errors.New("seçilen hediye önerisi bu gruba ait değil")
+	ErrWinnerNotActive            = errors.New("yalnızca aktif (reddedilmemiş) bir öneri kazanan seçilebilir")
+	ErrUnauthorizedEventDate      = errors.New("hediye tarihini sadece grup yöneticisi (admin) değiştirebilir")
+	ErrInvalidEventDate           = errors.New("hediye tarihi bugünden en fazla 1 yıl önce, en fazla 5 yıl sonra olabilir")
 )
 
 // GroupDetailResponse grup detay uç noktasının döneceği zenginleştirilmiş veri yapısıdır
@@ -45,7 +53,10 @@ type GroupDetailResponse struct {
 
 // GroupService grup iş mantığını tanımlayan arayüzdür
 type GroupService interface {
-	CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, targetEmail string, totalBudget decimal.Decimal) (*models.Group, error)
+	CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, targetEmail string, totalBudget decimal.Decimal, eventDate *models.Date) (*models.Group, error)
+	SelectWinner(groupID, userID, ideaID uuid.UUID) error
+	ReopenGroup(groupID, userID uuid.UUID) error
+	SetEventDate(groupID, userID uuid.UUID, date *models.Date) error
 	GetUserGroups(userID uuid.UUID) ([]models.Group, error)
 	GetGroupDetail(groupID, userID uuid.UUID) (*GroupDetailResponse, error)
 	AddMemberByEmail(groupID, currentUserID uuid.UUID, email string) (*models.GroupMember, error)
@@ -71,9 +82,12 @@ func NewGroupService(groupRepo repository.GroupRepository, userRepo repository.U
 
 // CreateGroup yeni grup oluşturur ve oluşturan kişiyi admin üye yapar.
 // Hedef kişi isteğe bağlı olarak e-postayla seçilir; kimlik sunucuda çözülür.
-func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, targetEmail string, totalBudget decimal.Decimal) (*models.Group, error) {
+func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, targetEmail string, totalBudget decimal.Decimal, eventDate *models.Date) (*models.Group, error) {
 	if !validMoney(totalBudget) {
 		return nil, ErrInvalidBudget
+	}
+	if eventDate != nil && !validEventDate(*eventDate, time.Now()) {
+		return nil, ErrInvalidEventDate
 	}
 	targetEmail = strings.TrimSpace(targetEmail)
 	if targetEmail != "" {
@@ -102,6 +116,8 @@ func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPerso
 		TargetInterests:  targetInterests,
 		TargetUserID:     targetUserID,
 		TotalBudget:      totalBudget,
+		EventDate:        eventDate,
+		Status:           models.GroupStatusActive,
 		CreatorID:        creatorID,
 	}
 
@@ -412,4 +428,85 @@ func (s *groupService) DeleteGroup(groupID, userID uuid.UUID) error {
 // basamaklı tutarları kabul eder (0 – 99.999.999,99).
 func validMoney(amount decimal.Decimal) bool {
 	return !amount.IsNegative() && !amount.GreaterThan(decimal.New(9999999999, -2)) && amount.Equal(amount.Round(2))
+}
+
+// turkeyTZ hediye tarihi doğrulamasında "bugün"ü belirler. Türkiye 2016'dan beri yaz
+// saati uygulamaz; sabit UTC+3 kullanmak konteynerde tz veritabanına bağımlılığı kaldırır.
+var turkeyTZ = time.FixedZone("TRT", 3*60*60)
+
+// validEventDate tarihin bugünden en fazla 1 yıl önce, en fazla 5 yıl sonra olduğunu denetler.
+// Geçmiş tarih kabul edilir: grup doğum gününden sonra da kurulabilir veya kapatılmadan kalabilir.
+func validEventDate(d models.Date, now time.Time) bool {
+	n := now.In(turkeyTZ)
+	today := time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, time.UTC)
+	return !d.Before(today.AddDate(-1, 0, 0)) && !d.After(today.AddDate(5, 0, 0))
+}
+
+// requireAdmin grubu getirir; Anti-Spoiler, üyelik ve admin rolünü denetler.
+func (s *groupService) requireAdmin(groupID, userID uuid.UUID, notAdmin error) (*models.Group, error) {
+	group, err := s.groupRepo.GetGroupByID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	if group == nil {
+		return nil, ErrGroupNotFound
+	}
+	if group.TargetUserID != nil && *group.TargetUserID == userID {
+		return nil, ErrAntiSpoilerTriggered
+	}
+	member, err := s.groupRepo.GetMember(groupID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if member == nil {
+		return nil, ErrNotGroupMember
+	}
+	if member.Role != "admin" {
+		return nil, notAdmin
+	}
+	return group, nil
+}
+
+// SelectWinner admin'in seçtiği aktif fikri kazanan yapar ve grubu tamamlar.
+// Tamamlanan grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme kapanır.
+func (s *groupService) SelectWinner(groupID, userID, ideaID uuid.UUID) error {
+	if _, err := s.requireAdmin(groupID, userID, ErrUnauthorizedWinner); err != nil {
+		return err
+	}
+	return s.groupRepo.CompleteGroup(groupID, ideaID, func(group *models.Group, idea *models.GiftIdea) error {
+		if group.Status == models.GroupStatusCompleted {
+			return ErrGroupCompleted
+		}
+		if idea == nil {
+			return ErrWinnerNotInGroup
+		}
+		if idea.Status != "ACTIVE" {
+			return ErrWinnerNotActive
+		}
+		return nil
+	})
+}
+
+// ReopenGroup yanlış seçimi geri almak için grubu yeniden açar; kazanan fikir aktife döner.
+func (s *groupService) ReopenGroup(groupID, userID uuid.UUID) error {
+	if _, err := s.requireAdmin(groupID, userID, ErrUnauthorizedWinner); err != nil {
+		return err
+	}
+	return s.groupRepo.ReopenGroup(groupID, func(group *models.Group) error {
+		if group.Status != models.GroupStatusCompleted {
+			return ErrGroupNotCompleted
+		}
+		return nil
+	})
+}
+
+// SetEventDate hediye tarihini ayarlar veya (nil ile) kaldırır. Yalnızca admin.
+func (s *groupService) SetEventDate(groupID, userID uuid.UUID, date *models.Date) error {
+	if _, err := s.requireAdmin(groupID, userID, ErrUnauthorizedEventDate); err != nil {
+		return err
+	}
+	if date != nil && !validEventDate(*date, time.Now()) {
+		return ErrInvalidEventDate
+	}
+	return s.groupRepo.SetEventDate(groupID, date)
 }

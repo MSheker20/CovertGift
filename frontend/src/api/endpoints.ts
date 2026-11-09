@@ -34,6 +34,12 @@ export const groupsApi = {
   linkTarget: (id: string, email: string) =>
     api<Group>(`/groups/${id}/target`, { method: 'PATCH', body: { email } }),
   remove: (id: string) => api<unknown>(`/groups/${id}`, { method: 'DELETE' }),
+  // null tarihi kaldırır.
+  updateEventDate: (id: string, eventDate: string | null) =>
+    api<unknown>(`/groups/${id}/event-date`, { method: 'PATCH', body: { event_date: eventDate } }),
+  selectWinner: (id: string, ideaId: string) =>
+    api<unknown>(`/groups/${id}/winner`, { method: 'POST', body: { idea_id: ideaId } }),
+  reopen: (id: string) => api<unknown>(`/groups/${id}/winner`, { method: 'DELETE' }),
 }
 
 export const ideasApi = {
@@ -45,6 +51,7 @@ export const ideasApi = {
   generateAI: (groupId: string) => api<Idea[]>(`/groups/${groupId}/ideas/generate-ai`, { method: 'POST' }),
   vote: (ideaId: string, voteType: 1 | -1) =>
     api<unknown>(`/ideas/${ideaId}/vote`, { method: 'POST', body: { vote_type: voteType } }),
+  unvote: (ideaId: string) => api<unknown>(`/ideas/${ideaId}/vote`, { method: 'DELETE' }),
   reject: (ideaId: string) => api<unknown>(`/ideas/${ideaId}/reject`, { method: 'POST' }),
   remove: (ideaId: string) => api<unknown>(`/ideas/${ideaId}`, { method: 'DELETE' }),
 }
@@ -55,3 +62,13 @@ export const queryKeys = {
   group: (id: string) => ['groups', id] as const,
   ideas: (groupId: string) => ['groups', groupId, 'ideas'] as const,
 }
+
+// Fikir mutasyonlarının ortak anahtarı: biri sürerken periyodik yenileme durur, böylece
+// iyimser güncelleme eski bir yanıtla ezilmez.
+export const mutationKeys = {
+  ideas: (groupId: string) => ['ideas', groupId] as const,
+}
+
+// Grup sayfası açıkken başkalarının oyları ve yeni fikirler bu aralıkla çekilir.
+// Sekme arka plandayken TanStack Query yenilemeyi durdurur.
+export const LIVE_REFRESH_MS = 10_000

@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/MSheker20/CovertGift/backend/internal/config"
 	"github.com/MSheker20/CovertGift/backend/internal/logging"
@@ -117,9 +118,12 @@ func seed(db *gorm.DB, password string) error {
 		admin, member, friend := users[demoAdmin.Email], users[demoMember.Email], users[demoFriend.Email]
 
 		groupSvc := services.NewGroupService(groupRepo, userRepo)
+		// Hediye tarihi 3 hafta sonrası: geri sayım demo'da görünsün.
+		now := time.Now()
+		eventDate := models.Date{Time: time.Date(now.Year(), now.Month(), now.Day()+21, 0, 0, 0, 0, time.UTC)}
 		group, err := groupSvc.CreateGroup(admin.ID, "Ahmet'in 30. Yaş Sürprizi",
 			"Yakın arkadaşlarla ortak doğum günü hediyesi", "Ahmet", "Kamp\n3. nesil kahve\nTrekking",
-			nil, demoTarget.Email, decimal.RequireFromString("3000"))
+			nil, demoTarget.Email, decimal.RequireFromString("3000"), &eventDate)
 		if err != nil {
 			return fmt.Errorf("grup: %w", err)
 		}

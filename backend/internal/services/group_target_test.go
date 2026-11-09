@@ -87,7 +87,7 @@ func TestCreateGroupResolvesTargetEmail(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &targetRepository{}
 			svc := NewGroupService(repo, &emailUserRepository{users: users, err: tc.lookupErr})
-			group, err := svc.CreateGroup(creatorID, "Sürpriz", "", "Ahmet", "", tc.targetUserID, tc.email, decimal.Zero)
+			group, err := svc.CreateGroup(creatorID, "Sürpriz", "", "Ahmet", "", tc.targetUserID, tc.email, decimal.Zero, nil)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tc.wantErr)
 			}
