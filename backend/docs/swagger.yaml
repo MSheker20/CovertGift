@@ -176,12 +176,16 @@ definitions:
     type: object
   controllers.SelectWinnerRequest:
     properties:
-      idea_id:
-        example: 7d1e5a3c-2f4b-4c8e-9a6d-1b2c3d4e5f60
-        format: uuid
-        type: string
+      idea_ids:
+        example:
+        - 7d1e5a3c-2f4b-4c8e-9a6d-1b2c3d4e5f60
+        items:
+          type: string
+        maxItems: 20
+        minItems: 1
+        type: array
     required:
-    - idea_id
+    - idea_ids
     type: object
   controllers.UpdateBudgetRequest:
     properties:
@@ -1397,8 +1401,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Yalnızca admin. Seçilen aktif fikir SELECTED, grup COMPLETED olur.
-        Tamamlanan grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme 409 döner.
+      description: Yalnızca admin. Seçilen 1–20 aktif fikir SELECTED, grup COMPLETED
+        olur. Fikirlerden biri başka gruba aitse 400, aktif değilse 409. Tamamlanan
+        grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme 409 döner.
       parameters:
       - description: Grup UUID
         format: uuid
@@ -1406,7 +1411,7 @@ paths:
         name: id
         required: true
         type: string
-      - description: Kazanan fikir
+      - description: Kazanan fikirler
         in: body
         name: request
         required: true
@@ -1442,7 +1447,7 @@ paths:
             $ref: '#/definitions/controllers.Response'
       security:
       - BearerAuth: []
-      summary: Kazananı Seç ve Grubu Tamamla
+      summary: Kazananları Seç ve Grubu Tamamla
       tags:
       - Grup İşlemleri (Groups)
   /api/v1/ideas/{id}:

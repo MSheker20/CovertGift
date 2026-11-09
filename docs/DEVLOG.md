@@ -294,6 +294,7 @@
 | K46 | 11-09 | Oyu geri almak çoğunluk vetosunu geri çevirmez | REJECTED admin vetosuyla da oluşabildiği için ayırt edilemez |
 | K47 | 11-09 | Canlılık için önce 10 sn periyodik yenileme (TanStack Query); bir fikir işlemi sürerken durur; SSE sonraya | En az kodla çoğu ihtiyacı karşılamak; iyimser güncellemeyi eski yanıtla ezmemek |
 | K48 | 11-09 | Canlı güncelleme SSE ile: olay yalnızca "changed" der, veri her zamanki korumalı uçlardan çekilir; akış 5 dk'da bir yenilenir; token başlıkta (fetch), URL'de değil | Olay kanalından veri sızmasını imkânsız kılmak; yetkiyi düzenli yeniden denetlemek; token'ı loglara/geçmişe düşürmemek |
+| K49 | 11-09 | Bir grupta birden çok kazanan: admin 1–20 aktif fikri tek seferde seçer; seçim penceresi toplamı bütçeyle karşılaştırır, aşımda uyarır ama engellemez | Ortak hediye birden çok parçadan oluşabilir; bütçe aşımı bilinçli bir karar olabilir |
 
 
 ---
@@ -700,3 +701,12 @@
 - `main` (`7bb8416`, #5–#10) yerel Docker ile `linux/amd64` için derlendi, ACR'ye `covertgift-api:7bb8416` ve `covertgift-web:7bb8416` olarak gönderildi, iki Container App güncellendi.
 - Canlı kontrol (yalnızca okuma): `/health` 200 (`db: up`, yani AutoMigrate başarılı), `/` 200, oturumsuz `/api/v1/me` 401, Swagger 200 ve yeni uçlar (`/groups/{id}/events`, `/groups/{id}/winner`) şemada, oturumsuz olay akışı 401, yanıtlarda `X-Request-ID`. Canlı veriye yazan hiçbir istek atılmadı; kullanıcı testi canlıda kendisi yapacak.
 - `az containerapp logs show` bu CLI sürümünde `KeyError: 'eventStreamEndpoint'` ile çalışmıyor.
+
+---
+
+## 2026-11-09 — Birden çok kazanan
+
+- **API:** `POST /groups/:id/winner` artık `{ "idea_ids": [...] }` alır (1–20, tekrarlar ayıklanır). Repo, grup satırı kilitliyken gruba ait bulunan fikirleri guard'a verir; kimliklerden biri gruba ait değilse 400, biri aktif değilse 409 ve hiçbir fikir değişmez. Yeniden açma tüm `SELECTED` fikirleri aktife döndürür. Eski `idea_id` alanı kaldırıldı (tek tüketici frontend).
+- **Arayüz:** "Kazanan olarak seç" artık aktif fikirlerin işaretlenebilir listesini açar; tıklanan fikir önceden işaretli gelir. Seçilenlerin toplamı bütçeyle birlikte gösterilir, aşımda uyarılır (K49). Onay düğmesi seçim sayısını söyler; hiçbir şey seçili değilse kapalıdır; en fazla 20. Tamamlanan grupta tüm kazananlar üstte, bant hepsini sayar.
+- **Testler:** Entegrasyon — iki kazanan, tekrarlanan kimlik, başka grubun fikri (hiçbiri değişmez), 21 kimlik 400, yeniden açınca hepsi aktif. Frontend — önceden işaretli fikir, toplam ve bütçe aşımı uyarısı, `idea_ids` gövdesi, boş seçimde kapalı düğme, birden çok kazananlı tamamlanmış görünüm.
+- **Tarayıcıda (test-db):** iki kazanan seçildi; toplam ₺2.550 / bütçe ₺3.000, üçüncüyle ₺3.400 ve uyarı; tamamlandıktan sonra iki kart "Kazanan" etiketli ve üstte.

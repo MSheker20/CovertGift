@@ -146,6 +146,7 @@ export function GroupPage() {
                   meId={user?.id}
                   isAdmin={d.my_role === 'admin'}
                   completed={completed}
+                  totalBudget={d.group.total_budget}
                   live={live}
                   datePassed={days !== null && days < 0}
                 />
