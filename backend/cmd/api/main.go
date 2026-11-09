@@ -2,12 +2,14 @@ package main
 
 import (
 	"database/sql"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/MSheker20/CovertGift/backend/internal/config"
 	"github.com/MSheker20/CovertGift/backend/internal/controllers"
+	"github.com/MSheker20/CovertGift/backend/internal/logging"
 	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
@@ -36,53 +38,60 @@ import (
 // @description     JWT Bearer token formatı: "Bearer {token}". Örnek: "Bearer eyJhbGciOiJIUzI1Ni..."
 
 func main() {
-	// 1. Ortam ayarlarını yükle (.env)
+	// 1. Ortam ayarlarını yükle (.env) ve yapılandırılmış loglamayı kur
+	config.LoadDotEnv()
+	logging.FromEnv()
 	cfg := config.Load()
 
 	// 2. PostgreSQL veritabanına bağlan
 	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("❌ Veritabanına bağlanılamadı: %v", err)
+		fatal("veritabanına bağlanılamadı", err)
 	}
 
 	// 3. Bağlantı Havuzu (Connection Pool) Ayarları
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Fatalf("❌ Veritabanı havuzu alınamadı: %v", err)
+		fatal("veritabanı havuzu alınamadı", err)
 	}
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	// 4. Veritabanı Tablolarını Senkronize Et (AutoMigrate)
-	log.Println("🔄 Veritabanı tabloları senkronize ediliyor (AutoMigrate)...")
 	err = migrate(db)
 	if err != nil {
-		log.Fatalf("❌ Migrasyon hatası: %v", err)
+		fatal("migrasyon hatası", err)
 	}
-	log.Println("✅ 5 temel tablo ve ilişkiler başarıyla senkronize edildi!")
+	slog.Info("veritabanı tabloları senkronize edildi")
 
 	// Gemini AI İstemcisi Başlatma (Fail-Safe)
 	var geminiClient *gemini.Client
 	if cfg.GeminiKey != "" {
 		client, err := gemini.NewClientWithOptions(cfg.GeminiKey, gemini.Options{Model: cfg.GeminiModel, ResearchModel: cfg.GeminiResearchModel, FallbackModel: cfg.GeminiFallbackModel, SearchEnabled: cfg.GeminiSearchEnabled, ThinkingLevel: cfg.GeminiThinkingLevel})
 		if err != nil {
-			log.Fatalf("Gemini yapılandırması geçersiz: %v", err)
+			fatal("Gemini yapılandırması geçersiz", err)
 		} else {
 			geminiClient = client
-			log.Printf("Gemini aktif: model=%s search=%t research=%s fallback=%s", cfg.GeminiModel, cfg.GeminiSearchEnabled, cfg.GeminiResearchModel, cfg.GeminiFallbackModel)
+			slog.Info("Gemini aktif", "model", cfg.GeminiModel, "search", cfg.GeminiSearchEnabled, "research_model", cfg.GeminiResearchModel, "fallback_model", cfg.GeminiFallbackModel)
 		}
 	} else {
-		log.Println("⚠️  GEMINI_API_KEY tanımlı değil; AI hediye üretimi devre dışı.")
+		slog.Warn("GEMINI_API_KEY tanımlı değil; AI hediye üretimi devre dışı")
 	}
 
 	r := newRouter(db, cfg, geminiClient)
 
 	// 5. Katmanları, rotaları kur ve sunucuyu ayağa kaldır
-	log.Printf("🚀 CovertGift API :%s portunda çalışıyor", cfg.Port)
+	slog.Info("CovertGift API çalışıyor", "port", cfg.Port, "env", cfg.AppEnv)
 	if err := r.Run(":" + cfg.Port); err != nil {
-		log.Fatalf("❌ Sunucu başlatılamadı: %v", err)
+		fatal("sunucu başlatılamadı", err)
 	}
+}
+
+// fatal hatayı ERROR seviyesinde loglar ve süreci sonlandırır.
+func fatal(msg string, err error) {
+	slog.Error(msg, "error", err)
+	os.Exit(1)
 }
 
 // HealthResponse sağlık kontrolü yanıt verisi

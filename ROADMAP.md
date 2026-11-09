@@ -175,12 +175,12 @@ flowchart LR
 - [x] Gemini kota/istek sınırı hatasını HTTP 429 olarak döndür; istemci ve controller testleriyle doğrula
 - [ ] Kalan AI hata yanıtlarını ayrıştır: kaynaksız araştırma şu an 500 döner; 422 eşlemesi ve geçici servis hataları için 503 yanıtı ekle
 - [x] CORS ayarları, istek boyutu limitleri, input validasyonu (2026-11-09): tüm isteklerde 1 MiB gövde limiti (aşılırsa 413); oluşturmada bütçe ve manuel fikirde fiyat doğrulaması (0–99.999.999,99, iki ondalık); metin alanlarına sütun boyutlarıyla uyumlu `max`, `product_url`/`image_url` için `http_url`, oy için `oneof=1 -1`. CORS bilinçli olarak yok (aynı origin); kullanılmayan `CORS_ORIGIN` kaldırıldı.
-- [ ] Hata loglama (yapılandırılmış log)
-- [ ] Seed script (demo kullanıcılar + grup)
+- [x] Hata loglama (2026-11-09): `log/slog` (production'da JSON), istek başına tek satır (`request_id`, yöntem, yol, durum, süre; sorgu, gövde ve Authorization loglanmaz), `X-Request-ID` başlığı, panik kurtarma. 500 yanıtları iç hatayı artık istemciye göstermez, loga yazar.
+- [x] Seed script (2026-11-09): `go run ./cmd/seed` — 4 demo kullanıcı, hedefi bağlı grup, 3 fikir, oylar. Tek transaction, yalnızca ekler, idempotent, production'da reddeder.
 - [x] Yerel veri koruması (2026-10-22, 2026-11-09'da çözüldü: uç `ALLOW_DB_RESET=true` olmadan 403, açıkken gövdede `{"confirm": "RESET"}` yoksa 400; düzenli `pg_dump` yedeği SETUP'ta önerili): yerel API'de `POST /api/v1/dev/reset-db` açık ve Vite geliştirme proxy'si onu engellemiyor; 2026-10-21'de bir smoke testi yerel veritabanını bu uçla sildi. Seçenekler: ucu ayrı bir ortam bayrağına bağlamak, onay parametresi istemek veya Vite proxy'sinde engellemek; düzenli `pg_dump` yedeği. Karar verilmedi.
 - [x] `README.md` → ilk `.env` kurulumu, backend/panel/tünel komutları ve doğrulama adımları (2026-10-17)
 - [x] Backend, frontend (nginx) ve eski panel için Dockerfile ve `.dockerignore`; Azure demo dağıtım rehberi
-- [ ] (Opsiyonel) Backend ve paneli yerel Docker Compose yapılandırmasına ekleme
+- [x] (Opsiyonel) Backend ve frontend'i yerel Docker Compose'a ekleme (2026-11-09): `docker compose --profile app up -d --build` → http://localhost:8081. Eski panel eklenmedi (yerini React frontend aldı).
 
 **✅ Kabul:** Temiz bir makinede README adımlarıyla proje 10 dakikada ayağa kalkar.
 

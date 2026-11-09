@@ -35,7 +35,7 @@ Faz 0–7 tamamlandı; Faz 8 (test, güvenlik ve cila) sürüyor. Kalıcı React
 | **Faz 6 — Gemini AI Hediye Önerileri** | ✅ Tamamlandı (Search kapalı tek çağrı modu; veto, tekrar ve bütçe filtreleri; 429 kota yanıtı) |
 | **API Dokümantasyonu (Swagger / OpenAPI)** | ✅ Tamamlandı (Canlı UI: `/swagger/index.html` veya `/docs`) |
 | **Faz 7 — Frontend** | ✅ Tamamlandı (`frontend/`: React 19 + Vite + TypeScript, TR/EN, hediye havuzu, oylama, Gemini, link önizleme, grup yönetimi, hedef kişiyi e-postayla bağlama; Vitest 37 + Playwright 6 test) |
-| **Faz 8 — Test, güvenlik ve cila** | ⏳ Sürüyor (yapılandırılmış log, seed script ve AI hata yanıtları açık) |
+| **Faz 8 — Test, güvenlik ve cila** | ⏳ Sürüyor (yalnızca AI hata yanıtları açık) |
 | Geçici test paneli | 🗄️ Eski (`prototypes/test-ui/`; React frontend yerini aldı) |
 
 ---
@@ -157,8 +157,20 @@ Anti-Spoiler entegrasyon testleri gerçek router ve PostgreSQL ile çalışır. 
 
 ```bash
 docker compose --profile test up -d --wait test-db
-TEST_DATABASE_URL='postgres://covertgift:covertgift_test@localhost:55432/covertgift_test?sslmode=disable' go test ./backend/cmd/api/ -count=1
+TEST_DATABASE_URL='postgres://covertgift:covertgift_test@localhost:55432/covertgift_test?sslmode=disable' go test -p 1 -count=1 ./backend/cmd/...   # -p 1: paketler aynı test DB'sini paylaşır
 docker compose --profile test stop test-db
+```
+
+Seed (demo verisi) ve tüm uygulamayı konteynerde çalıştırma:
+
+```bash
+# backend/ içinden: yerel DB'ye 4 demo kullanıcı, hedefi bağlı bir grup, 3 fikir ve oylar ekler.
+# Yalnızca ekler; demo yöneticisi varsa hiçbir şey yapmaz; APP_ENV=production iken çalışmaz.
+(cd backend && go run ./cmd/seed)          # parola: Demo1234! (SEED_PASSWORD ile değiştirilebilir)
+
+# API + React frontend + DB konteynerde (ayarlar backend/.env'den; JWT_SECRET zorunlu)
+docker compose --profile app up -d --build  # arayüz: http://localhost:8081
+docker compose --profile app stop api web
 ```
 
 Güncel AI modunda Google Search kapalıdır: tek yapılandırılmış çağrı en fazla 5 öneri üretir, fiyatlar doğrulanmamış tahmindir ve arayüzde "Tahmini fiyat" olarak etiketlenir. Search yeniden açılırsa `ai_sources` kaynak listesi ve `ai_search_suggestions` HTML'i frontend'de (kaynaklar katlanır listede, öneri HTML'i betiksiz sandbox iframe'de) gösterilir.

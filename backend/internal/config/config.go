@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/joho/godotenv"
 )
@@ -24,12 +25,21 @@ type Config struct {
 	AllowDBReset        bool
 }
 
+// LoadDotEnv varsa .env dosyasını ortam değişkenlerine yükler. Zaten tanımlı
+// değişkenlerin üzerine yazmaz; birden çok kez çağrılabilir.
+func LoadDotEnv() {
+	dotEnvOnce.Do(func() {
+		if err := godotenv.Load(); err != nil {
+			log.Println(".env dosyası bulunamadı, sistem ortam değişkenleri kullanılacak")
+		}
+	})
+}
+
+var dotEnvOnce sync.Once
+
 // Load .env dosyasını okur ve Config yapısını doldurur
 func Load() *Config {
-	// .env dosyasını hafızaya yükle
-	if err := godotenv.Load(); err != nil {
-		log.Println("⚠️  .env dosyası bulunamadı, sistem ortam değişkenleri kullanılacak")
-	}
+	LoadDotEnv()
 
 	cfg := &Config{
 		Port:                getEnv("PORT", "8080"),
@@ -47,7 +57,7 @@ func Load() *Config {
 
 	// Kritik değişkenler yoksa sistemi hiç başlatma (Fail-Fast)
 	if cfg.DatabaseURL == "" || cfg.JWTSecret == "" {
-		log.Fatal("❌ HATA: DATABASE_URL ve JWT_SECRET ortam değişkenleri zorunludur!")
+		log.Fatal("DATABASE_URL ve JWT_SECRET ortam değişkenleri zorunludur")
 	}
 
 	return cfg

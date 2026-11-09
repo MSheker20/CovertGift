@@ -41,3 +41,12 @@ func RespondErr(c *gin.Context, status int, msg string) {
 		Error:   msg,
 	})
 }
+
+// RespondInternal 500 yanıtı döner. İç hata istemciye gösterilmez; c.Error ile isteğe
+// eklenir ve RequestLogger tarafından ERROR seviyesinde loglanır.
+func RespondInternal(c *gin.Context, msg string, err error) {
+	if err != nil {
+		_ = c.Error(err)
+	}
+	RespondErr(c, http.StatusInternalServerError, msg)
+}

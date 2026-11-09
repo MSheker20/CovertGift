@@ -1,8 +1,9 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/MSheker20/CovertGift/backend/internal/config"
 	"github.com/MSheker20/CovertGift/backend/internal/controllers"
@@ -17,15 +18,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// migrate 5 temel tabloyu ve ilişkilerini AutoMigrate ile senkronize eder.
+// migrate şemayı models.Migrate ile senkronize eder.
 func migrate(db *gorm.DB) error {
-	return db.AutoMigrate(
-		&models.User{},
-		&models.Group{},
-		&models.GroupMember{},
-		&models.GiftIdea{},
-		&models.Vote{},
-	)
+	return models.Migrate(db)
 }
 
 // newRouter katmanları bağlar ve tüm rotaları kurar. main ve entegrasyon testleri
@@ -34,7 +29,8 @@ func migrate(db *gorm.DB) error {
 func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client) *gin.Engine {
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Fatalf("❌ Veritabanı havuzu alınamadı: %v", err)
+		slog.Error("veritabanı havuzu alınamadı", "error", err)
+		os.Exit(1)
 	}
 
 	// Katmanları Başlat (Dependency Injection)
@@ -51,12 +47,13 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client) *gi
 	ideaController := controllers.NewIdeaController(ideaService)
 	devController := controllers.NewDevController(db, cfg.AppEnv, cfg.AllowDBReset)
 	if cfg.AllowDBReset && cfg.AppEnv != "production" {
-		log.Println("⚠️  ALLOW_DB_RESET=true: POST /api/v1/dev/reset-db açık ve tüm tabloları silebilir")
+		slog.Warn("ALLOW_DB_RESET=true: POST /api/v1/dev/reset-db açık ve tüm tabloları silebilir")
 	}
 
 	// Gin web motorunu başlat
-	r := gin.Default()
-	r.Use(middleware.BodyLimit(middleware.DefaultMaxBodyBytes))
+	logger := slog.Default()
+	r := gin.New()
+	r.Use(middleware.Recovery(logger), middleware.RequestLogger(logger), middleware.BodyLimit(middleware.DefaultMaxBodyBytes))
 
 	// Sağlık Kontrolü (Healthcheck) Endpoint'i
 	r.GET("/health", healthHandler(sqlDB))

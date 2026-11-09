@@ -106,7 +106,7 @@ func (ctl *IdeaController) AddIdea(c *gin.Context) {
 			RespondErr(c, http.StatusBadRequest, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Hediye önerisi eklenirken bir hata oluştu")
+		RespondInternal(c, "Hediye önerisi eklenirken bir hata oluştu", err)
 		return
 	}
 
@@ -155,7 +155,7 @@ func (ctl *IdeaController) GetIdeas(c *gin.Context) {
 			RespondErr(c, http.StatusNotFound, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Hediye önerileri alınırken bir hata oluştu")
+		RespondInternal(c, "Hediye önerileri alınırken bir hata oluştu", err)
 		return
 	}
 
@@ -261,7 +261,7 @@ func (ctl *IdeaController) GenerateAI(c *gin.Context) {
 			RespondErr(c, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Yapay zeka hediye önerisi üretirken bir hata oluştu: "+err.Error())
+		RespondInternal(c, "Yapay zeka hediye önerisi üretirken bir hata oluştu", err)
 		return
 	}
 
@@ -322,7 +322,7 @@ func (ctl *IdeaController) Vote(c *gin.Context) {
 			RespondErr(c, http.StatusForbidden, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Oy kaydedilirken bir hata oluştu")
+		RespondInternal(c, "Oy kaydedilirken bir hata oluştu", err)
 		return
 	}
 
@@ -377,7 +377,7 @@ func (ctl *IdeaController) RejectIdea(c *gin.Context) {
 			RespondErr(c, http.StatusForbidden, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Hediye önerisi veto edilirken bir hata oluştu")
+		RespondInternal(c, "Hediye önerisi veto edilirken bir hata oluştu", err)
 		return
 	}
 
@@ -432,7 +432,7 @@ func (ctl *IdeaController) DeleteIdea(c *gin.Context) {
 			RespondErr(c, http.StatusForbidden, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Hediye önerisi silinirken bir hata oluştu")
+		RespondInternal(c, "Hediye önerisi silinirken bir hata oluştu", err)
 		return
 	}
 

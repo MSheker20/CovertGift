@@ -62,7 +62,7 @@ func (ctl *AuthController) Register(c *gin.Context) {
 			RespondErr(c, http.StatusConflict, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Kayıt oluşturulurken bir hata oluştu")
+		RespondInternal(c, "Kayıt oluşturulurken bir hata oluştu", err)
 		return
 	}
 
@@ -94,7 +94,7 @@ func (ctl *AuthController) Login(c *gin.Context) {
 			RespondErr(c, http.StatusUnauthorized, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Giriş yapılırken bir hata oluştu")
+		RespondInternal(c, "Giriş yapılırken bir hata oluştu", err)
 		return
 	}
 
@@ -124,7 +124,7 @@ func (ctl *AuthController) Me(c *gin.Context) {
 
 	userID, ok := val.(uuid.UUID)
 	if !ok {
-		RespondErr(c, http.StatusInternalServerError, "Geçersiz kullanıcı kimliği")
+		RespondInternal(c, "Geçersiz kullanıcı kimliği", errors.New("context userID uuid.UUID değil"))
 		return
 	}
 
@@ -134,7 +134,7 @@ func (ctl *AuthController) Me(c *gin.Context) {
 			RespondErr(c, http.StatusNotFound, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Kullanıcı bilgisi alınamadı")
+		RespondInternal(c, "Kullanıcı bilgisi alınamadı", err)
 		return
 	}
 
@@ -161,7 +161,7 @@ func (ctl *AuthController) DeleteMe(c *gin.Context) {
 
 	userID, ok := val.(uuid.UUID)
 	if !ok {
-		RespondErr(c, http.StatusInternalServerError, "Geçersiz kullanıcı kimliği")
+		RespondInternal(c, "Geçersiz kullanıcı kimliği", errors.New("context userID uuid.UUID değil"))
 		return
 	}
 
@@ -170,7 +170,7 @@ func (ctl *AuthController) DeleteMe(c *gin.Context) {
 			RespondErr(c, http.StatusNotFound, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Hesap silinirken bir hata oluştu: "+err.Error())
+		RespondInternal(c, "Hesap silinirken bir hata oluştu", err)
 		return
 	}
 

@@ -22,7 +22,9 @@ Oturuma başlamadan önce oku:
 - DB: `docker compose up -d`
 - API: `cd backend && go run ./cmd/api`
 - Frontend: `npm --prefix frontend run dev` (:5174, `/api` → :8080)
-- Testler: `cd backend && go test ./...` (Anti-Spoiler entegrasyon testleri için `docker compose --profile test up -d --wait test-db` + `TEST_DATABASE_URL=...localhost:55432/covertgift_test`; adı `_test` ile bitmeyen DB reddedilir), `npm --prefix frontend test` (Vitest), `npm --prefix frontend run test:e2e` (Playwright; önce API çalışmalı)
+- Testler: `cd backend && go test ./...` (Anti-Spoiler entegrasyon testleri için `docker compose --profile test up -d --wait test-db` + `TEST_DATABASE_URL=...localhost:55432/covertgift_test go test -p 1 ./cmd/...`; adı `_test` ile bitmeyen DB reddedilir), `npm --prefix frontend test` (Vitest), `npm --prefix frontend run test:e2e` (Playwright; önce API çalışmalı)
+- Seed: `cd backend && go run ./cmd/seed` (yalnızca ekler, idempotent). Konteynerde tüm uygulama: `docker compose --profile app up -d --build` (:8081)
+- Loglama: `log/slog`; `LOG_FORMAT` (json/text, production'da json) ve `LOG_LEVEL`. 500 yanıtlarında `controllers.RespondInternal` kullanılır; iç hata istemciye değil loga gider.
 - Swagger: `cd backend && swag init -g cmd/api/main.go --parseInternal`
 
 ## Notlar
