@@ -51,9 +51,9 @@ type InterestListResponse struct {
 	Interests []string `json:"interests"`
 }
 
-// SelectWinnerRequest kazanan hediye fikrini taşır
+// SelectWinnerRequest kazanan hediye fikirlerini taşır (1–20 farklı fikir)
 type SelectWinnerRequest struct {
-	IdeaID uuid.UUID `json:"idea_id" binding:"required" format:"uuid" example:"7d1e5a3c-2f4b-4c8e-9a6d-1b2c3d4e5f60"`
+	IdeaIDs []uuid.UUID `json:"idea_ids" binding:"required,min=1,max=20" swaggertype:"array,string" example:"7d1e5a3c-2f4b-4c8e-9a6d-1b2c3d4e5f60"`
 }
 
 // UpdateEventDateRequest hediye tarihini taşır; null tarihi kaldırır
@@ -516,7 +516,7 @@ func groupAdminError(c *gin.Context, err error, internalMsg string) {
 		RespondErr(c, http.StatusForbidden, err.Error())
 	case errors.Is(err, services.ErrGroupNotFound):
 		RespondErr(c, http.StatusNotFound, err.Error())
-	case errors.Is(err, services.ErrWinnerNotInGroup), errors.Is(err, services.ErrInvalidEventDate):
+	case errors.Is(err, services.ErrWinnerNotInGroup), errors.Is(err, services.ErrInvalidEventDate), errors.Is(err, services.ErrInvalidWinners):
 		RespondErr(c, http.StatusBadRequest, err.Error())
 	case errors.Is(err, services.ErrGroupCompleted), errors.Is(err, services.ErrGroupNotCompleted), errors.Is(err, services.ErrWinnerNotActive):
 		RespondErr(c, http.StatusConflict, err.Error())
@@ -525,15 +525,15 @@ func groupAdminError(c *gin.Context, err error, internalMsg string) {
 	}
 }
 
-// SelectWinner kazanan hediyeyi seçer ve grubu tamamlar
-// @Summary      Kazananı Seç ve Grubu Tamamla
-// @Description  Yalnızca admin. Seçilen aktif fikir SELECTED, grup COMPLETED olur. Tamamlanan grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme 409 döner.
+// SelectWinner kazanan hediyeleri seçer ve grubu tamamlar
+// @Summary      Kazananları Seç ve Grubu Tamamla
+// @Description  Yalnızca admin. Seçilen 1–20 aktif fikir SELECTED, grup COMPLETED olur. Fikirlerden biri başka gruba aitse 400, aktif değilse 409. Tamamlanan grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme 409 döner.
 // @Tags         Grup İşlemleri (Groups)
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id path string true "Grup UUID" Format(uuid)
-// @Param        request body SelectWinnerRequest true "Kazanan fikir"
+// @Param        request body SelectWinnerRequest true "Kazanan fikirler"
 // @Success      200 {object} Response{data=MessageData} "Grup tamamlandı"
 // @Failure      400 {object} Response "Fikir bu gruba ait değil veya istek geçersiz"
 // @Failure      403 {object} Response "Anti-Spoiler, üye değil veya admin değil"
@@ -548,7 +548,7 @@ func (ctl *GroupController) SelectWinner(c *gin.Context) {
 	}
 	var req SelectWinnerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: idea_id zorunludur")
+		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: idea_ids 1–20 öneri kimliği içermelidir")
 		return
 	}
 	userID, ok := getUserID(c)
@@ -556,7 +556,7 @@ func (ctl *GroupController) SelectWinner(c *gin.Context) {
 		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
 		return
 	}
-	if err := ctl.groupService.SelectWinner(groupID, userID, req.IdeaID); err != nil {
+	if err := ctl.groupService.SelectWinners(groupID, userID, req.IdeaIDs); err != nil {
 		groupAdminError(c, err, "Kazanan seçilirken bir hata oluştu")
 		return
 	}

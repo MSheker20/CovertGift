@@ -13,8 +13,9 @@ import { Button } from '@/components/ui/button'
 import { errorMessage } from '@/lib/errors'
 import { AddIdeaDialog } from './AddIdeaDialog'
 import { IdeaCard } from './IdeaCard'
+import { WinnersDialog } from './WinnersDialog'
 
-type Pending = { kind: 'reject' | 'remove' | 'winner'; idea: Idea } | null
+type Pending = { kind: 'reject' | 'remove'; idea: Idea } | null
 
 type Props = {
   groupId: string
@@ -22,6 +23,8 @@ type Props = {
   isAdmin: boolean
   // Admin kazananı seçtiyse grup tamamlanmıştır: oylar ve yeni öneriler kapalı.
   completed: boolean
+  // Kazanan seçim penceresinde seçilenlerin toplamı bununla karşılaştırılır.
+  totalBudget?: string
   // SSE bağlantısı açıksa değişiklikler anında gelir; periyodik yenileme seyrekleşir.
   live: boolean
   // Hediye tarihi geçmiş ve grup hâlâ açıksa admin'e kazananı seçmesi hatırlatılır.
@@ -29,7 +32,7 @@ type Props = {
 }
 
 // Ekranın sorusu: "Hangi hediyede birleşiyoruz?" En büyük blok bu; en çok oy alan üstte.
-export function GiftPool({ groupId, meId, isAdmin, completed, live, datePassed }: Props) {
+export function GiftPool({ groupId, meId, isAdmin, completed, totalBudget, live, datePassed }: Props) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const key = queryKeys.ideas(groupId)
@@ -41,6 +44,8 @@ export function GiftPool({ groupId, meId, isAdmin, completed, live, datePassed }
     refetchInterval: busy || completed ? false : liveInterval(live),
   })
   const [pending, setPending] = useState<Pending>(null)
+  // Kazanan penceresi açıksa, menüsünden açıldığı (önceden işaretli) fikir.
+  const [winnerFor, setWinnerFor] = useState<Idea | null>(null)
   const [showRejected, setShowRejected] = useState(false)
 
   // İyimser oy: skor ve seçili oy hemen güncellenir; yanıt yeni skoru döndürmediği ve çoğunluk
@@ -82,29 +87,33 @@ export function GiftPool({ groupId, meId, isAdmin, completed, live, datePassed }
 
   const act = useMutation({
     mutationKey: mutationKeys.ideas(groupId),
-    mutationFn: (p: NonNullable<Pending>) =>
-      p.kind === 'reject'
-        ? ideasApi.reject(p.idea.id)
-        : p.kind === 'winner'
-          ? groupsApi.selectWinner(groupId, p.idea.id)
-          : ideasApi.remove(p.idea.id),
+    mutationFn: (p: NonNullable<Pending>) => (p.kind === 'reject' ? ideasApi.reject(p.idea.id) : ideasApi.remove(p.idea.id)),
     onSuccess: (_d, p) => {
-      const message = { reject: 'pool.rejected', remove: 'pool.removed', winner: 'pool.winnerSelected' } as const
-      toast.success(t(message[p.kind], { title: p.idea.title }))
+      toast.success(t(p.kind === 'reject' ? 'pool.rejected' : 'pool.removed', { title: p.idea.title }))
       setPending(null)
     },
     onError: (err) => toast.error(errorMessage(err)),
-    onSettled: (_d, _e, p) => {
-      void queryClient.invalidateQueries({ queryKey: key })
-      // Kazanan seçimi grubun durumunu da değiştirir (detay ve liste).
-      if (p?.kind === 'winner') void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
+    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+  })
+
+  const pickWinners = useMutation({
+    mutationKey: mutationKeys.ideas(groupId),
+    mutationFn: (ids: string[]) => groupsApi.selectWinners(groupId, ids),
+    onSuccess: (_d, ids) => {
+      const titles = all.filter((i) => ids.includes(i.id)).map((i) => i.title)
+      toast.success(t('pool.winnersSelected', { count: ids.length, titles: titles.join(', ') }))
+      setWinnerFor(null)
     },
+    onError: (err) => toast.error(errorMessage(err)),
+    // Kazanan seçimi grubun durumunu da değiştirir (detay, fikirler ve liste).
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.groups }),
   })
 
   // Kazanan en üstte; diğerleri sunucunun skor sırasıyla.
   const all = ideas.data ?? []
-  const winner = all.find((i) => i.status === 'SELECTED')
-  const active = [...(winner ? [winner] : []), ...all.filter((i) => i.status === 'ACTIVE')]
+  const winners = all.filter((i) => i.status === 'SELECTED')
+  const candidates = all.filter((i) => i.status === 'ACTIVE')
+  const active = [...winners, ...candidates]
   const rejected = all.filter((i) => i.status === 'REJECTED')
 
   const card = (idea: Idea) => (
@@ -118,7 +127,7 @@ export function GiftPool({ groupId, meId, isAdmin, completed, live, datePassed }
         onVote={(value) => vote.mutate({ idea, value })}
         onReject={() => setPending({ kind: 'reject', idea })}
         onDelete={() => setPending({ kind: 'remove', idea })}
-        onSelectWinner={() => setPending({ kind: 'winner', idea })}
+        onSelectWinner={() => setWinnerFor(idea)}
       />
     </li>
   )
@@ -127,7 +136,6 @@ export function GiftPool({ groupId, meId, isAdmin, completed, live, datePassed }
     ? ({
         reject: { title: 'pool.rejectTitle', body: 'pool.rejectBody', confirm: 'pool.rejectConfirm' },
         remove: { title: 'pool.removeTitle', body: 'pool.removeBody', confirm: 'pool.removeConfirm' },
-        winner: { title: 'pool.winnerTitle', body: 'pool.winnerBody', confirm: 'pool.winnerConfirm' },
       } as const)[pending.kind]
     : null
 
@@ -164,7 +172,9 @@ export function GiftPool({ groupId, meId, isAdmin, completed, live, datePassed }
       {completed && (
         <p role="status" className="mb-3 flex items-center gap-3 rounded-[14px] bg-soft px-4 py-3.5 text-sm font-medium text-on-soft">
           <Trophy className="size-4 shrink-0" aria-hidden />
-          {winner ? t('pool.completedBanner', { title: winner.title }) : t('pool.completedNoWinner')}
+          {winners.length > 0
+            ? t('pool.completedBanner', { count: winners.length, titles: winners.map((w) => w.title).join(', ') })
+            : t('pool.completedNoWinner')}
         </p>
       )}
 
@@ -230,6 +240,18 @@ export function GiftPool({ groupId, meId, isAdmin, completed, live, datePassed }
         pending={act.isPending}
         onConfirm={() => pending && act.mutate(pending)}
       />
+      {winnerFor && (
+        <WinnersDialog
+          key={winnerFor.id}
+          open
+          onOpenChange={(o) => !o && !pickWinners.isPending && setWinnerFor(null)}
+          ideas={candidates}
+          initialId={winnerFor.id}
+          budget={totalBudget}
+          pending={pickWinners.isPending}
+          onConfirm={(ids) => pickWinners.mutate(ids)}
+        />
+      )}
     </section>
   )
 }

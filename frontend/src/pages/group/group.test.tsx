@@ -267,9 +267,15 @@ describe('unvote, winner and gift date', () => {
     expect(unvoted).toBe(true)
   })
 
-  it('lets the admin pick the winner after a confirmation', async () => {
+  it('lets the admin pick several winners, showing the total against the budget', async () => {
     let sent: unknown = null
-    baseHandlers()
+    baseHandlers({
+      ideas: [
+        idea({ estimated_price: '1450.00' }),
+        idea({ id: 'i-kahve', title: 'Kahve seti', estimated_price: '1100.00' }),
+        idea({ id: 'i-baton', title: 'Trekking batonu', estimated_price: '850.00' }),
+      ],
+    })
     server.use(
       http.post(api(`/groups/${group.id}/winner`), async ({ request }) => {
         sent = await request.json()
@@ -279,26 +285,57 @@ describe('unvote, winner and gift date', () => {
     renderApp(PATH)
     const user = userEvent.setup()
 
+    const card = (await screen.findByRole('heading', { level: 3, name: 'Stanley termos 1 L' })).closest('article')!
+    await user.click(within(card).getByRole('button', { name: 'Fikir işlemleri' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Kazanan olarak seç' }))
+    const dialog = await screen.findByRole('dialog')
+
+    // Kartın fikri önceden işaretli gelir.
+    expect(within(dialog).getByRole('checkbox', { name: /Stanley termos 1 L/ })).toBeChecked()
+    expect(within(dialog).getByText('Seçilenlerin toplamı: ₺1.450,00')).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('checkbox', { name: /Kahve seti/ }))
+    expect(within(dialog).getByText('Seçilenlerin toplamı: ₺2.550,00')).toBeInTheDocument()
+    expect(within(dialog).queryByText('Seçilenler toplam bütçeyi aşıyor.')).not.toBeInTheDocument()
+
+    // Bütçe 3000; üçüncüyle 3400 olur — uyarılır ama engellenmez.
+    await user.click(within(dialog).getByRole('checkbox', { name: /Trekking batonu/ }))
+    expect(within(dialog).getByText('Seçilenler toplam bütçeyi aşıyor.')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('checkbox', { name: /Trekking batonu/ }))
+    expect(sent).toBeNull()
+
+    await user.click(within(dialog).getByRole('button', { name: '2 kazananı seç' }))
+    await waitFor(() => expect(sent).toEqual({ idea_ids: ['i-termos', 'i-kahve'] }))
+  })
+
+  it('cannot confirm the winners dialog with nothing selected', async () => {
+    baseHandlers()
+    renderApp(PATH)
+    const user = userEvent.setup()
+
     await user.click(await screen.findByRole('button', { name: 'Fikir işlemleri' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Kazanan olarak seç' }))
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent('“Stanley termos 1 L” kazanan seçilir')
-    expect(sent).toBeNull()
-
-    await user.click(within(dialog).getByRole('button', { name: 'Kazananı seç' }))
-    await waitFor(() => expect(sent).toEqual({ idea_id: 'i-termos' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: /Stanley termos 1 L/ }))
+    expect(within(dialog).getByRole('button', { name: /kazananı seç/i })).toBeDisabled()
   })
 
-  it('shows a completed group read-only with the winner on top', async () => {
+  it('shows a completed group read-only with the winners on top', async () => {
     baseHandlers({
       group: { status: 'COMPLETED', completed_at: '2026-11-09T10:00:00Z' },
-      ideas: [idea({ id: 'i-other', title: 'Kahve seti', score: 5 }), idea({ status: 'SELECTED', score: 2 })],
+      ideas: [
+        idea({ id: 'i-other', title: 'Kahve seti', score: 5 }),
+        idea({ status: 'SELECTED', score: 2 }),
+        idea({ id: 'i-baton', title: 'Trekking batonu', status: 'SELECTED', score: 1 }),
+      ],
     })
     renderApp(PATH)
 
-    expect(await screen.findByText('Grup tamamlandı. Kazanan: Stanley termos 1 L')).toBeInTheDocument()
+    expect(await screen.findByText('Grup tamamlandı. Kazananlar: Stanley termos 1 L, Trekking batonu')).toBeInTheDocument()
     const cards = screen.getAllByRole('article')
     expect(within(cards[0]).getByText('Kazanan')).toBeInTheDocument()
+    expect(within(cards[1]).getByText('Kazanan')).toBeInTheDocument()
+    expect(within(cards[2]).queryByText('Kazanan')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Beğen' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manuel ekle' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Fikir işlemleri' })).not.toBeInTheDocument()

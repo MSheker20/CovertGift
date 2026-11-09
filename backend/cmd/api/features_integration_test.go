@@ -89,15 +89,15 @@ func TestSelectWinnerClosesGroupAndReopen(t *testing.T) {
 	other := idOf(t, s.api.mustOK(http.MethodPost, "/groups", s.admin.token, map[string]any{"title": "Başka grup", "target_person_name": "Xavi"}, http.StatusCreated))
 	otherIdea := idOf(t, s.api.mustOK(http.MethodPost, "/groups/"+other+"/ideas", s.admin.token, map[string]any{"title": "Başka fikir"}, http.StatusCreated))
 
-	expectStatus(t, s, http.MethodPost, g+"/winner", s.member.token, map[string]string{"idea_id": s.ideaID}, http.StatusForbidden)
-	expectStatus(t, s, http.MethodPost, g+"/winner", s.admin.token, map[string]string{"idea_id": otherIdea}, http.StatusBadRequest)
-	expectStatus(t, s, http.MethodPost, g+"/winner", s.admin.token, map[string]string{"idea_id": rejected}, http.StatusConflict)
-	expectStatus(t, s, http.MethodPost, g+"/winner", s.admin.token, map[string]string{}, http.StatusBadRequest)
+	expectStatus(t, s, http.MethodPost, g+"/winner", s.member.token, map[string][]string{"idea_ids": {s.ideaID}}, http.StatusForbidden)
+	expectStatus(t, s, http.MethodPost, g+"/winner", s.admin.token, map[string][]string{"idea_ids": {otherIdea}}, http.StatusBadRequest)
+	expectStatus(t, s, http.MethodPost, g+"/winner", s.admin.token, map[string][]string{"idea_ids": {rejected}}, http.StatusConflict)
+	expectStatus(t, s, http.MethodPost, g+"/winner", s.admin.token, map[string][]string{"idea_ids": {}}, http.StatusBadRequest)
 	if st := s.group(t).Status; st != "ACTIVE" {
 		t.Fatalf("başarısız denemeler grubu değiştirdi: %s", st)
 	}
 
-	s.api.mustOK(http.MethodPost, g+"/winner", s.admin.token, map[string]string{"idea_id": s.ideaID}, http.StatusOK)
+	s.api.mustOK(http.MethodPost, g+"/winner", s.admin.token, map[string][]string{"idea_ids": {s.ideaID}}, http.StatusOK)
 	if gv := s.group(t); gv.Status != "COMPLETED" || gv.CompletedAt == nil {
 		t.Fatalf("grup tamamlanmadı: %+v", gv)
 	}
@@ -117,7 +117,7 @@ func TestSelectWinnerClosesGroupAndReopen(t *testing.T) {
 		{http.MethodPost, g + "/ideas/generate-ai", s.member.token, nil},
 		{http.MethodPost, "/ideas/" + second + "/reject", s.admin.token, nil},
 		{http.MethodDelete, "/ideas/" + second, s.admin.token, nil},
-		{http.MethodPost, g + "/winner", s.admin.token, map[string]string{"idea_id": second}},
+		{http.MethodPost, g + "/winner", s.admin.token, map[string][]string{"idea_ids": {second}}},
 	} {
 		expectStatus(t, s, r.method, r.path, r.token, r.body, http.StatusConflict)
 	}
@@ -168,5 +168,49 @@ func TestEventDate(t *testing.T) {
 	s.api.mustOK(http.MethodPatch, g+"/event-date", s.admin.token, map[string]any{"event_date": nil}, http.StatusOK)
 	if gv := s.group(t); gv.EventDate != nil {
 		t.Fatalf("tarih kaldırılmadı: %v", *gv.EventDate)
+	}
+}
+
+func TestSelectMultipleWinners(t *testing.T) {
+	s := setupScenario(t)
+	g := "/groups/" + s.groupID
+	second := idOf(t, s.api.mustOK(http.MethodPost, g+"/ideas", s.member.token, map[string]any{"title": "Termos", "estimated_price": "500"}, http.StatusCreated))
+	third := idOf(t, s.api.mustOK(http.MethodPost, g+"/ideas", s.member.token, map[string]any{"title": "Kahve seti", "estimated_price": "700"}, http.StatusCreated))
+	other := idOf(t, s.api.mustOK(http.MethodPost, "/groups", s.admin.token, map[string]any{"title": "Başka grup", "target_person_name": "Xavi"}, http.StatusCreated))
+	otherIdea := idOf(t, s.api.mustOK(http.MethodPost, "/groups/"+other+"/ideas", s.admin.token, map[string]any{"title": "Başka fikir"}, http.StatusCreated))
+
+	// Listede başka grubun fikri varsa hiçbiri seçilmez.
+	expectStatus(t, s, http.MethodPost, g+"/winner", s.admin.token, map[string][]string{"idea_ids": {s.ideaID, otherIdea}}, http.StatusBadRequest)
+	tooMany := make([]string, 21)
+	for i := range tooMany {
+		tooMany[i] = s.ideaID
+	}
+	// 21 kimlik bağlama kuralında reddedilir (tekrarlar sonra ayıklanır).
+	expectStatus(t, s, http.MethodPost, g+"/winner", s.admin.token, map[string][]string{"idea_ids": tooMany}, http.StatusBadRequest)
+	if st := s.group(t).Status; st != "ACTIVE" {
+		t.Fatalf("başarısız deneme grubu değiştirdi: %s", st)
+	}
+	for id, st := range s.ideas(t, s.member.token) {
+		if st.Status != "ACTIVE" {
+			t.Fatalf("başarısız deneme fikri değiştirdi: %s %s", id, st.Status)
+		}
+	}
+
+	// Tekrarlanan kimlik bir kez sayılır; iki kazanan seçilir, üçüncü aktif kalır.
+	s.api.mustOK(http.MethodPost, g+"/winner", s.admin.token, map[string][]string{"idea_ids": {s.ideaID, second, s.ideaID}}, http.StatusOK)
+	ideas := s.ideas(t, s.member.token)
+	if ideas[s.ideaID].Status != "SELECTED" || ideas[second].Status != "SELECTED" || ideas[third].Status != "ACTIVE" {
+		t.Fatalf("kazanan durumları yanlış: %+v", ideas)
+	}
+	if st := s.group(t).Status; st != "COMPLETED" {
+		t.Fatalf("grup tamamlanmadı: %s", st)
+	}
+
+	// Yeniden açınca tüm kazananlar aktife döner.
+	s.api.mustOK(http.MethodDelete, g+"/winner", s.admin.token, nil, http.StatusOK)
+	for id, st := range s.ideas(t, s.member.token) {
+		if st.Status != "ACTIVE" {
+			t.Fatalf("yeniden açınca fikir aktife dönmedi: %s %s", id, st.Status)
+		}
 	}
 }

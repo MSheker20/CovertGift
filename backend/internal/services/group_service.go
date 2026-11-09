@@ -36,7 +36,8 @@ var (
 	ErrGroupNotCompleted          = errors.New("grup zaten açık")
 	ErrUnauthorizedWinner         = errors.New("kazananı seçme ve grubu yeniden açma yetkisi sadece grup yöneticisindedir (admin)")
 	ErrWinnerNotInGroup           = errors.New("seçilen hediye önerisi bu gruba ait değil")
-	ErrWinnerNotActive            = errors.New("yalnızca aktif (reddedilmemiş) bir öneri kazanan seçilebilir")
+	ErrWinnerNotActive            = errors.New("yalnızca aktif (reddedilmemiş) öneriler kazanan seçilebilir")
+	ErrInvalidWinners             = errors.New("en az 1, en fazla 20 farklı öneri seçilmelidir")
 	ErrUnauthorizedEventDate      = errors.New("hediye tarihini sadece grup yöneticisi (admin) değiştirebilir")
 	ErrInvalidEventDate           = errors.New("hediye tarihi bugünden en fazla 1 yıl önce, en fazla 5 yıl sonra olabilir")
 )
@@ -54,7 +55,7 @@ type GroupDetailResponse struct {
 // GroupService grup iş mantığını tanımlayan arayüzdür
 type GroupService interface {
 	CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, targetEmail string, totalBudget decimal.Decimal, eventDate *models.Date) (*models.Group, error)
-	SelectWinner(groupID, userID, ideaID uuid.UUID) error
+	SelectWinners(groupID, userID uuid.UUID, ideaIDs []uuid.UUID) error
 	ReopenGroup(groupID, userID uuid.UUID) error
 	SetEventDate(groupID, userID uuid.UUID, date *models.Date) error
 	GetUserGroups(userID uuid.UUID) ([]models.Group, error)
@@ -467,27 +468,43 @@ func (s *groupService) requireAdmin(groupID, userID uuid.UUID, notAdmin error) (
 	return group, nil
 }
 
-// SelectWinner admin'in seçtiği aktif fikri kazanan yapar ve grubu tamamlar.
-// Tamamlanan grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme kapanır.
-func (s *groupService) SelectWinner(groupID, userID, ideaID uuid.UUID) error {
+// MaxWinners bir grupta aynı anda seçilebilecek en fazla kazanan sayısıdır.
+const MaxWinners = 20
+
+// SelectWinners admin'in seçtiği bir ya da daha fazla aktif fikri kazanan yapar ve grubu
+// tamamlar. Tamamlanan grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme kapanır.
+func (s *groupService) SelectWinners(groupID, userID uuid.UUID, ideaIDs []uuid.UUID) error {
+	ids := make([]uuid.UUID, 0, len(ideaIDs))
+	seen := map[uuid.UUID]bool{}
+	for _, id := range ideaIDs {
+		if id != uuid.Nil && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 || len(ids) > MaxWinners {
+		return ErrInvalidWinners
+	}
 	if _, err := s.requireAdmin(groupID, userID, ErrUnauthorizedWinner); err != nil {
 		return err
 	}
-	return s.groupRepo.CompleteGroup(groupID, ideaID, func(group *models.Group, idea *models.GiftIdea) error {
+	return s.groupRepo.CompleteGroup(groupID, ids, func(group *models.Group, ideas []models.GiftIdea) error {
 		if group.Status == models.GroupStatusCompleted {
 			return ErrGroupCompleted
 		}
-		if idea == nil {
+		if len(ideas) != len(ids) {
 			return ErrWinnerNotInGroup
 		}
-		if idea.Status != "ACTIVE" {
-			return ErrWinnerNotActive
+		for _, idea := range ideas {
+			if idea.Status != "ACTIVE" {
+				return ErrWinnerNotActive
+			}
 		}
 		return nil
 	})
 }
 
-// ReopenGroup yanlış seçimi geri almak için grubu yeniden açar; kazanan fikir aktife döner.
+// ReopenGroup yanlış seçimi geri almak için grubu yeniden açar; tüm kazanan fikirler aktife döner.
 func (s *groupService) ReopenGroup(groupID, userID uuid.UUID) error {
 	if _, err := s.requireAdmin(groupID, userID, ErrUnauthorizedWinner); err != nil {
 		return err

@@ -1432,7 +1432,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Yalnızca admin. Seçilen aktif fikir SELECTED, grup COMPLETED olur. Tamamlanan grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme 409 döner.",
+                "description": "Yalnızca admin. Seçilen 1–20 aktif fikir SELECTED, grup COMPLETED olur. Fikirlerden biri başka gruba aitse 400, aktif değilse 409. Tamamlanan grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme 409 döner.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1442,7 +1442,7 @@ const docTemplate = `{
                 "tags": [
                     "Grup İşlemleri (Groups)"
                 ],
-                "summary": "Kazananı Seç ve Grubu Tamamla",
+                "summary": "Kazananları Seç ve Grubu Tamamla",
                 "parameters": [
                     {
                         "type": "string",
@@ -1453,7 +1453,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Kazanan fikir",
+                        "description": "Kazanan fikirler",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -2279,13 +2279,19 @@ const docTemplate = `{
         "controllers.SelectWinnerRequest": {
             "type": "object",
             "required": [
-                "idea_id"
+                "idea_ids"
             ],
             "properties": {
-                "idea_id": {
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "7d1e5a3c-2f4b-4c8e-9a6d-1b2c3d4e5f60"
+                "idea_ids": {
+                    "type": "array",
+                    "maxItems": 20,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "7d1e5a3c-2f4b-4c8e-9a6d-1b2c3d4e5f60"
+                    ]
                 }
             }
         },

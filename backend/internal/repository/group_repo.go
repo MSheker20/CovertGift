@@ -29,7 +29,7 @@ type GroupRepository interface {
 	SetTargetUser(groupID, targetID uuid.UUID, guard func(current *uuid.UUID, isMember bool) error) error
 	DeleteGroup(groupID uuid.UUID) error
 	SetEventDate(groupID uuid.UUID, date *models.Date) error
-	CompleteGroup(groupID, ideaID uuid.UUID, guard func(group *models.Group, idea *models.GiftIdea) error) error
+	CompleteGroup(groupID uuid.UUID, ideaIDs []uuid.UUID, guard func(group *models.Group, ideas []models.GiftIdea) error) error
 	ReopenGroup(groupID uuid.UUID, guard func(group *models.Group) error) error
 }
 
@@ -256,27 +256,23 @@ func (r *groupRepository) SetEventDate(groupID uuid.UUID, date *models.Date) err
 	return nil
 }
 
-// CompleteGroup kazanan fikri SELECTED, grubu COMPLETED yapar. Grup satırı kilitlenir;
-// guard kilit altında grubun ve fikrin (gruba ait değilse nil) güncel halini denetler.
-func (r *groupRepository) CompleteGroup(groupID, ideaID uuid.UUID, guard func(group *models.Group, idea *models.GiftIdea) error) error {
+// CompleteGroup kazanan fikirleri SELECTED, grubu COMPLETED yapar. Grup satırı kilitlenir;
+// guard kilit altında grubun güncel halini ve gruba ait bulunan fikirleri denetler
+// (başka gruba ait ya da var olmayan kimlikler listede yer almaz).
+func (r *groupRepository) CompleteGroup(groupID uuid.UUID, ideaIDs []uuid.UUID, guard func(group *models.Group, ideas []models.GiftIdea) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var group models.Group
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&group, "id = ?", groupID).Error; err != nil {
 			return err
 		}
-		var idea models.GiftIdea
-		var ideaPtr *models.GiftIdea
-		err := tx.Where("id = ? AND group_id = ?", ideaID, groupID).First(&idea).Error
-		switch {
-		case err == nil:
-			ideaPtr = &idea
-		case !errors.Is(err, gorm.ErrRecordNotFound):
+		var ideas []models.GiftIdea
+		if err := tx.Where("id IN ? AND group_id = ?", ideaIDs, groupID).Find(&ideas).Error; err != nil {
 			return err
 		}
-		if err := guard(&group, ideaPtr); err != nil {
+		if err := guard(&group, ideas); err != nil {
 			return err
 		}
-		if err := tx.Model(&models.GiftIdea{}).Where("id = ?", ideaID).Update("status", "SELECTED").Error; err != nil {
+		if err := tx.Model(&models.GiftIdea{}).Where("id IN ?", ideaIDs).Update("status", "SELECTED").Error; err != nil {
 			return err
 		}
 		return tx.Model(&models.Group{}).Where("id = ?", groupID).Updates(map[string]any{

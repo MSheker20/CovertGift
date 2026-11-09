@@ -37,8 +37,9 @@ export const groupsApi = {
   // null tarihi kaldırır.
   updateEventDate: (id: string, eventDate: string | null) =>
     api<unknown>(`/groups/${id}/event-date`, { method: 'PATCH', body: { event_date: eventDate } }),
-  selectWinner: (id: string, ideaId: string) =>
-    api<unknown>(`/groups/${id}/winner`, { method: 'POST', body: { idea_id: ideaId } }),
+  // Bir ya da daha fazla (en çok 20) aktif fikir kazanan olur ve grup tamamlanır.
+  selectWinners: (id: string, ideaIds: string[]) =>
+    api<unknown>(`/groups/${id}/winner`, { method: 'POST', body: { idea_ids: ideaIds } }),
   reopen: (id: string) => api<unknown>(`/groups/${id}/winner`, { method: 'DELETE' }),
 }
 
