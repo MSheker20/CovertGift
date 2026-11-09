@@ -164,12 +164,12 @@ flowchart LR
 - [x] Bağımlılıksız geçici test paneli ve API yolu allowlist'i; geliştirme sıfırlama ucu proxy'de engellenir
 - [x] Cloudflare Quick Tunnel ile panel ve API'ye aynı HTTPS adresinden erişim; arayüz 200, sağlık kontrolü 200 (`db: up`), oturumsuz profil 401 (2026-10-17)
 - [x] İlgi alanı yetkileri, bütçe doğrulaması/uyarıları, AI kaynak ve tekrar filtreleri için backend birim testleri
-- [ ] 🔴 **Güvenlik güncellemeleri (2026-10-23 taraması, öncelikli):** Canlı imajlar `ff8bb3c` güncellenmeli.
-  - [ ] Go 1.27.1 → **1.27.3** (`backend/Dockerfile` ve `go.mod`): eMudhra ara CA anahtarlarının ele geçirilmesi (CVE-2026-111943, `crypto/x509` engeli yalnızca yeniden derlemede etkin) ve standart kütüphanede 11 açık (HTTP/2, HTTP/1, `html/template`; 1.27.2'de kapalı). Etkilenen giden TLS: Gemini, link önizleme, Azure PostgreSQL.
-  - [ ] `golang.org/x/net` v0.58.0 → v0.60.0+, `google.golang.org/grpc` v1.66.2 → v1.83.1+, `github.com/quic-go/quic-go` v0.59.0 → v0.59.1+ (Gin'in dolaylı bağımlılıkları). Doğrulama: `govulncheck ./...` temiz çıkmalı.
-  - [ ] Frontend nginx `nginx-unprivileged:1.27-alpine` (canlıda 1.27.5, Alpine 3.21.3, OpenSSL 3.3.3) → **1.30.6+ stable**. 1.27 hattı desteksiz; 2026'daki 26 bildirimin 22'sinde etkilenen sürümler arasında. Yapılandırmayla kesişenler: CVE-2026-42533 (`map` + regex; yakalama kullanmadığımız için muhtemelen tetiklenmez) ve CVE-2026-1642 (TLS'li upstream proxy).
-  - [ ] Node derleme imajı `node:22-alpine` → 22.23.4+ (21 Ekim sürümü, Brotli RCE dahil 10 CVE; Node yalnızca derlemede kullanılıyor). Yerel Node v26.8.1 → 26.12.1+.
-  - [ ] Testler + `govulncheck` + `npm audit`, iki imajı commit etiketiyle yeniden derleyip Azure'a dağıtma, canlı smoke test. Azure ortamı 2026-10-23'ten beri **kapalı**; yeniden açmadan önce bu madde tamamlanmalı (açma adımları [docs/AZURE.md](docs/AZURE.md)).
+- [x] **Güvenlik güncellemeleri (2026-10-23 taraması):** 2026-11-09'da uygulandı; canlı imajlar `security-20261109`.
+  - [x] Go 1.27.1 → **1.27.3** (`backend/Dockerfile` ve `go.mod`): eMudhra ara CA anahtarlarının ele geçirilmesi (CVE-2026-111943, `crypto/x509` engeli yalnızca yeniden derlemede etkin) ve standart kütüphanede 11 açık (HTTP/2, HTTP/1, `html/template`; 1.27.2'de kapalı). Etkilenen giden TLS: Gemini, link önizleme, Azure PostgreSQL.
+  - [x] `golang.org/x/net` v0.58.0 → v0.60.0+, `google.golang.org/grpc` v1.66.2 → v1.83.1+, `github.com/quic-go/quic-go` v0.59.0 → v0.59.1+ (Gin'in dolaylı bağımlılıkları). Doğrulama: `govulncheck ./...` temiz çıkmalı.
+  - [x] Frontend nginx `nginx-unprivileged:1.27-alpine` (canlıda 1.27.5, Alpine 3.21.3, OpenSSL 3.3.3) → **1.30.6+ stable**. 1.27 hattı desteksiz; 2026'daki 26 bildirimin 22'sinde etkilenen sürümler arasında. Yapılandırmayla kesişenler: CVE-2026-42533 (`map` + regex; yakalama kullanmadığımız için muhtemelen tetiklenmez) ve CVE-2026-1642 (TLS'li upstream proxy).
+  - [x] Node derleme imajı `node:22-alpine` → 22.23.4+ (21 Ekim sürümü, Brotli RCE dahil 10 CVE; Node yalnızca derlemede kullanılıyor). Yerel Node v26.8.1 → 26.12.1+.
+  - [x] Testler + `govulncheck` + `npm audit`, iki imajı commit etiketiyle yeniden derleyip Azure'a dağıtma, canlı smoke test. Azure ortamı 2026-10-23'ten beri **kapalı**; yeniden açmadan önce bu madde tamamlanmalı (açma adımları [docs/AZURE.md](docs/AZURE.md)).
   - Durum: npm bağımlılıkları temiz (`npm audit` 0); yerel PostgreSQL 17.11 güncel; Azure PostgreSQL Microsoft tarafından yamalanıyor.
 - [ ] Backend entegrasyon testleri (özellikle Anti-Spoiler senaryoları)
 - [x] Gemini kota/istek sınırı hatasını HTTP 429 olarak döndür; istemci ve controller testleriyle doğrula

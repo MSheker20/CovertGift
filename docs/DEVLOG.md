@@ -612,3 +612,13 @@
 - Dağıtım: yalnızca frontend değişmişti (Nötr grafit, giriş ekranı, favicon); `covertgift-web:2e0d1e7` derlendi, ölü hedefle yerelde denendi (sayfa ve SPA 200, `/api/v1/DEV/...` 403, CSS'te `#2f5bff`), ACR'ye gönderildi ve `covertgift-ui` güncellendi. Backend kodu `ff8bb3c` ile aynı olduğu için API yeniden dağıtılmadı. Canlıda CSS'te yeni ana renk, `/health` 200 (`db: up`), oturumsuz `/me` 401, `/api/v1/dev/x` 403 ve koyu temada giriş ekranı görüntüsüyle doğrulandı.
 - Kapatma: `covertgift-ui` ve `covertgift-api` REST API `stop` ucuyla (CLI'de `containerapp stop` yok), `covertgift-db-msheker` `az postgres flexible-server stop` ile durduruldu; üçü de `Stopped`, canlı adres 502. Hiçbir kaynak, imaj veya veri silinmedi.
 - Dikkat: Azure durdurulmuş PostgreSQL esnek sunucusunu 7 gün sonra kendiliğinden başlatır; kapalı tutmak için haftalık `stop` gerekir. Depolama, yedek ve ACR ücretleri sürer. Yeniden açma adımları `docs/AZURE.md` başında.
+
+---
+
+## 2026-11-09 — Güvenlik güncellemeleri ve Azure ortamının yeniden açılması
+
+- Faz 8'deki güvenlik güncellemeleri uygulandı: Go 1.27.1 → 1.27.3 (`go.mod`, `go.work`, `backend/Dockerfile`); `golang.org/x/net` v0.62.0, `google.golang.org/grpc` v1.85.0, `github.com/quic-go/quic-go` v0.65.0. `go mod tidy`, doğrudan kullanılan `swaggo/*` ve `genai` modüllerini doğrudan bağımlılık bölümüne taşıdı.
+- Frontend: derleme imajı `node:22.23.4-alpine`, sunucu `nginx-unprivileged:1.30-alpine` (imajda nginx 1.30.6).
+- Doğrulama: `go vet` ve `go test ./...` geçti, `govulncheck` kodda 0 açık, `npm audit` 0, Vitest 37/37, `npm run build` başarılı. Frontend imajı ölü hedefle yerelde denendi: `/api/v1/dev/*` (büyük/küçük harf) 403, güvenlik başlıkları mevcut.
+- `az acr build` bu abonelikte kullanılamıyor (`TasksOperationsNotAllowed`); imajlar yerel Docker ile `linux/amd64` için derlendi. Değişiklikler henüz commit edilmediği için etiket `security-20261109`.
+- Azure: PostgreSQL 7 gün kuralıyla zaten `Ready` durumdaydı. `covertgift-api` ve `covertgift-ui` REST `start` ucuyla başlatıldı ve yeni imajlara güncellendi. Canlıda `/health` 200 (`db: up`), `/` 200, oturumsuz `/api/v1/me` 401, `/swagger/index.html` 200.
