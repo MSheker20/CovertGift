@@ -15,6 +15,8 @@ Go API ve kalıcı React frontend ayrı imajlar olarak paketlenir. PostgreSQL ay
 > registry'de durur: API `covertgift-api:search-off-20261021`, panel `covertgift-ui:demo`.
 > Express ortamında `--revision-suffix` desteklenmez; `az containerapp update` yalnızca `--image` ile çalıştırılır.
 >
+> **2026-11-09 (akşam) — `7bb8416` dağıtıldı.** API `covertgift-api:7bb8416`, frontend `covertgift-web:7bb8416` (#5–#10: reset-db koruması, Anti-Spoiler düzeltmesi, limitler ve doğrulama, yapılandırılmış log, kazanan seçimi, oyu geri alma, hediye tarihi, SSE canlı güncellemeler). API başlarken AutoMigrate `groups` tablosuna `status`, `completed_at`, `event_date` ekler. SSE hub'ı bellek içidir; API en fazla 1 replica kalmalıdır. Bu CLI sürümünde `az containerapp logs show` `eventStreamEndpoint` hatası veriyor; loglar portaldan okunur.
+>
 > **2026-11-09 — ORTAM AÇIK.** Faz 8 güvenlik güncellemeleriyle (Go 1.27.3, nginx 1.30.6, Node 22.23.4) API `covertgift-api:security-20261109`, frontend `covertgift-web:security-20261109` imajındadır. `az acr build` bu abonelikte kapalıdır (`TasksOperationsNotAllowed`); imajlar yerel Docker ile derlenip gönderilir.
 >
 > **2026-10-23 — (eski) ORTAM KAPALI.** Son dağıtım: frontend `covertgift-web:2e0d1e7` (Nötr grafit tasarımı), API `covertgift-api:ff8bb3c` (backend kodu `2e0d1e7` ile aynı). Ardından kullanıcı isteğiyle `covertgift-ui`, `covertgift-api` ve `covertgift-db-msheker` durduruldu; hiçbir kaynak silinmedi.
