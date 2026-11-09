@@ -26,7 +26,7 @@ Arkadaş gruplarının **ortak hediye** organize ettiği, bütçeyi birleştirdi
 
 Doküman güncellemesi: **2026-11-09**. Azure demo dağıtımı ve işletim notları: [Azure rehberi](docs/AZURE.md).
 
-Faz 0–8 tamamlandı; Faz 8'de yalnızca AI hata yanıtları AI bölümünün yeniden tasarımına ertelendi. Backlog'dan kazanan seçimi, oyu geri alma, hediye tarihi ve canlı güncellemeler (SSE) eklendi. [Canlı demo](https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io) `main`'in `7bb8416` sürümünü çalıştırır (2026-11-09).
+Faz 0–8 tamamlandı; Faz 8'de yalnızca AI hata yanıtları AI bölümünün yeniden tasarımına ertelendi. Backlog'dan kazanan seçimi, oyu geri alma, hediye tarihi ve canlı güncellemeler (SSE) eklendi. [Canlı demo](https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io) `main`'in `208fa08` sürümünü çalıştırır (2026-11-09).
 
 | Alan | Durum |
 |---|---|
