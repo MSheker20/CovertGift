@@ -285,6 +285,7 @@
 | K37 | 10-16 | Bütçeyi yalnızca admin günceller; mevcut hediye uyarıları transaction'da ve listelemede güncellenir | Toplam/kişi başı bütçeyle hediye uyarılarının tutarlı kalması |
 | K38 | 10-17 | AI ürün araştırması Google Search grounding ve ayrı JSON seçimiyle yapılır; kaynak adresleri metadata'dan alınır | Kaynaksız ürün/fiyatları elemek ve modelin URL üretmesini önlemek |
 | K39 | 11-09 | `reset-db` varsayılan kapalı: `ALLOW_DB_RESET=true` + gövdede `{"confirm":"RESET"}` gerekir; production her durumda 403 | Yerel verinin yanlışlıkla atılan tek bir POST ile silinmesini önlemek |
+| K40 | 11-09 | Entegrasyon testleri gerçek `newRouter` ile ayrı, geçici `test-db`ye (port 55432, tmpfs) karşı çalışır; `TEST_DATABASE_URL` yoksa atlanır, adı `_test` ile bitmeyen DB reddedilir | Gerçek middleware zincirini sınamak ve testlerin gerçek veriyi silmesini imkânsız kılmak |
 
 
 ---
@@ -632,3 +633,12 @@
 - Karar (K39): İki katmanlı koruma. (1) `ALLOW_DB_RESET` ortam değişkeni; boş veya `false` ise uç 403 döner, geçersiz değerde API başlamaz. (2) Bayrak açıkken bile gövdede `{"confirm": "RESET"}` (büyük harf, birebir) yoksa 400. Production her durumda 403. Bayrak açıkken API başlangıçta uyarı loglar.
 - Neden: Varsayılanın kapalı olması, ayarı unutan birinin veriyi kaybetmemesini sağlar; onay ifadesi, bayrak açıkken yanlışlıkla atılan çıplak bir POST'u durdurur. Vite proxy engeli eklenmedi: `:8080`'e doğrudan istekleri durdurmadığı için asıl korumayı backend'de tutmak tercih edildi.
 - Testler: reddedilen tüm durumların veritabanına dokunmadan döndüğü (`db` nil) tablo testi ve bayrağın varsayılan kapalı olduğunu doğrulayan config testi. Swagger şeması `ResetDBRequest` gövdesiyle yeniden üretildi.
+
+---
+
+## 2026-11-09 — Anti-Spoiler entegrasyon testleri
+
+- Router kurulumu `cmd/api/router.go` içinde `newRouter(db, cfg, geminiClient)` ve `migrate(db)` olarak `main`'den ayrıldı; uygulama ve testler aynı kurulumu kullanır.
+- `docker-compose.yml`'a `test` profiliyle `test-db` servisi eklendi: ayrı konteyner, port 55432, veri tmpfs'te (konteyner durunca silinir). Asıl `db` servisine ve verisine dokunulmaz.
+- `cmd/api/antispoiler_integration_test.go` (K40): hedef kişi grup listesinde grubu göremez; 14 korumalı uçta (grup detayı/silme, üye, ilgi alanı, bütçe, hedef, fikirler, önizleme, AI, oy, veto, fikir silme) 403 + sürpriz mesajı alır ve yanıt veri içermez; denemeleri hiçbir şeyi değiştirmez. Üye olmayan 403 alır ama sürpriz mesajı almaz. Hedef üye olarak eklenemez (400). Sonradan bağlama: üye hedef yapılamaz (409), yalnızca admin bağlar, bağlanan hedef anında dışlanır, hedef değiştirilemez (409).
+- **Bulunan açık:** `POST /ideas/:id/reject` ve `DELETE /ideas/:id` hedef kontrolü yapmıyordu; hedef yalnızca üye olamadığı için "bu grubun üyesi değilsiniz" ile engelleniyordu. Kural gereği `ideaService.checkNotTarget` eklendi; iki uç da artık üyelikten önce hedefi kontrol edip 403 + sürpriz mesajı döner.

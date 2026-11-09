@@ -153,6 +153,14 @@ curl --fail http://localhost:5174/health
 ./scripts/demo_presentation.sh --auto
 ```
 
+Anti-Spoiler entegrasyon testleri gerçek router ve PostgreSQL ile çalışır. Ayrı ve geçici (tmpfs) bir test veritabanı kullanır; `TEST_DATABASE_URL` yoksa atlanır, veritabanı adı `_test` ile bitmiyorsa çalışmayı reddeder:
+
+```bash
+docker compose --profile test up -d --wait test-db
+TEST_DATABASE_URL='postgres://covertgift:covertgift_test@localhost:55432/covertgift_test?sslmode=disable' go test ./backend/cmd/api/ -count=1
+docker compose --profile test stop test-db
+```
+
 Güncel AI modunda Google Search kapalıdır: tek yapılandırılmış çağrı en fazla 5 öneri üretir, fiyatlar doğrulanmamış tahmindir ve arayüzde "Tahmini fiyat" olarak etiketlenir. Search yeniden açılırsa `ai_sources` kaynak listesi ve `ai_search_suggestions` HTML'i frontend'de (kaynaklar katlanır listede, öneri HTML'i betiksiz sandbox iframe'de) gösterilir.
 
 ## 🔗 Bağlantılar

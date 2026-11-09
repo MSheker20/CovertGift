@@ -171,7 +171,7 @@ flowchart LR
   - [x] Node derleme imajı `node:22-alpine` → 22.23.4+ (21 Ekim sürümü, Brotli RCE dahil 10 CVE; Node yalnızca derlemede kullanılıyor). Yerel Node v26.8.1 → 26.12.1+.
   - [x] Testler + `govulncheck` + `npm audit`, iki imajı commit etiketiyle yeniden derleyip Azure'a dağıtma, canlı smoke test. Azure ortamı 2026-10-23'ten beri **kapalı**; yeniden açmadan önce bu madde tamamlanmalı (açma adımları [docs/AZURE.md](docs/AZURE.md)).
   - Durum: npm bağımlılıkları temiz (`npm audit` 0); yerel PostgreSQL 17.11 güncel; Azure PostgreSQL Microsoft tarafından yamalanıyor.
-- [ ] Backend entegrasyon testleri (özellikle Anti-Spoiler senaryoları)
+- [x] Backend Anti-Spoiler entegrasyon testleri (2026-11-09): gerçek router + geçici `test-db` ile 14 korumalı uç, grup listesi, üye olmayan, hedefi üye ekleme ve sonradan bağlama senaryoları (`backend/cmd/api/antispoiler_integration_test.go`). Diğer akışlar için entegrasyon testleri henüz yok.
 - [x] Gemini kota/istek sınırı hatasını HTTP 429 olarak döndür; istemci ve controller testleriyle doğrula
 - [ ] Kalan AI hata yanıtlarını ayrıştır: kaynaksız araştırma şu an 500 döner; 422 eşlemesi ve geçici servis hataları için 503 yanıtı ekle
 - [ ] CORS ayarları, istek boyutu limitleri, input validasyonu (`binding:"required,email"` vb.)
