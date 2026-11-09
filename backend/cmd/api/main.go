@@ -8,18 +8,12 @@ import (
 
 	"github.com/MSheker20/CovertGift/backend/internal/config"
 	"github.com/MSheker20/CovertGift/backend/internal/controllers"
-	"github.com/MSheker20/CovertGift/backend/internal/middleware"
-	"github.com/MSheker20/CovertGift/backend/internal/models"
-	"github.com/MSheker20/CovertGift/backend/internal/repository"
-	"github.com/MSheker20/CovertGift/backend/internal/services"
 	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
 	_ "github.com/MSheker20/CovertGift/backend/docs"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // @title           CovertGift API
@@ -62,22 +56,11 @@ func main() {
 
 	// 4. Veritabanı Tablolarını Senkronize Et (AutoMigrate)
 	log.Println("🔄 Veritabanı tabloları senkronize ediliyor (AutoMigrate)...")
-	err = db.AutoMigrate(
-		&models.User{},
-		&models.Group{},
-		&models.GroupMember{},
-		&models.GiftIdea{},
-		&models.Vote{},
-	)
+	err = migrate(db)
 	if err != nil {
 		log.Fatalf("❌ Migrasyon hatası: %v", err)
 	}
 	log.Println("✅ 5 temel tablo ve ilişkiler başarıyla senkronize edildi!")
-
-	// 5. Katmanları Başlat (Dependency Injection)
-	userRepo := repository.NewUserRepository(db)
-	groupRepo := repository.NewGroupRepository(db)
-	ideaRepo := repository.NewIdeaRepository(db)
 
 	// Gemini AI İstemcisi Başlatma (Fail-Safe)
 	var geminiClient *gemini.Client
@@ -93,87 +76,9 @@ func main() {
 		log.Println("⚠️  GEMINI_API_KEY tanımlı değil; AI hediye üretimi devre dışı.")
 	}
 
-	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
-	groupService := services.NewGroupService(groupRepo, userRepo)
-	ideaService := services.NewIdeaService(ideaRepo, groupRepo, geminiClient)
+	r := newRouter(db, cfg, geminiClient)
 
-	authController := controllers.NewAuthController(authService)
-	groupController := controllers.NewGroupController(groupService)
-	ideaController := controllers.NewIdeaController(ideaService)
-	devController := controllers.NewDevController(db, cfg.AppEnv, cfg.AllowDBReset)
-	if cfg.AllowDBReset && cfg.AppEnv != "production" {
-		log.Println("⚠️  ALLOW_DB_RESET=true: POST /api/v1/dev/reset-db açık ve tüm tabloları silebilir")
-	}
-
-	// 6. Gin web motorunu başlat
-	r := gin.Default()
-
-	// 7. Sağlık Kontrolü (Healthcheck) Endpoint'i
-	r.GET("/health", healthHandler(sqlDB))
-
-	// Swagger Dokümantasyon UI Rotası
-	r.GET("/swagger", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
-	})
-	r.GET("/docs", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
-	})
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-
-	// 8. API v1 Rotaları
-	apiV1 := r.Group("/api/v1")
-	{
-		// Geliştirici & Test Yardımcı Rotaları
-		apiV1.POST("/dev/reset-db", devController.ResetDB)
-
-		// Açık Rotalar (Kimlik Doğrulama)
-		authRoutes := apiV1.Group("/auth")
-		{
-			authRoutes.POST("/register", authController.Register)
-			authRoutes.POST("/login", authController.Login)
-		}
-
-		// Korumalı Rotalar (JWT Token Zorunlu)
-		protected := apiV1.Group("")
-		protected.Use(middleware.Auth(cfg.JWTSecret))
-		{
-			protected.GET("/me", authController.Me)
-			protected.DELETE("/me", authController.DeleteMe)
-
-			// Genel Grup İşlemleri
-			protected.POST("/groups", groupController.CreateGroup)
-			protected.GET("/groups", groupController.GetUserGroups)
-
-			// Belirli Bir Gruba Ait Rotalar (Anti-Spoiler + Üyelik Denetimli)
-			groupSpecific := protected.Group("/groups/:id")
-			groupSpecific.Use(middleware.GroupAccess(groupRepo))
-			{
-				groupSpecific.GET("", groupController.GetGroupDetail)
-				groupSpecific.DELETE("", groupController.DeleteGroup)
-				groupSpecific.POST("/members", groupController.AddMember)
-				groupSpecific.POST("/interests", groupController.AddInterest)
-				groupSpecific.DELETE("/interests", groupController.DeleteInterest)
-				groupSpecific.PATCH("/budget", groupController.UpdateBudget)
-				groupSpecific.PATCH("/target", groupController.LinkTarget)
-
-				// Hediye Havuzu Rotaları
-				groupSpecific.POST("/ideas", ideaController.AddIdea)
-				groupSpecific.GET("/ideas", ideaController.GetIdeas)
-				groupSpecific.POST("/ideas/preview-link", ideaController.PreviewLink)
-				groupSpecific.POST("/ideas/generate-ai", ideaController.GenerateAI)
-			}
-
-			// Fikir ve Oylama Rotaları
-			ideasGroup := protected.Group("/ideas/:id")
-			{
-				ideasGroup.POST("/vote", ideaController.Vote)
-				ideasGroup.POST("/reject", ideaController.RejectIdea)
-				ideasGroup.DELETE("", ideaController.DeleteIdea)
-			}
-		}
-	}
-
-	// 9. Sunucuyu ayağa kaldır
+	// 5. Katmanları, rotaları kur ve sunucuyu ayağa kaldır
 	log.Printf("🚀 CovertGift API :%s portunda çalışıyor", cfg.Port)
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("❌ Sunucu başlatılamadı: %v", err)

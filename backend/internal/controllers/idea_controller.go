@@ -361,6 +361,10 @@ func (ctl *IdeaController) RejectIdea(c *gin.Context) {
 			RespondErr(c, http.StatusNotFound, err.Error())
 			return
 		}
+		if errors.Is(err, services.ErrAntiSpoilerTriggered) {
+			RespondErr(c, http.StatusForbidden, err.Error())
+			return
+		}
 		if errors.Is(err, services.ErrUnauthorizedVeto) {
 			RespondErr(c, http.StatusForbidden, err.Error())
 			return
@@ -410,6 +414,10 @@ func (ctl *IdeaController) DeleteIdea(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, services.ErrIdeaNotFound) {
 			RespondErr(c, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrAntiSpoilerTriggered) {
+			RespondErr(c, http.StatusForbidden, err.Error())
 			return
 		}
 		if errors.Is(err, services.ErrUnauthorizedDelete) {

@@ -378,6 +378,14 @@ npm --prefix frontend run build
 npm --prefix frontend run test:e2e   # API çalışırken; ilk kurulumda: npx --prefix frontend playwright install chromium
 ```
 
+Anti-Spoiler entegrasyon testleri gerçek router ve PostgreSQL ile çalışır. Ayrı ve geçici (tmpfs) bir test veritabanı kullanır; `TEST_DATABASE_URL` yoksa atlanır, veritabanı adı `_test` ile bitmiyorsa çalışmayı reddeder:
+
+```bash
+docker compose --profile test up -d --wait test-db
+TEST_DATABASE_URL='postgres://covertgift:covertgift_test@localhost:55432/covertgift_test?sslmode=disable' go test ./backend/cmd/api/ -count=1
+docker compose --profile test stop test-db
+```
+
 Eski geçici paneli (`prototypes/test-ui/`) ve Cloudflare tünelini çalıştırmak gerekirse: [panel rehberi](../prototypes/test-ui/README.md). Panel yeni uçları desteklemez.
 
 Swagger'ı modeller ve controller yorumlarından yeniden üretmek için `swag` kurulu ortamda `backend/` içinden `swag init -g cmd/api/main.go --parseInternal` çalıştırın.

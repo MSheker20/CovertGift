@@ -209,6 +209,23 @@ func (s *ideaService) VoteIdea(ideaID, currentUserID uuid.UUID, voteType int8) e
 	return nil
 }
 
+// checkNotTarget fikrin grubunu getirir ve istek atan kişi o grubun hedefiyse
+// ErrAntiSpoilerTriggered döner. /ideas/:id/* uçları grup middleware'inden geçmediği
+// için bu kontrol her fikir işleminde servis katmanında yapılır.
+func (s *ideaService) checkNotTarget(groupID, userID uuid.UUID) error {
+	group, err := s.groupRepo.GetGroupByID(groupID)
+	if err != nil {
+		return err
+	}
+	if group == nil {
+		return ErrGroupNotFound
+	}
+	if group.TargetUserID != nil && *group.TargetUserID == userID {
+		return ErrAntiSpoilerTriggered
+	}
+	return nil
+}
+
 // RejectIdea grup yöneticisinin bir hediye fikrini doğrudan veto etmesini sağlar
 func (s *ideaService) RejectIdea(ideaID, currentUserID uuid.UUID) error {
 	// 1. Hediyeyi bul
@@ -220,7 +237,12 @@ func (s *ideaService) RejectIdea(ideaID, currentUserID uuid.UUID) error {
 		return ErrIdeaNotFound
 	}
 
-	// 2. Kullanıcının gruptaki rolünü kontrol et
+	// 2. KRİTİK: Fikir üzerinden Anti-Spoiler Kontrolü (üyelikten önce)
+	if err := s.checkNotTarget(idea.GroupID, currentUserID); err != nil {
+		return err
+	}
+
+	// 3. Kullanıcının gruptaki rolünü kontrol et
 	member, err := s.groupRepo.GetMember(idea.GroupID, currentUserID)
 	if err != nil {
 		return err
@@ -229,12 +251,12 @@ func (s *ideaService) RejectIdea(ideaID, currentUserID uuid.UUID) error {
 		return ErrNotGroupMember
 	}
 
-	// 3. YETKİ KONTROLÜ: Sadece grup admini doğrudan veto edebilir!
+	// 4. YETKİ KONTROLÜ: Sadece grup admini doğrudan veto edebilir!
 	if member.Role != "admin" {
 		return ErrUnauthorizedVeto
 	}
 
-	// 4. Durumu 'REJECTED' olarak güncelle
+	// 5. Durumu 'REJECTED' olarak güncelle
 	return s.ideaRepo.UpdateStatus(ideaID, "REJECTED")
 }
 
@@ -249,7 +271,12 @@ func (s *ideaService) DeleteIdea(ideaID, currentUserID uuid.UUID) error {
 		return ErrIdeaNotFound
 	}
 
-	// 2. Kullanıcının gruptaki rolünü kontrol et
+	// 2. KRİTİK: Fikir üzerinden Anti-Spoiler Kontrolü (üyelikten önce)
+	if err := s.checkNotTarget(idea.GroupID, currentUserID); err != nil {
+		return err
+	}
+
+	// 3. Kullanıcının gruptaki rolünü kontrol et
 	member, err := s.groupRepo.GetMember(idea.GroupID, currentUserID)
 	if err != nil {
 		return err
@@ -258,7 +285,7 @@ func (s *ideaService) DeleteIdea(ideaID, currentUserID uuid.UUID) error {
 		return ErrNotGroupMember
 	}
 
-	// 3. YETKİ KONTROLÜ: Sadece öneren kişi VEYA grup admini silebilir!
+	// 4. YETKİ KONTROLÜ: Sadece öneren kişi VEYA grup admini silebilir!
 	isCreator := idea.CreatedBy == currentUserID
 	isAdmin := member.Role == "admin"
 
