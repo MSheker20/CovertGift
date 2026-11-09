@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -96,7 +96,7 @@ func newClient() *http.Client {
 			if err := validateURL(req.URL); err != nil {
 				return err
 			}
-			log.Printf("[linkpreview] ↪️ Yönlendirme: %s%s", req.URL.Host, req.URL.Path)
+			slog.Debug("linkpreview yönlendirme", "host", req.URL.Host, "path", req.URL.Path)
 			return nil
 		},
 	}
@@ -122,7 +122,7 @@ func fetch(ctx context.Context, client *http.Client, targetURL string) (string, 
 	}
 	defer resp.Body.Close()
 
-	log.Printf("[linkpreview] 📌 HTTP %s ← %s", resp.Status, resp.Request.URL.Host)
+	slog.Debug("linkpreview yanıt", "status", resp.Status, "host", resp.Request.URL.Host)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", resp.Request.URL, fmt.Errorf("beklenmeyen HTTP durumu: %s", resp.Status)
@@ -161,7 +161,7 @@ func fetchDocument(ctx context.Context, rawURL string) (*Document, error) {
 
 	// Takip (tracker) sayfasında kaldıysak gerçek ürün sayfasına ikinci istek at
 	if real := resolveTrackerRedirect(finalURL); real != "" {
-		log.Printf("[linkpreview] 🔁 Takip sayfası (%s) → gerçek hedef: %s", finalURL.Host, real)
+		slog.Debug("linkpreview takip sayfası çözüldü", "tracker_host", finalURL.Host, "target", real)
 		ru, err := url.Parse(real)
 		if err != nil {
 			return nil, fmt.Errorf("tracker hedefi geçersiz: %w", err)
@@ -183,7 +183,7 @@ func fetchDocument(ctx context.Context, rawURL string) (*Document, error) {
 	if dir := os.Getenv("LINKPREVIEW_DUMP"); dir != "" {
 		path := filepath.Join(dir, finalURL.Hostname()+".html")
 		if err := os.WriteFile(path, []byte(body), 0o644); err == nil {
-			log.Printf("[linkpreview] 💾 HTML kaydedildi: %s", path)
+			slog.Debug("linkpreview HTML kaydedildi", "path", path)
 		}
 	}
 	return newDocument(body, finalURL), nil

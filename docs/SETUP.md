@@ -382,8 +382,20 @@ Anti-Spoiler entegrasyon testleri gerçek router ve PostgreSQL ile çalışır. 
 
 ```bash
 docker compose --profile test up -d --wait test-db
-TEST_DATABASE_URL='postgres://covertgift:covertgift_test@localhost:55432/covertgift_test?sslmode=disable' go test ./backend/cmd/api/ -count=1
+TEST_DATABASE_URL='postgres://covertgift:covertgift_test@localhost:55432/covertgift_test?sslmode=disable' go test -p 1 -count=1 ./backend/cmd/...   # -p 1: paketler aynı test DB'sini paylaşır
 docker compose --profile test stop test-db
+```
+
+Seed (demo verisi) ve tüm uygulamayı konteynerde çalıştırma:
+
+```bash
+# backend/ içinden: yerel DB'ye 4 demo kullanıcı, hedefi bağlı bir grup, 3 fikir ve oylar ekler.
+# Yalnızca ekler; demo yöneticisi varsa hiçbir şey yapmaz; APP_ENV=production iken çalışmaz.
+(cd backend && go run ./cmd/seed)          # parola: Demo1234! (SEED_PASSWORD ile değiştirilebilir)
+
+# API + React frontend + DB konteynerde (ayarlar backend/.env'den; JWT_SECRET zorunlu)
+docker compose --profile app up -d --build  # arayüz: http://localhost:8081
+docker compose --profile app stop api web
 ```
 
 Eski geçici paneli (`prototypes/test-ui/`) ve Cloudflare tünelini çalıştırmak gerekirse: [panel rehberi](../prototypes/test-ui/README.md). Panel yeni uçları desteklemez.

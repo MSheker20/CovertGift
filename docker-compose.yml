@@ -37,5 +37,38 @@ services:
       timeout: 3s
       retries: 15
 
+  # Tüm uygulamayı konteynerde çalıştırmak için (isteğe bağlı):
+  #   docker compose --profile app up -d --build
+  # Arayüz: http://localhost:8081 (Swagger: /swagger/index.html). API dışarıya port açmaz;
+  # yalnızca web konteyneri üzerinden erişilir. Ayarlar backend/.env'den okunur
+  # (JWT_SECRET zorunlu); DATABASE_URL compose ağına göre ezilir.
+  api:
+    build: ./backend
+    container_name: covertgift-api
+    profiles: ["app"]
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgres://covertgift:covertgift_dev@db:5432/covertgift?sslmode=disable
+      APP_ENV: development
+      GIN_MODE: release
+      # Yıkıcı sıfırlama ucu konteynerde her zaman kapalı; .env'de açık olsa bile.
+      ALLOW_DB_RESET: "false"
+
+  web:
+    build: ./frontend
+    container_name: covertgift-web
+    profiles: ["app"]
+    depends_on:
+      - api
+    environment:
+      API_TARGET: http://api:8080
+    ports:
+      - "8081:5173"
+
 volumes:
   covertgift_pgdata:

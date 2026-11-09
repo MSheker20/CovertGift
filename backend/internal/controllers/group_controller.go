@@ -100,7 +100,7 @@ func (ctl *GroupController) CreateGroup(c *gin.Context) {
 			RespondErr(c, http.StatusNotFound, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Grup oluşturulurken bir hata oluştu")
+		RespondInternal(c, "Grup oluşturulurken bir hata oluştu", err)
 		return
 	}
 
@@ -126,7 +126,7 @@ func (ctl *GroupController) GetUserGroups(c *gin.Context) {
 
 	groups, err := ctl.groupService.GetUserGroups(userID)
 	if err != nil {
-		RespondErr(c, http.StatusInternalServerError, "Gruplar alınırken bir hata oluştu")
+		RespondInternal(c, "Gruplar alınırken bir hata oluştu", err)
 		return
 	}
 
@@ -179,7 +179,7 @@ func (ctl *GroupController) GetGroupDetail(c *gin.Context) {
 			RespondErr(c, http.StatusNotFound, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Grup detayı alınırken bir hata oluştu")
+		RespondInternal(c, "Grup detayı alınırken bir hata oluştu", err)
 		return
 	}
 
@@ -245,7 +245,7 @@ func (ctl *GroupController) AddMember(c *gin.Context) {
 			RespondErr(c, http.StatusNotFound, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Üye eklenirken bir hata oluştu")
+		RespondInternal(c, "Üye eklenirken bir hata oluştu", err)
 		return
 	}
 
@@ -326,7 +326,7 @@ func (ctl *GroupController) changeInterest(c *gin.Context, remove bool) {
 		case errors.Is(err, services.ErrDuplicateInterest):
 			RespondErr(c, http.StatusConflict, err.Error())
 		default:
-			RespondErr(c, http.StatusInternalServerError, "İlgi alanları güncellenirken bir hata oluştu")
+			RespondInternal(c, "İlgi alanları güncellenirken bir hata oluştu", err)
 		}
 		return
 	}
@@ -374,7 +374,7 @@ func (ctl *GroupController) UpdateBudget(c *gin.Context) {
 		case errors.Is(err, services.ErrInvalidBudget):
 			RespondErr(c, http.StatusBadRequest, err.Error())
 		default:
-			RespondErr(c, http.StatusInternalServerError, "Bütçe güncellenirken bir hata oluştu")
+			RespondInternal(c, "Bütçe güncellenirken bir hata oluştu", err)
 		}
 		return
 	}
@@ -426,7 +426,7 @@ func (ctl *GroupController) LinkTarget(c *gin.Context) {
 		case errors.Is(err, services.ErrTargetAlreadyLinked), errors.Is(err, services.ErrTargetIsMember):
 			RespondErr(c, http.StatusConflict, err.Error())
 		default:
-			RespondErr(c, http.StatusInternalServerError, "Hedef kişi bağlanırken bir hata oluştu")
+			RespondInternal(c, "Hedef kişi bağlanırken bir hata oluştu", err)
 		}
 		return
 	}
@@ -479,7 +479,7 @@ func (ctl *GroupController) DeleteGroup(c *gin.Context) {
 			RespondErr(c, http.StatusNotFound, err.Error())
 			return
 		}
-		RespondErr(c, http.StatusInternalServerError, "Grup silinirken bir hata oluştu: "+err.Error())
+		RespondInternal(c, "Grup silinirken bir hata oluştu", err)
 		return
 	}
 

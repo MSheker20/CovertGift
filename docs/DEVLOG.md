@@ -287,6 +287,8 @@
 | K39 | 11-09 | `reset-db` varsayılan kapalı: `ALLOW_DB_RESET=true` + gövdede `{"confirm":"RESET"}` gerekir; production her durumda 403 | Yerel verinin yanlışlıkla atılan tek bir POST ile silinmesini önlemek |
 | K40 | 11-09 | Entegrasyon testleri gerçek `newRouter` ile ayrı, geçici `test-db`ye (port 55432, tmpfs) karşı çalışır; `TEST_DATABASE_URL` yoksa atlanır, adı `_test` ile bitmeyen DB reddedilir | Gerçek middleware zincirini sınamak ve testlerin gerçek veriyi silmesini imkânsız kılmak |
 | K41 | 11-09 | API CORS başlığı göndermez; frontend her ortamda aynı origin (Vite proxy / nginx) üzerinden erişir. Kullanılmayan `CORS_ORIGIN` kaldırıldı | Gereksiz bir izin yüzeyi açmamak; başka sitelerin tarayıcıdan API çağırmasını varsayılan olarak engelli tutmak |
+| K42 | 11-09 | Loglama `log/slog` ile; 500 yanıtlarında iç hata yalnızca loga yazılır (`RespondInternal`) | Logları sorgulanabilir yapmak; veritabanı/sağlayıcı ayrıntılarının istemciye sızmasını önlemek |
+| K43 | 11-09 | Seed yalnızca ekler, tek transaction'dır, demo yöneticisi varsa hiçbir şey yapmaz ve production'da çalışmaz | Seed komutunun gerçek veriyi silmesini veya yarım veri bırakmasını imkânsız kılmak |
 
 
 ---
@@ -653,3 +655,14 @@
 - **Binding kuralları:** Grup açıklaması ve ilgi alanları `max=2000`, fikir açıklaması `max=5000`, `search_query` `max=255` (önceden 255 üstü 500 dönüyordu), `product_url` `max=1000,http_url`, `image_url` `max=500,http_url` (`javascript:` gibi şemalar reddedilir), önizleme URL'si `max=2048`, üye e-postası `max=150`, giriş parolası `max=100`, oy `oneof=1 -1`.
 - **CORS (K41):** Eklenmedi. Frontend her ortamda aynı origin'den eriştiği için API CORS başlığı göndermez; okunup hiç kullanılmayan `CORS_ORIGIN` kaldırıldı.
 - Testler: `BodyLimit` birim testi, `validMoney` ile oluşturma/fiyat servis testleri ve gerçek router üzerinden 413 + 10 doğrulama senaryosu içeren entegrasyon testi (`cmd/api/validation_integration_test.go`).
+
+---
+
+## 2026-11-09 — Yapılandırılmış loglama, seed komutu ve Docker Compose
+
+- **Loglama (K42):** `internal/logging` stdlib `log/slog`'u kurar; `LOG_FORMAT` boşsa production'da JSON, diğer ortamlarda text. `slog.SetDefault` eski `log.Printf` çağrılarını da aynı işleyiciye yönlendirir. `gin.Default()` yerine `middleware.Recovery` (paniği loglar, standart 500 zarfı döner) ve `middleware.RequestLogger` (istek başına tek satır; `request_id`, yöntem, yol, rota, durum, süre, IP; sorgu dizesi, gövde ve Authorization loglanmaz; 5xx ERROR, 4xx WARN, `/health` DEBUG). Yanıtlara `X-Request-ID` eklendi. Link önizlemesinin istek başına logları DEBUG'a indi.
+- **Bulunan açık:** Bazı 500 yanıtları iç hatayı istemciye gösteriyordu (hesap silme, grup silme, AI üretimi, DB sıfırlama: `"...: "+err.Error()`); diğerleri hatayı hiçbir yere yazmıyordu. Tüm 500'ler artık `controllers.RespondInternal` ile genel mesaj döner, iç hata `c.Error` ile loga gider.
+- **Seed (K43):** `cmd/seed` — 4 demo kullanıcı (`@demo.covertgift.test`), hedefi e-postayla bağlı bir grup, 2 üye, 3 manuel fikir, 4 oy. Gerçek servisler üzerinden yazılır (Anti-Spoiler ve doğrulama geçerli), tek transaction'dır, demo yöneticisi varsa çıkar, `APP_ENV=production` iken reddeder. Şema için `models.Migrate` API ile ortak.
+- **Compose:** `app` profiliyle `api` (backend/.env'den okur; `DATABASE_URL` compose ağına göre ezilir, `ALLOW_DB_RESET` her zaman `false`) ve `web` (nginx, `API_TARGET=http://api:8080`, http://localhost:8081). API dışarıya port açmaz.
+- Entegrasyon testleri artık iki pakette (`cmd/api`, `cmd/seed`) ve aynı test DB'sini boşalttığı için `go test -p 1` ile çalıştırılır.
+- Testler: slog kurulumu, istek logu (sızıntı yok, `X-Request-ID`), `RespondInternal` (istemciye sızmaz, loga yazılır), panik kurtarma; seed için yalnızca ekleme, idempotentlik, mevcut kullanıcının korunması ve hedefin grubu görmemesi.

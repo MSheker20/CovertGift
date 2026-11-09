@@ -66,7 +66,7 @@ func (ctl *DevController) ResetDB(c *gin.Context) {
 	})
 
 	if err != nil {
-		RespondErr(c, http.StatusInternalServerError, "Veritabanı sıfırlanırken hata oluştu: "+err.Error())
+		RespondInternal(c, "Veritabanı sıfırlanırken hata oluştu", err)
 		return
 	}
 

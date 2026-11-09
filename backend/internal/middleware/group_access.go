@@ -33,7 +33,7 @@ func GroupAccess(groupRepo repository.GroupRepository) gin.HandlerFunc {
 		// 3. Grubu veritabanından getir
 		group, err := groupRepo.GetGroupByID(groupID)
 		if err != nil {
-			controllers.RespondErr(c, http.StatusInternalServerError, "Grup sorgulanırken hata oluştu")
+			controllers.RespondInternal(c, "Grup sorgulanırken hata oluştu", err)
 			c.Abort()
 			return
 		}
@@ -54,7 +54,7 @@ func GroupAccess(groupRepo repository.GroupRepository) gin.HandlerFunc {
 		// 5. Kullanıcı bu grubun üyesi mi?
 		member, err := groupRepo.GetMember(groupID, userID)
 		if err != nil {
-			controllers.RespondErr(c, http.StatusInternalServerError, "Üyelik kontrolü yapılırken hata oluştu")
+			controllers.RespondInternal(c, "Üyelik kontrolü yapılırken hata oluştu", err)
 			c.Abort()
 			return
 		}
