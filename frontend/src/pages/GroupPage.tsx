@@ -1,10 +1,12 @@
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { CalendarDays, ChevronLeft, ShieldCheck, Trophy } from 'lucide-react'
 
 import { ApiError } from '@/api/client'
-import { groupsApi, LIVE_REFRESH_MS, queryKeys } from '@/api/endpoints'
+import { groupsApi, liveInterval, queryKeys } from '@/api/endpoints'
+import { useGroupEvents } from '@/api/useGroupEvents'
 import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
 import { LogoMark } from '@/components/Logo'
@@ -22,14 +24,21 @@ export function GroupPage() {
   const { t } = useTranslation()
   const { id = '' } = useParams()
   const { user } = useAuth()
+  // Yenileme aralığı SSE bağlantısının durumuna göre seçilir; durum aşağıda, sorgudan sonra bilinir.
+  const liveRef = useRef(false)
   const detail = useQuery({
     queryKey: queryKeys.group(id),
     queryFn: ({ signal }) => groupsApi.detail(id, signal),
     retry: (count, err) => !(err instanceof ApiError && err.status >= 400 && err.status < 500) && count < 2,
     // Başka bir üyenin kazananı seçmesi, bütçe veya üye değişikliği sayfa yenilenmeden görünür.
     // Hata durumunda (ör. Anti-Spoiler 403) yenileme durur.
-    refetchInterval: (query) => (query.state.status === 'error' ? false : LIVE_REFRESH_MS),
+    refetchInterval: (query) => (query.state.status === 'error' ? false : liveInterval(liveRef.current)),
   })
+  // Akış yalnızca grup başarıyla yüklendiyse açılır (hedef kişi 403 alır, akış hiç açılmaz).
+  const live = useGroupEvents(id, detail.isSuccess)
+  useEffect(() => {
+    liveRef.current = live
+  }, [live])
 
   if (detail.isError && isAntiSpoiler(detail.error)) return <SurpriseScreen />
 
@@ -137,6 +146,7 @@ export function GroupPage() {
                   meId={user?.id}
                   isAdmin={d.my_role === 'admin'}
                   completed={completed}
+                  live={live}
                   datePassed={days !== null && days < 0}
                 />
               ) : (

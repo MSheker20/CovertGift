@@ -293,6 +293,7 @@
 | K45 | 11-09 | Hediye tarihi tek seferlik `DATE`; geçmiş tarih (1 yıla kadar) kabul; "bugün" UTC+3; bildirim yok | Basit tutmak; grup doğum gününden sonra da kapanmamış olabilir; konteynerde tz veritabanına bağımlı olmamak |
 | K46 | 11-09 | Oyu geri almak çoğunluk vetosunu geri çevirmez | REJECTED admin vetosuyla da oluşabildiği için ayırt edilemez |
 | K47 | 11-09 | Canlılık için önce 10 sn periyodik yenileme (TanStack Query); bir fikir işlemi sürerken durur; SSE sonraya | En az kodla çoğu ihtiyacı karşılamak; iyimser güncellemeyi eski yanıtla ezmemek |
+| K48 | 11-09 | Canlı güncelleme SSE ile: olay yalnızca "changed" der, veri her zamanki korumalı uçlardan çekilir; akış 5 dk'da bir yenilenir; token başlıkta (fetch), URL'de değil | Olay kanalından veri sızmasını imkânsız kılmak; yetkiyi düzenli yeniden denetlemek; token'ı loglara/geçmişe düşürmemek |
 
 
 ---
@@ -681,3 +682,13 @@
 - **Canlı oylar (K47):** Grup detayı ve fikir listesi sayfa açıkken 10 sn'de bir çekilir; bir oy/fikir işlemi sürerken (ortak `mutationKey`) ve grup tamamlanınca fikir yenilemesi durur. Hedef kişi 403 aldığı için yenileme de durur.
 - **Testler:** Backend — `models.Date`, entegrasyon: oyu geri alma (başkasının oyu korunur, üye olmayan 403), kazanan seçimi (yetki, başka grubun fikri 400, reddedilmiş fikir 409, kapalı grupta 7 işlem 409, hedef yine sürpriz mesajı, yeniden açma), hediye tarihi (oluşturma, biçim/aralık 400, admin dışı 403, geçmiş tarih, kaldırma); Anti-Spoiler listesine 4 yeni uç eklendi (toplam 18). Frontend — tarih yardımcıları ve sıralama; oyu geri alma, kazanan seçimi, tamamlanmış grup görünümü, yeniden açma, tarih kaydetme/kaldırma.
 - **Tarayıcıda doğrulama:** Geçici `test-db` + seed verisiyle (gerçek yerel veriye dokunmadan): oyu geri alma, kazanan seçimi ve yeniden açma, başka üyenin API'den verdiği oyun sayfa yenilenmeden yansıması, geçmiş tarihte "5 gün geçti" ve hatırlatma, telefon genişliğinde yatay kaydırma olmaması. Dar ekranda durum etiketi başlığı sıkıştırdığı için alt satıra alındı.
+
+---
+
+## 2026-11-09 — Canlı güncellemeler: Server-Sent Events
+
+- **Backend:** `internal/realtime.Hub` (bellek içi, grup başına abone kümesi; sinyaller birleşir, yayın hiç bloklamaz; en fazla 2000 açık akış). `GET /groups/:id/events` `GroupAccess` arkasında (Anti-Spoiler + üyelik): `text/event-stream`, `X-Accel-Buffering: no` (nginx tamponlamasın), 25 sn'de bir `: ping`, en fazla 5 dk ömür. `middleware.PublishGroupChanges` (/groups/:id/* altında başarılı her değişiklik) ve `middleware.PublishIdeaChanges` (/ideas/:id/* altında; grup işlemden önce bulunur, silinen fikirde de olay gider) yayın yapar. Başarısız istekler olay üretmez.
+- **Frontend:** `useGroupEvents` akışı fetch ile okur (EventSource başlık gönderemez; token URL'ye yazılmaz). "changed" gelince grup detayı ve fikirler 250 ms birleştirmeyle yeniden çekilir; kendi oy işlemimiz sürerken atlanır. Akış kapanınca 1 sn'de, hatada artan aralıkla (en çok 30 sn) yeniden bağlanır; 401/403/404'te durur; yeniden bağlanınca kaçanlar için bir kez yeniler. Hedef kişi grup detayında 403 aldığı için akış hiç açılmaz. Bağlantı açıkken periyodik yenileme 60 sn'ye iner, kopukken 10 sn'ye döner.
+- **Testler:** Hub (teslim, birleştirme, sınır, abonelik sızıntısı), akış ucu (başlıklar, ping, olay, ömür dolunca kapanma, 503), entegrasyon (hedef ve üye olmayan 403, oturumsuz 401, oy ve bütçe değişikliği olay üretir, başarısız istek üretmez), frontend (Bearer başlığı, açık akıştaki olayla skorun güncellenmesi, hedef için akışın açılmaması).
+- **Doğrulama:** Tarayıcıda (test-db) başka üyenin oyu ~1 sn'de yansıdı. Canlıdaki nginx imajı üzerinden ölçüm: olay ~0,2 sn'de geldi, tamponlama yok.
+- **Sınırlama:** Hub tek kopya içindir. API birden çok replica'ya ölçeklenirse olaylar kopyalar arasında taşınmaz; o zaman PostgreSQL LISTEN/NOTIFY eklenmeli.

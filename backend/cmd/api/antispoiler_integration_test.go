@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/MSheker20/CovertGift/backend/internal/config"
+	"github.com/MSheker20/CovertGift/backend/internal/realtime"
 	"github.com/MSheker20/CovertGift/backend/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -82,7 +83,7 @@ func newTestAPI(t *testing.T) *testAPI {
 	}
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{JWTSecret: "integration-test-secret", AppEnv: "test"}
-	return &testAPI{t: t, router: newRouter(db, cfg, nil)}
+	return &testAPI{t: t, router: newRouter(db, cfg, nil, realtime.NewHub(100))}
 }
 
 func (a *testAPI) call(method, path, token string, body any) (int, apiResponse) {

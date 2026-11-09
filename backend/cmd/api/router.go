@@ -9,6 +9,7 @@ import (
 	"github.com/MSheker20/CovertGift/backend/internal/controllers"
 	"github.com/MSheker20/CovertGift/backend/internal/middleware"
 	"github.com/MSheker20/CovertGift/backend/internal/models"
+	"github.com/MSheker20/CovertGift/backend/internal/realtime"
 	"github.com/MSheker20/CovertGift/backend/internal/repository"
 	"github.com/MSheker20/CovertGift/backend/internal/services"
 	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
@@ -26,7 +27,7 @@ func migrate(db *gorm.DB) error {
 // newRouter katmanları bağlar ve tüm rotaları kurar. main ve entegrasyon testleri
 // aynı kurulumu kullanır; böylece testler gerçek middleware zincirini dener.
 // geminiClient nil olabilir (AI üretimi devre dışı).
-func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client) *gin.Engine {
+func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub *realtime.Hub) *gin.Engine {
 	sqlDB, err := db.DB()
 	if err != nil {
 		slog.Error("veritabanı havuzu alınamadı", "error", err)
@@ -45,6 +46,7 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client) *gi
 	authController := controllers.NewAuthController(authService)
 	groupController := controllers.NewGroupController(groupService)
 	ideaController := controllers.NewIdeaController(ideaService)
+	eventsController := controllers.NewEventsController(hub)
 	devController := controllers.NewDevController(db, cfg.AppEnv, cfg.AllowDBReset)
 	if cfg.AllowDBReset && cfg.AppEnv != "production" {
 		slog.Warn("ALLOW_DB_RESET=true: POST /api/v1/dev/reset-db açık ve tüm tabloları silebilir")
@@ -93,9 +95,10 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client) *gi
 
 			// Belirli Bir Gruba Ait Rotalar (Anti-Spoiler + Üyelik Denetimli)
 			groupSpecific := protected.Group("/groups/:id")
-			groupSpecific.Use(middleware.GroupAccess(groupRepo))
+			groupSpecific.Use(middleware.GroupAccess(groupRepo), middleware.PublishGroupChanges(hub))
 			{
 				groupSpecific.GET("", groupController.GetGroupDetail)
+				groupSpecific.GET("/events", eventsController.Stream)
 				groupSpecific.DELETE("", groupController.DeleteGroup)
 				groupSpecific.POST("/members", groupController.AddMember)
 				groupSpecific.POST("/interests", groupController.AddInterest)
@@ -115,6 +118,7 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client) *gi
 
 			// Fikir ve Oylama Rotaları
 			ideasGroup := protected.Group("/ideas/:id")
+			ideasGroup.Use(middleware.PublishIdeaChanges(hub, ideaRepo))
 			{
 				ideasGroup.POST("/vote", ideaController.Vote)
 				ideasGroup.DELETE("/vote", ideaController.Unvote)

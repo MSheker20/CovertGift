@@ -5,7 +5,7 @@ import { CalendarClock, ChevronDown, Link2, LoaderCircle, Sparkles, Trophy } fro
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
-import { groupsApi, ideasApi, LIVE_REFRESH_MS, mutationKeys, queryKeys } from '@/api/endpoints'
+import { groupsApi, ideasApi, liveInterval, mutationKeys, queryKeys } from '@/api/endpoints'
 import type { Idea } from '@/api/types'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Bar, BlockError } from '@/components/Panel'
@@ -22,12 +22,14 @@ type Props = {
   isAdmin: boolean
   // Admin kazananı seçtiyse grup tamamlanmıştır: oylar ve yeni öneriler kapalı.
   completed: boolean
+  // SSE bağlantısı açıksa değişiklikler anında gelir; periyodik yenileme seyrekleşir.
+  live: boolean
   // Hediye tarihi geçmiş ve grup hâlâ açıksa admin'e kazananı seçmesi hatırlatılır.
   datePassed: boolean
 }
 
 // Ekranın sorusu: "Hangi hediyede birleşiyoruz?" En büyük blok bu; en çok oy alan üstte.
-export function GiftPool({ groupId, meId, isAdmin, completed, datePassed }: Props) {
+export function GiftPool({ groupId, meId, isAdmin, completed, live, datePassed }: Props) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const key = queryKeys.ideas(groupId)
@@ -36,7 +38,7 @@ export function GiftPool({ groupId, meId, isAdmin, completed, datePassed }: Prop
   const ideas = useQuery({
     queryKey: key,
     queryFn: ({ signal }) => ideasApi.list(groupId, signal),
-    refetchInterval: busy || completed ? false : LIVE_REFRESH_MS,
+    refetchInterval: busy || completed ? false : liveInterval(live),
   })
   const [pending, setPending] = useState<Pending>(null)
   const [showRejected, setShowRejected] = useState(false)
