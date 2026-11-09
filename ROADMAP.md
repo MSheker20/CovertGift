@@ -160,7 +160,7 @@ flowchart LR
 
 ## Faz 8 — Test, Güvenlik ve Cila 🧪
 - [x] Swagger / OpenAPI 2.0 canlı dokümantasyonu (`swaggo/swag`, `/swagger/index.html`, `/docs`)
-- [x] Veritabanı tek tıkla sıfırlama endpoint'i ve Swagger butonu (`POST /api/v1/dev/reset-db`)
+- [x] Veritabanı sıfırlama endpoint'i ve Swagger'dan çağrı (`POST /api/v1/dev/reset-db`; `ALLOW_DB_RESET` + onay gerekir)
 - [x] Bağımlılıksız geçici test paneli ve API yolu allowlist'i; geliştirme sıfırlama ucu proxy'de engellenir
 - [x] Cloudflare Quick Tunnel ile panel ve API'ye aynı HTTPS adresinden erişim; arayüz 200, sağlık kontrolü 200 (`db: up`), oturumsuz profil 401 (2026-10-17)
 - [x] İlgi alanı yetkileri, bütçe doğrulaması/uyarıları, AI kaynak ve tekrar filtreleri için backend birim testleri
@@ -177,7 +177,7 @@ flowchart LR
 - [ ] CORS ayarları, istek boyutu limitleri, input validasyonu (`binding:"required,email"` vb.)
 - [ ] Hata loglama (yapılandırılmış log)
 - [ ] Seed script (demo kullanıcılar + grup)
-- [ ] Yerel veri koruması (2026-10-22): yerel API'de `POST /api/v1/dev/reset-db` açık ve Vite geliştirme proxy'si onu engellemiyor; 2026-10-21'de bir smoke testi yerel veritabanını bu uçla sildi. Seçenekler: ucu ayrı bir ortam bayrağına bağlamak, onay parametresi istemek veya Vite proxy'sinde engellemek; düzenli `pg_dump` yedeği. Karar verilmedi.
+- [x] Yerel veri koruması (2026-10-22, 2026-11-09'da çözüldü: uç `ALLOW_DB_RESET=true` olmadan 403, açıkken gövdede `{"confirm": "RESET"}` yoksa 400; düzenli `pg_dump` yedeği SETUP'ta önerili): yerel API'de `POST /api/v1/dev/reset-db` açık ve Vite geliştirme proxy'si onu engellemiyor; 2026-10-21'de bir smoke testi yerel veritabanını bu uçla sildi. Seçenekler: ucu ayrı bir ortam bayrağına bağlamak, onay parametresi istemek veya Vite proxy'sinde engellemek; düzenli `pg_dump` yedeği. Karar verilmedi.
 - [x] `README.md` → ilk `.env` kurulumu, backend/panel/tünel komutları ve doğrulama adımları (2026-10-17)
 - [x] Backend, frontend (nginx) ve eski panel için Dockerfile ve `.dockerignore`; Azure demo dağıtım rehberi
 - [ ] (Opsiyonel) Backend ve paneli yerel Docker Compose yapılandırmasına ekleme

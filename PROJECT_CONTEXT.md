@@ -154,7 +154,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `DELETE /api/v1/ideas/:id` -> Hediyeyi kaldırır (Sadece öneren kişi veya grup admini silebilir)
 
 ### Sistem & Test
-- `POST /api/v1/dev/reset-db` -> Test ve sunum ortamında tüm tabloları TRUNCATE CASCADE ile sıfırlar (Production ortamında güvenlik için devre dışıdır)
+- `POST /api/v1/dev/reset-db` -> Tüm tabloları TRUNCATE CASCADE ile sıfırlar. Yalnızca `ALLOW_DB_RESET=true` ile açılır ve gövdede `{"confirm": "RESET"}` ister (yoksa 403 / 400). Production ortamında her durumda devre dışıdır
 - Üretim frontend'inin nginx'i `/api/`, `/health`, `/swagger/`, `/docs` yollarını API'ye iletir; `/api/v1/dev/*` büyük/küçük harften bağımsız olarak 403 ile engellenir. Geliştirmede Vite proxy'si bu ucu **engellemez**; yerel API'de çağrılırsa yerel veritabanı sıfırlanır.
 - Eski geçici panel proxy'si yalnızca auth, profil, grup, hediye ve oy yollarıyla `/health`, `/swagger/*`, `/docs` yollarını iletir; geliştirme uçlarını 403 ile engeller.
 
