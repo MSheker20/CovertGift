@@ -72,6 +72,9 @@ func NewGroupService(groupRepo repository.GroupRepository, userRepo repository.U
 // CreateGroup yeni grup oluşturur ve oluşturan kişiyi admin üye yapar.
 // Hedef kişi isteğe bağlı olarak e-postayla seçilir; kimlik sunucuda çözülür.
 func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, targetEmail string, totalBudget decimal.Decimal) (*models.Group, error) {
+	if !validMoney(totalBudget) {
+		return nil, ErrInvalidBudget
+	}
 	targetEmail = strings.TrimSpace(targetEmail)
 	if targetEmail != "" {
 		if targetUserID != nil {
@@ -312,7 +315,7 @@ func (s *groupService) UpdateBudget(groupID, userID uuid.UUID, budget decimal.De
 	if member.Role != "admin" {
 		return ErrUnauthorizedBudgetUpdate
 	}
-	if budget.IsNegative() || budget.GreaterThan(decimal.New(9999999999, -2)) || !budget.Equal(budget.Round(2)) {
+	if !validMoney(budget) {
 		return ErrInvalidBudget
 	}
 	return s.groupRepo.UpdateBudget(groupID, budget)
@@ -403,4 +406,10 @@ func (s *groupService) DeleteGroup(groupID, userID uuid.UUID) error {
 
 	// 4. Grubu sil
 	return s.groupRepo.DeleteGroup(groupID)
+}
+
+// validMoney numeric(10,2) sütununa sığan, negatif olmayan ve en fazla iki ondalık
+// basamaklı tutarları kabul eder (0 – 99.999.999,99).
+func validMoney(amount decimal.Decimal) bool {
+	return !amount.IsNegative() && !amount.GreaterThan(decimal.New(9999999999, -2)) && amount.Equal(amount.Round(2))
 }

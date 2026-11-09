@@ -28,7 +28,7 @@ type RegisterRequest struct {
 // LoginRequest kullanıcı girişi için DTO
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email" example:"can@demo.com"`
-	Password string `json:"password" binding:"required" example:"Password123!"`
+	Password string `json:"password" binding:"required,max=100" example:"Password123!"`
 }
 
 // LoginResponse kullanıcı girişi sonucunda dönen veri yapısıdır

@@ -4,18 +4,22 @@ definitions:
     properties:
       description:
         example: Doğa yürüyüşlerinde ve kampta sıcak içecek taşımak için
+        maxLength: 5000
         type: string
       estimated_price:
         example: 1450
         type: number
       image_url:
         example: https://cdn.dsmcdn.com/product.jpg
+        maxLength: 500
         type: string
       product_url:
         example: https://www.trendyol.com/brand/product-p-123
+        maxLength: 1000
         type: string
       search_query:
         example: Stanley klasik vakumlu termos 1 lt
+        maxLength: 255
         type: string
       title:
         example: Stanley Klasik Vakumlu Termos 1.0L
@@ -29,6 +33,7 @@ definitions:
     properties:
       email:
         example: zeynep@demo.com
+        maxLength: 150
         type: string
     required:
     - email
@@ -37,6 +42,7 @@ definitions:
     properties:
       description:
         example: Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu
+        maxLength: 2000
         type: string
       target_email:
         example: ahmet@demo.com
@@ -44,6 +50,7 @@ definitions:
         type: string
       target_interests:
         example: Kamp, 3. nesil kahve demleme, trekking, outdoor
+        maxLength: 2000
         type: string
       target_person_name:
         example: Ahmet
@@ -97,6 +104,7 @@ definitions:
         type: string
       password:
         example: Password123!
+        maxLength: 100
         type: string
     required:
     - email
@@ -120,6 +128,7 @@ definitions:
     properties:
       url:
         example: https://ty.gl/gkyyduf4wm8u3
+        maxLength: 2048
         type: string
     required:
     - url
@@ -173,6 +182,9 @@ definitions:
     properties:
       vote_type:
         description: '1: Upvote, -1: Downvote'
+        enum:
+        - 1
+        - -1
         example: 1
         type: integer
     required:

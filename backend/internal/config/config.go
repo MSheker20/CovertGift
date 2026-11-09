@@ -20,7 +20,6 @@ type Config struct {
 	GeminiFallbackModel string
 	GeminiSearchEnabled bool
 	GeminiThinkingLevel string
-	CORSOrigin          string
 	AppEnv              string
 	AllowDBReset        bool
 }
@@ -42,7 +41,6 @@ func Load() *Config {
 		GeminiFallbackModel: strings.TrimSpace(os.Getenv("GEMINI_FALLBACK_MODEL")),
 		GeminiSearchEnabled: searchEnabled(),
 		GeminiThinkingLevel: strings.TrimSpace(os.Getenv("GEMINI_THINKING_LEVEL")),
-		CORSOrigin:          getEnv("CORS_ORIGIN", "http://localhost:5173"),
 		AppEnv:              getEnv("APP_ENV", "development"),
 		AllowDBReset:        allowDBReset(),
 	}

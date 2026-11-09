@@ -17,6 +17,7 @@ import (
 var (
 	ErrIdeaNotFound       = errors.New("hediye önerisi bulunamadı")
 	ErrInvalidVoteType    = errors.New("geçersiz oy türü (+1 veya -1 olmalıdır)")
+	ErrInvalidPrice       = errors.New("tahmini fiyat 0–99.999.999,99 ₺ arasında ve en fazla iki ondalık basamaklı olmalıdır")
 	ErrUnauthorizedDelete = errors.New("bu hediye önerisini silme yetkiniz yok (sadece öneren veya grup admini silebilir)")
 	ErrUnauthorizedVeto   = errors.New("bu hediye önerisini sadece grup yöneticisi (admin) veto edebilir")
 	ErrNoAIIdeasGenerated = errors.New("yapay zeka kriterlere uygun yeni bir hediye önerisi üretemedi")
@@ -74,6 +75,10 @@ func (s *ideaService) AddManualIdea(groupID, userID uuid.UUID, title, descriptio
 	}
 	if member == nil {
 		return nil, ErrNotGroupMember
+	}
+
+	if !validMoney(price) {
+		return nil, ErrInvalidPrice
 	}
 
 	// search_query boş bırakılmışsa otomatik başlıktan türet
