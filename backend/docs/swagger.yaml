@@ -856,6 +856,43 @@ paths:
       summary: Hediye Tarihini Güncelle
       tags:
       - Grup İşlemleri (Groups)
+  /api/v1/groups/{id}/events:
+    get:
+      description: Grupta bir fikir, oy, bütçe, üye veya durum değişikliği olduğunda
+        "changed" olayı gönderir. Olay veri taşımaz; istemci grubu ve fikirleri yeniden
+        çeker. Bağlantı en fazla 5 dakika açık kalır, ardından istemci yeniden bağlanır.
+        Anti-Spoiler ve üyelik kontrolü bağlantı açılırken uygulanır.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: 'event: changed'
+          schema:
+            type: string
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler veya grup üyesi değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "503":
+          description: Açık bağlantı sınırı doldu
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Grup Olay Akışı (Server-Sent Events)
+      tags:
+      - Grup İşlemleri (Groups)
   /api/v1/groups/{id}/ideas:
     get:
       description: Gruptaki hediye havuzunu, her hediyenin toplam oy skorunu (+1/-1

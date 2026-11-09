@@ -66,3 +66,16 @@ export const idea = (overrides: Partial<Idea> = {}): Idea => ({
   my_vote: 0,
   ...overrides,
 })
+
+// SSE akışı: verilen olayları gönderir ve istek iptal edilene kadar açık kalır.
+export function eventStream(frames: string[] = [], { close = false }: { close?: boolean } = {}) {
+  const encoder = new TextEncoder()
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode('retry: 5000\n: connected\n\n'))
+      for (const f of frames) controller.enqueue(encoder.encode(f))
+      if (close) controller.close()
+    },
+  })
+  return new HttpResponse(body, { headers: { 'Content-Type': 'text/event-stream' } })
+}

@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { Group, Idea } from '@/api/types'
 import { renderApp } from '@/test/render'
-import { api, fail, group, groupDetail, http, idea, me, ok, server } from '@/test/server'
+import { HttpResponse } from 'msw'
+
+import { api, eventStream, fail, group, groupDetail, http, idea, me, ok, server } from '@/test/server'
 
 const PATH = `/groups/${group.id}`
 
@@ -16,6 +18,7 @@ function baseHandlers(opts: { role?: 'admin' | 'member'; ideas?: Idea[]; group?:
       ok(groupDetail({ my_role: opts.role ?? 'admin', group: { ...group, ...opts.group } })),
     ),
     http.get(api(`/groups/${group.id}/ideas`), () => ok(opts.ideas ?? [idea()])),
+    http.get(api(`/groups/${group.id}/events`), () => eventStream()),
   )
 }
 
@@ -347,6 +350,60 @@ describe('unvote, winner and gift date', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Hediye tarihini ayarla' }))
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Tarihi kaldır' }))
     await waitFor(() => expect(sent).toEqual([{ event_date: '2031-02-20' }, { event_date: null }]))
+  })
+})
+
+describe('live updates (SSE)', () => {
+  beforeEach(() => localStorage.setItem('covertgift.token', 'tok'))
+
+  it('opens the stream with the bearer token and refetches the pool on a change event', async () => {
+    let auth: string | null = null
+    let push: ((frame: string) => void) | null = null
+    let current = idea({ score: 1 })
+    baseHandlers()
+    server.use(
+      http.get(api(`/groups/${group.id}/ideas`), () => ok([current])),
+      http.get(api(`/groups/${group.id}/events`), ({ request }) => {
+        auth = request.headers.get('Authorization')
+        const encoder = new TextEncoder()
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encoder.encode(': connected\n\n'))
+            push = (frame) => controller.enqueue(encoder.encode(frame))
+          },
+        })
+        return new HttpResponse(body, { headers: { 'Content-Type': 'text/event-stream' } })
+      }),
+    )
+    renderApp(PATH)
+    expect(await screen.findByRole('group', { name: 'Skor 1' })).toBeInTheDocument()
+    await waitFor(() => expect(push).not.toBeNull())
+    expect(auth).toBe('Bearer tok')
+
+    // Başka bir üye oy verdi; sunucu açık akışa yalnızca "changed" yazar (veri taşımaz).
+    // Periyodik yenileme (60 sn) bu sürede devreye girmez; skoru olay günceller.
+    current = { ...current, score: 4 }
+    push!('event: changed\ndata: {}\n\n')
+    expect(await screen.findByRole('group', { name: 'Skor 4' }, { timeout: 3000 })).toBeInTheDocument()
+  })
+
+  it('never opens the stream for the person the group is for', async () => {
+    let opened = false
+    server.use(
+      http.get(api('/me'), () => ok(me)),
+      http.get(api('/groups'), () => ok([])),
+      http.get(api(`/groups/${group.id}`), () =>
+        fail(403, 'Erişim engellendi: Bu hediye grubu senin için oluşturulmuş bir sürprizdir.'),
+      ),
+      http.get(api(`/groups/${group.id}/events`), () => {
+        opened = true
+        return eventStream()
+      }),
+    )
+    renderApp(PATH)
+    await screen.findByRole('heading', { name: 'Bu bir sürpriz!' })
+    await new Promise((r) => setTimeout(r, 100))
+    expect(opened).toBe(false)
   })
 })
 

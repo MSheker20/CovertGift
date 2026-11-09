@@ -10,6 +10,7 @@ import (
 	"github.com/MSheker20/CovertGift/backend/internal/config"
 	"github.com/MSheker20/CovertGift/backend/internal/controllers"
 	"github.com/MSheker20/CovertGift/backend/internal/logging"
+	"github.com/MSheker20/CovertGift/backend/internal/realtime"
 	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
@@ -79,7 +80,7 @@ func main() {
 		slog.Warn("GEMINI_API_KEY tanımlı değil; AI hediye üretimi devre dışı")
 	}
 
-	r := newRouter(db, cfg, geminiClient)
+	r := newRouter(db, cfg, geminiClient, realtime.NewHub(realtimeMaxStreams))
 
 	// 5. Katmanları, rotaları kur ve sunucuyu ayağa kaldır
 	slog.Info("CovertGift API çalışıyor", "port", cfg.Port, "env", cfg.AppEnv)
@@ -87,6 +88,9 @@ func main() {
 		fatal("sunucu başlatılamadı", err)
 	}
 }
+
+// realtimeMaxStreams aynı anda açık SSE bağlantısı sınırıdır (kaynak tükenmesine karşı).
+const realtimeMaxStreams = 2000
 
 // fatal hatayı ERROR seviyesinde loglar ve süreci sonlandırır.
 func fatal(msg string, err error) {

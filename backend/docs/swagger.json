@@ -652,6 +652,59 @@
                 }
             }
         },
+        "/api/v1/groups/{id}/events": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Grupta bir fikir, oy, bütçe, üye veya durum değişikliği olduğunda \"changed\" olayı gönderir. Olay veri taşımaz; istemci grubu ve fikirleri yeniden çeker. Bağlantı en fazla 5 dakika açık kalır, ardından istemci yeniden bağlanır. Anti-Spoiler ve üyelik kontrolü bağlantı açılırken uygulanır.",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "Grup İşlemleri (Groups)"
+                ],
+                "summary": "Grup Olay Akışı (Server-Sent Events)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "event: changed",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler veya grup üyesi değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "Açık bağlantı sınırı doldu",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/groups/{id}/ideas": {
             "get": {
                 "security": [

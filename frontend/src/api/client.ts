@@ -81,3 +81,12 @@ export async function api<T>(
   }
   return payload.data as T
 }
+
+// SSE akışı açar. EventSource Authorization başlığı gönderemediği için akış fetch ile
+// okunur; böylece token URL'ye yazılmaz.
+export function openEventStream(path: string, signal: AbortSignal): Promise<Response> {
+  const headers: Record<string, string> = { Accept: 'text/event-stream' }
+  const token = tokenStore.get()
+  if (token) headers.Authorization = `Bearer ${token}`
+  return fetch(`${BASE_URL}/api/v1${path}`, { headers, signal, cache: 'no-store' })
+}

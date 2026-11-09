@@ -69,6 +69,10 @@ export const mutationKeys = {
   ideas: (groupId: string) => ['ideas', groupId] as const,
 }
 
-// Grup sayfası açıkken başkalarının oyları ve yeni fikirler bu aralıkla çekilir.
-// Sekme arka plandayken TanStack Query yenilemeyi durdurur.
+// Grup sayfası açıkken değişiklikler SSE ile anında gelir. Bağlantı yoksa (proxy, ağ)
+// başkalarının oyları ve yeni fikirler bu aralıkla çekilir; bağlantı varken yalnızca
+// seyrek bir güvenlik yenilemesi yapılır. Sekme arka plandayken TanStack Query yenilemeyi durdurur.
 export const LIVE_REFRESH_MS = 10_000
+export const LIVE_FALLBACK_MS = 60_000
+
+export const liveInterval = (connected: boolean) => (connected ? LIVE_FALLBACK_MS : LIVE_REFRESH_MS)
