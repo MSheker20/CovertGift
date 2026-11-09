@@ -4,7 +4,10 @@
     {
       "name": "api",
       "runtimeExecutable": "go",
-      "runtimeArgs": ["run", "./cmd/api"],
+      "runtimeArgs": [
+        "run",
+        "./cmd/api"
+      ],
       "cwd": "backend",
       "port": 8080,
       "autoPort": false
@@ -12,8 +15,50 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev"
+      ],
       "port": 5174
+    },
+    {
+      "name": "api-testdb",
+      "runtimeExecutable": "go",
+      "runtimeArgs": [
+        "run",
+        "./cmd/api"
+      ],
+      "cwd": "backend",
+      "port": 8090,
+      "autoPort": false,
+      "env": {
+        "PORT": "8090",
+        "DATABASE_URL": "postgres://covertgift:covertgift_test@localhost:55432/covertgift_test?sslmode=disable",
+        "JWT_SECRET": "preview-test-secret",
+        "GEMINI_API_KEY": "",
+        "ALLOW_DB_RESET": "false",
+        "GOTOOLCHAIN": "go1.27.3"
+      }
+    },
+    {
+      "name": "frontend-testdb",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5175",
+        "--strictPort"
+      ],
+      "port": 5175,
+      "env": {
+        "API_TARGET": "http://127.0.0.1:8090"
+      }
     }
   ]
 }

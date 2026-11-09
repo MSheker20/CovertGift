@@ -20,7 +20,14 @@ export type Group = {
   creator_id: string
   created_at: string
   creator?: User
+  // "YYYY-MM-DD"; hediyenin verileceği gün (isteğe bağlı).
+  event_date?: string
+  // COMPLETED: admin kazananı seçti; fikir ve oy işlemleri kapalı.
+  status: GroupStatus
+  completed_at?: string
 }
+
+export type GroupStatus = 'ACTIVE' | 'COMPLETED'
 
 export type GroupMember = {
   id: string
@@ -50,6 +57,7 @@ export type CreateGroupInput = {
   target_interests?: string
   // Sunucu kayıtlı kullanıcıyı bulur; bulamazsa 404 döner.
   target_email?: string
+  event_date?: string
 }
 
 export type AISource = { title: string; url: string }

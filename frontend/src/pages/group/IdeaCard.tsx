@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowUpRight, Ban, ChevronDown, ChevronUp, MoreHorizontal, Trash2 } from 'lucide-react'
+import { ArrowUpRight, Ban, ChevronDown, ChevronUp, MoreHorizontal, Trash2, Trophy } from 'lucide-react'
 
 import type { Idea } from '@/api/types'
 import { Button } from '@/components/ui/button'
@@ -13,15 +13,21 @@ type Props = {
   idea: Idea
   canReject: boolean
   canDelete: boolean
-  onVote: (vote: 1 | -1) => void
+  canSelectWinner: boolean
+  // Grup tamamlandıysa oylar ve fikir işlemleri kapalıdır; skor yalnızca gösterilir.
+  locked: boolean
+  // 0: oyu geri al.
+  onVote: (vote: -1 | 0 | 1) => void
   onReject: () => void
   onDelete: () => void
+  onSelectWinner: () => void
 }
 
 // Satır kartı: 72px görsel yuvası, ortada başlık/fiyat/rozetler/linkler, sağda dikey oy sütunu.
-export function IdeaCard({ idea, canReject, canDelete, onVote, onReject, onDelete }: Props) {
+export function IdeaCard({ idea, canReject, canDelete, canSelectWinner, locked, onVote, onReject, onDelete, onSelectWinner }: Props) {
   const { t } = useTranslation()
   const rejected = idea.status === 'REJECTED'
+  const winner = idea.status === 'SELECTED'
   const price = Number(idea.estimated_price)
   const productUrl = idea.source_type === 'MANUAL' ? safeHttpUrl(idea.product_url) : null
   const sources = (idea.ai_sources ?? []).filter((s) => safeHttpUrl(s.url))
@@ -35,6 +41,7 @@ export function IdeaCard({ idea, canReject, canDelete, onVote, onReject, onDelet
       className={cn(
         'rounded-[18px] border border-border bg-raised p-3 transition-colors hover:border-control md:p-3.5',
         rejected && 'bg-transparent',
+        winner && 'border-2 border-primary hover:border-primary',
       )}
     >
       <div className="flex gap-3 md:gap-4">
@@ -60,6 +67,12 @@ export function IdeaCard({ idea, canReject, canDelete, onVote, onReject, onDelet
               <Chip className="bg-pill-warn-bg text-pill-warn-ink">{t('pool.overBudget')}</Chip>
             )}
             {rejected && <Chip className="bg-pill-negative-bg text-pill-negative-ink">{t('pool.rejectedBadge')}</Chip>}
+            {winner && (
+              <Chip className="gap-1 bg-primary text-on-primary">
+                <Trophy className="size-3" aria-hidden />
+                {t('pool.winnerBadge')}
+              </Chip>
+            )}
           </div>
           {summary && (
             <p className="mt-1.5 line-clamp-2 text-[13px] leading-5 text-muted" title={idea.description}>
@@ -68,7 +81,7 @@ export function IdeaCard({ idea, canReject, canDelete, onVote, onReject, onDelet
           )}
         </div>
 
-        {!rejected && <VoteColumn score={idea.score} myVote={idea.my_vote} onVote={onVote} />}
+        {!rejected && <VoteColumn score={idea.score} myVote={idea.my_vote} locked={locked} onVote={onVote} />}
       </div>
 
       {/* Linkler kartın tam genişliğinde; masaüstünde metin sütununun hizasından başlar. */}
@@ -81,8 +94,15 @@ export function IdeaCard({ idea, canReject, canDelete, onVote, onReject, onDelet
             </ExternalLink>
           ))}
         {idea.creator?.name && <span className="text-muted">{t('pool.by', { name: idea.creator.name })}</span>}
-        {(canReject || canDelete) && (
-          <IdeaMenu canReject={canReject && !rejected} canDelete={canDelete} onReject={onReject} onDelete={onDelete} />
+        {!locked && (canReject || canDelete || canSelectWinner) && (
+          <IdeaMenu
+            canReject={canReject && !rejected}
+            canDelete={canDelete}
+            canSelectWinner={canSelectWinner && !rejected}
+            onReject={onReject}
+            onDelete={onDelete}
+            onSelectWinner={onSelectWinner}
+          />
         )}
       </div>
 
@@ -125,14 +145,35 @@ function Thumb({ idea, dim }: { idea: Idea; dim: boolean }) {
   )
 }
 
-function VoteColumn({ score, myVote, onVote }: { score: number; myVote: -1 | 0 | 1; onVote: (v: 1 | -1) => void }) {
+function VoteColumn({
+  score,
+  myVote,
+  locked,
+  onVote,
+}: {
+  score: number
+  myVote: -1 | 0 | 1
+  locked: boolean
+  onVote: (v: -1 | 0 | 1) => void
+}) {
   const { t } = useTranslation()
   // Yalnızca az önce basılan buton zıplar; sayfa yüklenirken seçili oylar sabit durur.
   const [pop, setPop] = useState<-1 | 0 | 1>(0)
+  // Seçili oya tekrar basmak oyu geri alır.
   const vote = (v: 1 | -1) => {
-    if (myVote === v) return
+    if (myVote === v) {
+      onVote(0)
+      return
+    }
     setPop(v)
     onVote(v)
+  }
+  if (locked) {
+    return (
+      <div className="flex w-11 shrink-0 items-center justify-center" role="group" aria-label={t('pool.score', { score })}>
+        <span className="font-display num text-[15px] font-semibold">{score > 0 ? `+${score}` : score}</span>
+      </div>
+    )
   }
   return (
     <div className="-my-1 flex w-11 shrink-0 flex-col items-center justify-center gap-0.5" role="group" aria-label={t('pool.score', { score })}>
@@ -174,13 +215,17 @@ function VoteColumn({ score, myVote, onVote }: { score: number; myVote: -1 | 0 |
 function IdeaMenu({
   canReject,
   canDelete,
+  canSelectWinner,
   onReject,
   onDelete,
+  onSelectWinner,
 }: {
   canReject: boolean
   canDelete: boolean
+  canSelectWinner: boolean
   onReject: () => void
   onDelete: () => void
+  onSelectWinner: () => void
 }) {
   const { t } = useTranslation()
   return (
@@ -191,6 +236,12 @@ function IdeaMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {canSelectWinner && (
+          <DropdownMenuItem onSelect={onSelectWinner}>
+            <Trophy />
+            {t('pool.selectWinner')}
+          </DropdownMenuItem>
+        )}
         {canReject && (
           <DropdownMenuItem onSelect={onReject}>
             <Ban />

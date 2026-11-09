@@ -30,7 +30,7 @@ func TestValidMoney(t *testing.T) {
 // Geçersiz bütçe, depoya dokunulmadan reddedilmelidir (depolar nil).
 func TestCreateGroupRejectsInvalidBudget(t *testing.T) {
 	for _, budget := range []string{"-1", "100000000", "1.234"} {
-		_, err := NewGroupService(nil, nil).CreateGroup(uuid.New(), "Grup", "", "Hedef", "", nil, "", decimal.RequireFromString(budget))
+		_, err := NewGroupService(nil, nil).CreateGroup(uuid.New(), "Grup", "", "Hedef", "", nil, "", decimal.RequireFromString(budget), nil)
 		if !errors.Is(err, ErrInvalidBudget) {
 			t.Errorf("budget %s: err = %v, want ErrInvalidBudget", budget, err)
 		}

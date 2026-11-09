@@ -22,7 +22,7 @@ type targetGroupService struct {
 	gotTargetID *uuid.UUID
 }
 
-func (s *targetGroupService) CreateGroup(_ uuid.UUID, title, _, name, _ string, targetUserID *uuid.UUID, targetEmail string, _ decimal.Decimal) (*models.Group, error) {
+func (s *targetGroupService) CreateGroup(_ uuid.UUID, title, _, name, _ string, targetUserID *uuid.UUID, targetEmail string, _ decimal.Decimal, _ *models.Date) (*models.Group, error) {
 	s.gotEmail, s.gotTargetID = targetEmail, targetUserID
 	if s.err != nil {
 		return nil, s.err

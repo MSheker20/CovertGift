@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { MoreHorizontal, Pencil, Plus, Trash2, UserCheck, X } from 'lucide-react'
+import { CalendarDays, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2, UserCheck, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { errorMessage } from '@/lib/errors'
+import { eventDateBounds } from '@/lib/eventDate'
 import { formatMoney } from '@/lib/format'
 
 // Backend kuralıyla aynı: tek öğe, 1–100 karakter, virgül/noktalı virgül/satır sonu yok.
@@ -318,6 +319,105 @@ function LinkTargetDialog({
   )
 }
 
+// Hediye tarihi: doğum günü ya da hediyenin verileceği gün. Boş bırakmak tarihi kaldırır.
+function EventDateDialog({
+  groupId,
+  current,
+  open,
+  onOpenChange,
+}: {
+  groupId: string
+  current?: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [value, setValue] = useState(current ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const bounds = eventDateBounds()
+
+  const save = useMutation({
+    mutationFn: (date: string | null) => groupsApi.updateEventDate(groupId, date),
+    onSuccess: (_d, date) => {
+      toast.success(t(date ? 'manage.eventDateSaved' : 'manage.eventDateRemoved'))
+      onOpenChange(false)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
+    },
+    onError: (err) => setError(errorMessage(err)),
+  })
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!value) {
+      save.mutate(null)
+      return
+    }
+    // "YYYY-MM-DD" metinleri sözlük sırasıyla karşılaştırılabilir.
+    if (value < bounds.min || value > bounds.max) {
+      setError(t('manage.eventDateInvalid'))
+      return
+    }
+    save.mutate(value)
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (save.isPending) return
+        if (o) {
+          setValue(current ?? '')
+          setError(null)
+        }
+        onOpenChange(o)
+      }}
+    >
+      <DialogContent closeLabel={t('common.close')} className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle className="text-[19px]">{t('manage.eventDateTitle')}</DialogTitle>
+          <DialogDescription className="text-[15px] leading-6">{t('manage.eventDateBody')}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <FormField id="event-date" label={t('manage.eventDateLabel')}>
+            <Input
+              id="event-date"
+              type="date"
+              min={bounds.min}
+              max={bounds.max}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'event-date-error' : undefined}
+              value={value}
+              onChange={(e) => {
+                setValue(e.target.value)
+                setError(null)
+              }}
+            />
+            {error && (
+              <p id="event-date-error" role="alert" className="text-xs text-negative">
+                {error}
+              </p>
+            )}
+          </FormField>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            {current && (
+              <Button type="button" variant="ghost" className="sm:mr-auto" onClick={() => save.mutate(null)} disabled={save.isPending}>
+                {t('manage.eventDateRemove')}
+              </Button>
+            )}
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={save.isPending}>
+              {t('manage.cancel')}
+            </Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? t('common.loading') : t('manage.save')}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // Başlıktaki admin menüsü. Silme geri alınamaz; onay grubun adını anar.
 // Hedef kişi yalnızca bağlı değilse bağlanabilir; bağlantı değiştirilemez.
 export function GroupMenu({
@@ -325,17 +425,33 @@ export function GroupMenu({
   title,
   targetName,
   targetLinked,
+  eventDate,
+  completed,
 }: {
   groupId: string
   title: string
   targetName: string
   targetLinked: boolean
+  eventDate?: string
+  completed: boolean
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirm, setConfirm] = useState(false)
   const [linking, setLinking] = useState(false)
+  const [dating, setDating] = useState(false)
+  const [reopening, setReopening] = useState(false)
+
+  const reopen = useMutation({
+    mutationFn: () => groupsApi.reopen(groupId),
+    onSuccess: () => {
+      toast.success(t('manage.reopened'))
+      setReopening(false)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  })
 
   const remove = useMutation({
     mutationFn: () => groupsApi.remove(groupId),
@@ -358,6 +474,16 @@ export function GroupMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => setDating(true)}>
+            <CalendarDays />
+            {t('manage.eventDate')}
+          </DropdownMenuItem>
+          {completed && (
+            <DropdownMenuItem onSelect={() => setReopening(true)}>
+              <RotateCcw />
+              {t('manage.reopen')}
+            </DropdownMenuItem>
+          )}
           {!targetLinked && (
             <DropdownMenuItem onSelect={() => setLinking(true)}>
               <UserCheck />
@@ -381,6 +507,17 @@ export function GroupMenu({
         onConfirm={() => remove.mutate()}
       />
       <LinkTargetDialog groupId={groupId} targetName={targetName} open={linking} onOpenChange={setLinking} />
+      <EventDateDialog groupId={groupId} current={eventDate} open={dating} onOpenChange={setDating} />
+      <ConfirmDialog
+        open={reopening}
+        onOpenChange={(o) => !reopen.isPending && setReopening(o)}
+        title={t('manage.reopenTitle')}
+        body={t('manage.reopenBody')}
+        confirmLabel={t('manage.reopenConfirm')}
+        cancelLabel={t('manage.cancel')}
+        pending={reopen.isPending}
+        onConfirm={() => reopen.mutate()}
+      />
     </>
   )
 }

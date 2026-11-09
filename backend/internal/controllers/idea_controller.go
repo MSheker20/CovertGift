@@ -90,6 +90,10 @@ func (ctl *IdeaController) AddIdea(c *gin.Context) {
 		req.EstimatedPrice,
 	)
 	if err != nil {
+		if errors.Is(err, services.ErrGroupCompleted) {
+			RespondErr(c, http.StatusConflict, err.Error())
+			return
+		}
 		if errors.Is(err, services.ErrAntiSpoilerTriggered) {
 			RespondErr(c, http.StatusForbidden, err.Error())
 			return
@@ -143,6 +147,10 @@ func (ctl *IdeaController) GetIdeas(c *gin.Context) {
 
 	ideas, err := ctl.ideaService.GetGroupIdeas(groupID, userID)
 	if err != nil {
+		if errors.Is(err, services.ErrGroupCompleted) {
+			RespondErr(c, http.StatusConflict, err.Error())
+			return
+		}
 		if errors.Is(err, services.ErrAntiSpoilerTriggered) {
 			RespondErr(c, http.StatusForbidden, err.Error())
 			return
@@ -237,6 +245,10 @@ func (ctl *IdeaController) GenerateAI(c *gin.Context) {
 
 	ideas, err := ctl.ideaService.GenerateAIIdeas(c.Request.Context(), groupID, userID)
 	if err != nil {
+		if errors.Is(err, services.ErrGroupCompleted) {
+			RespondErr(c, http.StatusConflict, err.Error())
+			return
+		}
 		if errors.Is(err, services.ErrAntiSpoilerTriggered) {
 			RespondErr(c, http.StatusForbidden, err.Error())
 			return
@@ -314,6 +326,10 @@ func (ctl *IdeaController) Vote(c *gin.Context) {
 			RespondErr(c, http.StatusNotFound, err.Error())
 			return
 		}
+		if errors.Is(err, services.ErrGroupCompleted) {
+			RespondErr(c, http.StatusConflict, err.Error())
+			return
+		}
 		if errors.Is(err, services.ErrAntiSpoilerTriggered) {
 			RespondErr(c, http.StatusForbidden, err.Error())
 			return
@@ -363,6 +379,10 @@ func (ctl *IdeaController) RejectIdea(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, services.ErrIdeaNotFound) {
 			RespondErr(c, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrGroupCompleted) {
+			RespondErr(c, http.StatusConflict, err.Error())
 			return
 		}
 		if errors.Is(err, services.ErrAntiSpoilerTriggered) {
@@ -420,6 +440,10 @@ func (ctl *IdeaController) DeleteIdea(c *gin.Context) {
 			RespondErr(c, http.StatusNotFound, err.Error())
 			return
 		}
+		if errors.Is(err, services.ErrGroupCompleted) {
+			RespondErr(c, http.StatusConflict, err.Error())
+			return
+		}
 		if errors.Is(err, services.ErrAntiSpoilerTriggered) {
 			RespondErr(c, http.StatusForbidden, err.Error())
 			return
@@ -439,4 +463,45 @@ func (ctl *IdeaController) DeleteIdea(c *gin.Context) {
 	RespondOK(c, MessageData{
 		Message: "Hediye önerisi başarıyla silindi",
 	})
+}
+
+// Unvote kullanıcının bir hediye fikrine verdiği oyu kaldırır
+// @Summary      Oyu Geri Al
+// @Description  Giriş yapan kullanıcının bu fikre verdiği oyu siler. Oy yoksa da 200 döner (idempotent). Çoğunluk vetosuyla reddedilmiş fikir kendiliğinden geri açılmaz.
+// @Tags         Oylama & Veto (Voting & Veto)
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Hediye UUID" Format(uuid)
+// @Success      200 {object} Response{data=MessageData} "Oy kaldırıldı"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Erişim engellendi: Anti-Spoiler veya grup üyesi değilsiniz"
+// @Failure      404 {object} Response "Hediye fikri bulunamadı"
+// @Failure      409 {object} Response "Grup tamamlandı; oylar kapalı"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/ideas/{id}/vote [delete]
+func (ctl *IdeaController) Unvote(c *gin.Context) {
+	ideaID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz hediye kimliği")
+		return
+	}
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+	if err := ctl.ideaService.UnvoteIdea(ideaID, userID); err != nil {
+		switch {
+		case errors.Is(err, services.ErrIdeaNotFound):
+			RespondErr(c, http.StatusNotFound, err.Error())
+		case errors.Is(err, services.ErrGroupCompleted):
+			RespondErr(c, http.StatusConflict, err.Error())
+		case errors.Is(err, services.ErrAntiSpoilerTriggered), errors.Is(err, services.ErrNotGroupMember):
+			RespondErr(c, http.StatusForbidden, err.Error())
+		default:
+			RespondInternal(c, "Oy kaldırılırken bir hata oluştu", err)
+		}
+		return
+	}
+	RespondOK(c, MessageData{Message: "Oy kaldırıldı"})
 }

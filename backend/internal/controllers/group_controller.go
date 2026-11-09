@@ -30,6 +30,7 @@ type CreateGroupRequest struct {
 	TargetUserID     *uuid.UUID      `json:"target_user_id,omitempty" format:"uuid" example:"b49770ed-7518-40e6-839d-5810f79bbd86"`
 	TargetEmail      string          `json:"target_email,omitempty" binding:"omitempty,email,max=150" example:"ahmet@demo.com"`
 	TotalBudget      decimal.Decimal `json:"total_budget" example:"2500.00"`
+	EventDate        *models.Date    `json:"event_date,omitempty" swaggertype:"string" format:"date" example:"2026-12-31"`
 }
 
 // AddMemberRequest gruba üye ekleme isteği için DTO
@@ -48,6 +49,16 @@ type InterestRequest struct {
 
 type InterestListResponse struct {
 	Interests []string `json:"interests"`
+}
+
+// SelectWinnerRequest kazanan hediye fikrini taşır
+type SelectWinnerRequest struct {
+	IdeaID uuid.UUID `json:"idea_id" binding:"required" format:"uuid" example:"7d1e5a3c-2f4b-4c8e-9a6d-1b2c3d4e5f60"`
+}
+
+// UpdateEventDateRequest hediye tarihini taşır; null tarihi kaldırır
+type UpdateEventDateRequest struct {
+	EventDate *models.Date `json:"event_date" swaggertype:"string" format:"date" example:"2026-12-31"`
 }
 
 type UpdateBudgetRequest struct {
@@ -90,10 +101,11 @@ func (ctl *GroupController) CreateGroup(c *gin.Context) {
 		req.TargetUserID,
 		req.TargetEmail,
 		req.TotalBudget,
+		req.EventDate,
 	)
 	if err != nil {
 		switch {
-		case errors.Is(err, services.ErrSelfTarget), errors.Is(err, services.ErrTargetInputConflict), errors.Is(err, services.ErrInvalidBudget):
+		case errors.Is(err, services.ErrSelfTarget), errors.Is(err, services.ErrTargetInputConflict), errors.Is(err, services.ErrInvalidBudget), errors.Is(err, services.ErrInvalidEventDate):
 			RespondErr(c, http.StatusBadRequest, err.Error())
 			return
 		case errors.Is(err, services.ErrTargetUserNotFound):
@@ -494,4 +506,126 @@ func getUserID(c *gin.Context) (uuid.UUID, bool) {
 	}
 	id, ok := val.(uuid.UUID)
 	return id, ok
+}
+
+// groupAdminError grup yönetici işlemlerinin ortak hata eşlemesidir.
+func groupAdminError(c *gin.Context, err error, internalMsg string) {
+	switch {
+	case errors.Is(err, services.ErrAntiSpoilerTriggered), errors.Is(err, services.ErrNotGroupMember),
+		errors.Is(err, services.ErrUnauthorizedWinner), errors.Is(err, services.ErrUnauthorizedEventDate):
+		RespondErr(c, http.StatusForbidden, err.Error())
+	case errors.Is(err, services.ErrGroupNotFound):
+		RespondErr(c, http.StatusNotFound, err.Error())
+	case errors.Is(err, services.ErrWinnerNotInGroup), errors.Is(err, services.ErrInvalidEventDate):
+		RespondErr(c, http.StatusBadRequest, err.Error())
+	case errors.Is(err, services.ErrGroupCompleted), errors.Is(err, services.ErrGroupNotCompleted), errors.Is(err, services.ErrWinnerNotActive):
+		RespondErr(c, http.StatusConflict, err.Error())
+	default:
+		RespondInternal(c, internalMsg, err)
+	}
+}
+
+// SelectWinner kazanan hediyeyi seçer ve grubu tamamlar
+// @Summary      Kazananı Seç ve Grubu Tamamla
+// @Description  Yalnızca admin. Seçilen aktif fikir SELECTED, grup COMPLETED olur. Tamamlanan grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme 409 döner.
+// @Tags         Grup İşlemleri (Groups)
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Param        request body SelectWinnerRequest true "Kazanan fikir"
+// @Success      200 {object} Response{data=MessageData} "Grup tamamlandı"
+// @Failure      400 {object} Response "Fikir bu gruba ait değil veya istek geçersiz"
+// @Failure      403 {object} Response "Anti-Spoiler, üye değil veya admin değil"
+// @Failure      404 {object} Response "Grup bulunamadı"
+// @Failure      409 {object} Response "Grup zaten tamamlandı veya fikir aktif değil"
+// @Router       /api/v1/groups/{id}/winner [post]
+func (ctl *GroupController) SelectWinner(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+		return
+	}
+	var req SelectWinnerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: idea_id zorunludur")
+		return
+	}
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+	if err := ctl.groupService.SelectWinner(groupID, userID, req.IdeaID); err != nil {
+		groupAdminError(c, err, "Kazanan seçilirken bir hata oluştu")
+		return
+	}
+	RespondOK(c, MessageData{Message: "Kazanan seçildi, grup tamamlandı"})
+}
+
+// ReopenGroup tamamlanan grubu yeniden açar
+// @Summary      Grubu Yeniden Aç
+// @Description  Yalnızca admin. Yanlış seçimi geri almak içindir: kazanan fikir ACTIVE'e, grup ACTIVE'e döner.
+// @Tags         Grup İşlemleri (Groups)
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Success      200 {object} Response{data=MessageData} "Grup yeniden açıldı"
+// @Failure      403 {object} Response "Anti-Spoiler, üye değil veya admin değil"
+// @Failure      404 {object} Response "Grup bulunamadı"
+// @Failure      409 {object} Response "Grup zaten açık"
+// @Router       /api/v1/groups/{id}/winner [delete]
+func (ctl *GroupController) ReopenGroup(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+		return
+	}
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+	if err := ctl.groupService.ReopenGroup(groupID, userID); err != nil {
+		groupAdminError(c, err, "Grup yeniden açılırken bir hata oluştu")
+		return
+	}
+	RespondOK(c, MessageData{Message: "Grup yeniden açıldı"})
+}
+
+// UpdateEventDate hediye tarihini ayarlar veya kaldırır
+// @Summary      Hediye Tarihini Güncelle
+// @Description  Yalnızca admin. "YYYY-MM-DD" biçiminde tarih; null tarihi kaldırır. Bugünden en fazla 1 yıl önce, en fazla 5 yıl sonra.
+// @Tags         Grup İşlemleri (Groups)
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Param        request body UpdateEventDateRequest true "Hediye tarihi"
+// @Success      200 {object} Response{data=MessageData} "Tarih güncellendi"
+// @Failure      400 {object} Response "Geçersiz tarih"
+// @Failure      403 {object} Response "Anti-Spoiler, üye değil veya admin değil"
+// @Failure      404 {object} Response "Grup bulunamadı"
+// @Router       /api/v1/groups/{id}/event-date [patch]
+func (ctl *GroupController) UpdateEventDate(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+		return
+	}
+	var req UpdateEventDateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: event_date YYYY-AA-GG biçiminde veya null olmalıdır")
+		return
+	}
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+	if err := ctl.groupService.SetEventDate(groupID, userID, req.EventDate); err != nil {
+		groupAdminError(c, err, "Hediye tarihi güncellenirken bir hata oluştu")
+		return
+	}
+	RespondOK(c, MessageData{Message: "Hediye tarihi güncellendi"})
 }

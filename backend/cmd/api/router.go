@@ -102,6 +102,9 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client) *gi
 				groupSpecific.DELETE("/interests", groupController.DeleteInterest)
 				groupSpecific.PATCH("/budget", groupController.UpdateBudget)
 				groupSpecific.PATCH("/target", groupController.LinkTarget)
+				groupSpecific.PATCH("/event-date", groupController.UpdateEventDate)
+				groupSpecific.POST("/winner", groupController.SelectWinner)
+				groupSpecific.DELETE("/winner", groupController.ReopenGroup)
 
 				// Hediye Havuzu Rotaları
 				groupSpecific.POST("/ideas", ideaController.AddIdea)
@@ -114,6 +117,7 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client) *gi
 			ideasGroup := protected.Group("/ideas/:id")
 			{
 				ideasGroup.POST("/vote", ideaController.Vote)
+				ideasGroup.DELETE("/vote", ideaController.Unvote)
 				ideasGroup.POST("/reject", ideaController.RejectIdea)
 				ideasGroup.DELETE("", ideaController.DeleteIdea)
 			}

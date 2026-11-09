@@ -1,16 +1,17 @@
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, ShieldCheck } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ShieldCheck, Trophy } from 'lucide-react'
 
 import { ApiError } from '@/api/client'
-import { groupsApi, queryKeys } from '@/api/endpoints'
+import { groupsApi, LIVE_REFRESH_MS, queryKeys } from '@/api/endpoints'
 import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
 import { LogoMark } from '@/components/Logo'
 import { Bar, BlockError, Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { errorMessage, isAntiSpoiler } from '@/lib/errors'
+import { countdownLabel, daysUntil, formatEventDate } from '@/lib/eventDate'
 import { formatMoney } from '@/lib/format'
 import { AddMemberForm } from './group/AddMemberForm'
 import { GiftPool } from './group/GiftPool'
@@ -25,11 +26,17 @@ export function GroupPage() {
     queryKey: queryKeys.group(id),
     queryFn: ({ signal }) => groupsApi.detail(id, signal),
     retry: (count, err) => !(err instanceof ApiError && err.status >= 400 && err.status < 500) && count < 2,
+    // Başka bir üyenin kazananı seçmesi, bütçe veya üye değişikliği sayfa yenilenmeden görünür.
+    // Hata durumunda (ör. Anti-Spoiler 403) yenileme durur.
+    refetchInterval: (query) => (query.state.status === 'error' ? false : LIVE_REFRESH_MS),
   })
 
   if (detail.isError && isAntiSpoiler(detail.error)) return <SurpriseScreen />
 
   const d = detail.data
+  const completed = d?.group.status === 'COMPLETED'
+  const eventDate = d?.group.event_date
+  const days = eventDate ? daysUntil(eventDate) : null
   return (
     <div className="mx-auto max-w-[1100px] px-4 pt-4 pb-16 md:px-8 md:pt-6 lg:box-content lg:pt-8">
       <Link
@@ -74,6 +81,23 @@ export function GroupPage() {
                     )}{' '}
                     ·{' '}
                     {t('group.members', { count: d.member_count })}
+                    {eventDate && (
+                      <>
+                        {' '}
+                        ·{' '}
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                          <CalendarDays className="size-3.5" aria-hidden />
+                          {formatEventDate(eventDate)}
+                          {!completed && <span className="text-ink">({countdownLabel(eventDate)})</span>}
+                        </span>
+                      </>
+                    )}
+                    {completed && (
+                      <span className="ml-1.5 inline-flex h-6 items-center gap-1 rounded-full bg-primary px-2 align-[1px] text-xs font-medium text-on-primary">
+                        <Trophy className="size-3.5" aria-hidden />
+                        {t('group.completed')}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <Bar className="mt-1 h-4 w-48" />
@@ -86,6 +110,8 @@ export function GroupPage() {
                 title={d.group.title}
                 targetName={d.group.target_person_name}
                 targetLinked={!!d.group.target_user_id}
+                eventDate={eventDate}
+                completed={completed}
               />
             )}
           </header>
@@ -105,7 +131,17 @@ export function GroupPage() {
 
           <div className="mt-4 grid grid-cols-1 items-start gap-4 md:grid-cols-12">
             <div className="md:col-span-8">
-              {d ? <GiftPool groupId={id} meId={user?.id} isAdmin={d.my_role === 'admin'} /> : <Bar className="h-64 rounded-[22px]" />}
+              {d ? (
+                <GiftPool
+                  groupId={id}
+                  meId={user?.id}
+                  isAdmin={d.my_role === 'admin'}
+                  completed={completed}
+                  datePassed={days !== null && days < 0}
+                />
+              ) : (
+                <Bar className="h-64 rounded-[22px]" />
+              )}
             </div>
             <Panel title={t('group.membersPanel')} count={d?.member_count} className="md:col-span-4">
               <ul className="flex flex-col gap-1">

@@ -27,6 +27,7 @@ export const group: Group = {
   total_budget: '3000',
   creator_id: me.id,
   created_at: '2026-10-21T09:00:00Z',
+  status: 'ACTIVE',
 }
 
 export const groupDetail = (overrides: Partial<GroupDetail> = {}): GroupDetail => ({

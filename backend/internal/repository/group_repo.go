@@ -3,6 +3,7 @@ package repository
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/MSheker20/CovertGift/backend/internal/models"
 	"github.com/google/uuid"
@@ -27,6 +28,9 @@ type GroupRepository interface {
 	UpdateBudget(groupID uuid.UUID, budget decimal.Decimal) error
 	SetTargetUser(groupID, targetID uuid.UUID, guard func(current *uuid.UUID, isMember bool) error) error
 	DeleteGroup(groupID uuid.UUID) error
+	SetEventDate(groupID uuid.UUID, date *models.Date) error
+	CompleteGroup(groupID, ideaID uuid.UUID, guard func(group *models.Group, idea *models.GiftIdea) error) error
+	ReopenGroup(groupID uuid.UUID, guard func(group *models.Group) error) error
 }
 
 type groupRepository struct {
@@ -237,5 +241,68 @@ func (r *groupRepository) DeleteGroup(groupID uuid.UUID) error {
 		}
 
 		return nil
+	})
+}
+
+// SetEventDate grubun hediye tarihini ayarlar; nil tarihi kaldırır.
+func (r *groupRepository) SetEventDate(groupID uuid.UUID, date *models.Date) error {
+	result := r.db.Model(&models.Group{}).Where("id = ?", groupID).Update("event_date", date)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// CompleteGroup kazanan fikri SELECTED, grubu COMPLETED yapar. Grup satırı kilitlenir;
+// guard kilit altında grubun ve fikrin (gruba ait değilse nil) güncel halini denetler.
+func (r *groupRepository) CompleteGroup(groupID, ideaID uuid.UUID, guard func(group *models.Group, idea *models.GiftIdea) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var group models.Group
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&group, "id = ?", groupID).Error; err != nil {
+			return err
+		}
+		var idea models.GiftIdea
+		var ideaPtr *models.GiftIdea
+		err := tx.Where("id = ? AND group_id = ?", ideaID, groupID).First(&idea).Error
+		switch {
+		case err == nil:
+			ideaPtr = &idea
+		case !errors.Is(err, gorm.ErrRecordNotFound):
+			return err
+		}
+		if err := guard(&group, ideaPtr); err != nil {
+			return err
+		}
+		if err := tx.Model(&models.GiftIdea{}).Where("id = ?", ideaID).Update("status", "SELECTED").Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.Group{}).Where("id = ?", groupID).Updates(map[string]any{
+			"status":       models.GroupStatusCompleted,
+			"completed_at": time.Now(),
+		}).Error
+	})
+}
+
+// ReopenGroup grubu yeniden ACTIVE yapar ve seçilmiş fikri ACTIVE'e döndürür.
+func (r *groupRepository) ReopenGroup(groupID uuid.UUID, guard func(group *models.Group) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var group models.Group
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&group, "id = ?", groupID).Error; err != nil {
+			return err
+		}
+		if err := guard(&group); err != nil {
+			return err
+		}
+		if err := tx.Model(&models.GiftIdea{}).Where("group_id = ? AND status = ?", groupID, "SELECTED").
+			Update("status", "ACTIVE").Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.Group{}).Where("id = ?", groupID).Updates(map[string]any{
+			"status":       models.GroupStatusActive,
+			"completed_at": nil,
+		}).Error
 	})
 }

@@ -581,6 +581,83 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/groups/{id}/event-date": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca admin. \"YYYY-MM-DD\" biçiminde tarih; null tarihi kaldırır. Bugünden en fazla 1 yıl önce, en fazla 5 yıl sonra.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Grup İşlemleri (Groups)"
+                ],
+                "summary": "Hediye Tarihini Güncelle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Hediye tarihi",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateEventDateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tarih güncellendi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz tarih",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya admin değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/groups/{id}/ideas": {
             "get": {
                 "security": [
@@ -1295,6 +1372,152 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/groups/{id}/winner": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca admin. Seçilen aktif fikir SELECTED, grup COMPLETED olur. Tamamlanan grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme 409 döner.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Grup İşlemleri (Groups)"
+                ],
+                "summary": "Kazananı Seç ve Grubu Tamamla",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Kazanan fikir",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.SelectWinnerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Grup tamamlandı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Fikir bu gruba ait değil veya istek geçersiz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya admin değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Grup zaten tamamlandı veya fikir aktif değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca admin. Yanlış seçimi geri almak içindir: kazanan fikir ACTIVE'e, grup ACTIVE'e döner.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Grup İşlemleri (Groups)"
+                ],
+                "summary": "Grubu Yeniden Aç",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Grup yeniden açıldı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya admin değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Grup zaten açık",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/ideas/{id}": {
             "delete": {
                 "security": [
@@ -1536,6 +1759,81 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Giriş yapan kullanıcının bu fikre verdiği oyu siler. Oy yoksa da 200 döner (idempotent). Çoğunluk vetosuyla reddedilmiş fikir kendiliğinden geri açılmaz.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oylama \u0026 Veto (Voting \u0026 Veto)"
+                ],
+                "summary": "Oyu Geri Al",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Hediye UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Oy kaldırıldı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Erişim engellendi: Anti-Spoiler veya grup üyesi değilsiniz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Hediye fikri bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Grup tamamlandı; oylar kapalı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
             }
         },
         "/api/v1/me": {
@@ -1749,6 +2047,11 @@ const docTemplate = `{
                     "maxLength": 2000,
                     "example": "Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu"
                 },
+                "event_date": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2026-12-31"
+                },
                 "target_email": {
                     "type": "string",
                     "maxLength": 150,
@@ -1920,6 +2223,19 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.SelectWinnerRequest": {
+            "type": "object",
+            "required": [
+                "idea_id"
+            ],
+            "properties": {
+                "idea_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "7d1e5a3c-2f4b-4c8e-9a6d-1b2c3d4e5f60"
+                }
+            }
+        },
         "controllers.UpdateBudgetRequest": {
             "type": "object",
             "required": [
@@ -1929,6 +2245,16 @@ const docTemplate = `{
                 "total_budget": {
                     "type": "number",
                     "example": 3500
+                }
+            }
+        },
+        "controllers.UpdateEventDateRequest": {
+            "type": "object",
+            "properties": {
+                "event_date": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2026-12-31"
                 }
             }
         },
@@ -2011,6 +2337,14 @@ const docTemplate = `{
                 }
             }
         },
+        "models.Date": {
+            "type": "object",
+            "properties": {
+                "time.Time": {
+                    "type": "string"
+                }
+            }
+        },
         "models.GiftIdea": {
             "type": "object",
             "properties": {
@@ -2075,6 +2409,9 @@ const docTemplate = `{
         "models.Group": {
             "type": "object",
             "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -2092,7 +2429,19 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "event_date": {
+                    "description": "Hediyenin verileceği gün (doğum günü vb.). İsteğe bağlı, tek seferlik.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Date"
+                        }
+                    ]
+                },
                 "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "ACTIVE: oylama sürüyor. COMPLETED: admin kazananı seçti; fikir ve oy işlemleri kapalı.",
                     "type": "string"
                 },
                 "target_interests": {

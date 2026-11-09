@@ -44,6 +44,10 @@ definitions:
         example: Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu
         maxLength: 2000
         type: string
+      event_date:
+        example: "2026-12-31"
+        format: date
+        type: string
       target_email:
         example: ahmet@demo.com
         maxLength: 150
@@ -170,6 +174,15 @@ definitions:
         example: true
         type: boolean
     type: object
+  controllers.SelectWinnerRequest:
+    properties:
+      idea_id:
+        example: 7d1e5a3c-2f4b-4c8e-9a6d-1b2c3d4e5f60
+        format: uuid
+        type: string
+    required:
+    - idea_id
+    type: object
   controllers.UpdateBudgetRequest:
     properties:
       total_budget:
@@ -177,6 +190,13 @@ definitions:
         type: number
     required:
     - total_budget
+    type: object
+  controllers.UpdateEventDateRequest:
+    properties:
+      event_date:
+        example: "2026-12-31"
+        format: date
+        type: string
     type: object
   controllers.VoteRequest:
     properties:
@@ -232,6 +252,11 @@ definitions:
       url:
         type: string
     type: object
+  models.Date:
+    properties:
+      time.Time:
+        type: string
+    type: object
   models.GiftIdea:
     properties:
       ai_search_suggestions:
@@ -276,6 +301,8 @@ definitions:
     type: object
   models.Group:
     properties:
+      completed_at:
+        type: string
       created_at:
         type: string
       creator:
@@ -286,7 +313,16 @@ definitions:
         type: string
       description:
         type: string
+      event_date:
+        allOf:
+        - $ref: '#/definitions/models.Date'
+        description: Hediyenin verileceği gün (doğum günü vb.). İsteğe bağlı, tek
+          seferlik.
       id:
+        type: string
+      status:
+        description: 'ACTIVE: oylama sürüyor. COMPLETED: admin kazananı seçti; fikir
+          ve oy işlemleri kapalı.'
         type: string
       target_interests:
         description: Gemini AI için ilgi alanları ve hobiler
@@ -772,6 +808,54 @@ paths:
       summary: Grup Bütçesini Güncelle (Admin)
       tags:
       - Hediye Grupları (Groups)
+  /api/v1/groups/{id}/event-date:
+    patch:
+      consumes:
+      - application/json
+      description: Yalnızca admin. "YYYY-MM-DD" biçiminde tarih; null tarihi kaldırır.
+        Bugünden en fazla 1 yıl önce, en fazla 5 yıl sonra.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Hediye tarihi
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateEventDateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Tarih güncellendi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "400":
+          description: Geçersiz tarih
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler, üye değil veya admin değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Hediye Tarihini Güncelle
+      tags:
+      - Grup İşlemleri (Groups)
   /api/v1/groups/{id}/ideas:
     get:
       description: Gruptaki hediye havuzunu, her hediyenin toplam oy skorunu (+1/-1
@@ -1233,6 +1317,97 @@ paths:
       summary: Hedef Kişiyi Bağla (Admin)
       tags:
       - Hediye Grupları (Groups)
+  /api/v1/groups/{id}/winner:
+    delete:
+      description: 'Yalnızca admin. Yanlış seçimi geri almak içindir: kazanan fikir
+        ACTIVE''e, grup ACTIVE''e döner.'
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Grup yeniden açıldı
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "403":
+          description: Anti-Spoiler, üye değil veya admin değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup zaten açık
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Grubu Yeniden Aç
+      tags:
+      - Grup İşlemleri (Groups)
+    post:
+      consumes:
+      - application/json
+      description: Yalnızca admin. Seçilen aktif fikir SELECTED, grup COMPLETED olur.
+        Tamamlanan grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme 409 döner.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Kazanan fikir
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.SelectWinnerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Grup tamamlandı
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "400":
+          description: Fikir bu gruba ait değil veya istek geçersiz
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler, üye değil veya admin değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup zaten tamamlandı veya fikir aktif değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Kazananı Seç ve Grubu Tamamla
+      tags:
+      - Grup İşlemleri (Groups)
   /api/v1/ideas/{id}:
     delete:
       description: Hediye önerisini kalıcı olarak siler. Sadece hediyeyi öneren kişi
@@ -1331,6 +1506,54 @@ paths:
       tags:
       - Oylama & Veto (Voting & Veto)
   /api/v1/ideas/{id}/vote:
+    delete:
+      description: Giriş yapan kullanıcının bu fikre verdiği oyu siler. Oy yoksa da
+        200 döner (idempotent). Çoğunluk vetosuyla reddedilmiş fikir kendiliğinden
+        geri açılmaz.
+      parameters:
+      - description: Hediye UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Oy kaldırıldı
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: 'Erişim engellendi: Anti-Spoiler veya grup üyesi değilsiniz'
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Hediye fikri bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup tamamlandı; oylar kapalı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Oyu Geri Al
+      tags:
+      - Oylama & Veto (Voting & Veto)
     post:
       consumes:
       - application/json

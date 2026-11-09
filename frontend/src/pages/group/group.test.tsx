@@ -2,17 +2,19 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type { Idea } from '@/api/types'
+import type { Group, Idea } from '@/api/types'
 import { renderApp } from '@/test/render'
 import { api, fail, group, groupDetail, http, idea, me, ok, server } from '@/test/server'
 
 const PATH = `/groups/${group.id}`
 
-function baseHandlers(opts: { role?: 'admin' | 'member'; ideas?: Idea[] } = {}) {
+function baseHandlers(opts: { role?: 'admin' | 'member'; ideas?: Idea[]; group?: Partial<Group> } = {}) {
   server.use(
     http.get(api('/me'), () => ok(me)),
     http.get(api('/groups'), () => ok([group])),
-    http.get(api(`/groups/${group.id}`), () => ok(groupDetail({ my_role: opts.role ?? 'admin' }))),
+    http.get(api(`/groups/${group.id}`), () =>
+      ok(groupDetail({ my_role: opts.role ?? 'admin', group: { ...group, ...opts.group } })),
+    ),
     http.get(api(`/groups/${group.id}/ideas`), () => ok(opts.ideas ?? [idea()])),
   )
 }
@@ -234,3 +236,117 @@ describe('add idea dialog', () => {
     )
   })
 })
+
+describe('unvote, winner and gift date', () => {
+  beforeEach(() => localStorage.setItem('covertgift.token', 'tok'))
+
+  it('removes the vote when the selected vote is pressed again', async () => {
+    let unvoted = false
+    let current = idea({ score: 3, my_vote: 1 })
+    baseHandlers()
+    server.use(
+      http.get(api(`/groups/${group.id}/ideas`), () => ok([current])),
+      http.delete(api(`/ideas/${current.id}/vote`), () => {
+        unvoted = true
+        current = { ...current, score: 2, my_vote: 0 }
+        return ok({ message: 'Oy kaldırıldı' })
+      }),
+    )
+    renderApp(PATH)
+    const user = userEvent.setup()
+
+    const upvote = await screen.findByRole('button', { name: 'Beğen' })
+    expect(upvote).toHaveAttribute('aria-pressed', 'true')
+    await user.click(upvote)
+
+    expect(await screen.findByRole('group', { name: 'Skor 2' })).toBeInTheDocument()
+    expect(upvote).toHaveAttribute('aria-pressed', 'false')
+    expect(unvoted).toBe(true)
+  })
+
+  it('lets the admin pick the winner after a confirmation', async () => {
+    let sent: unknown = null
+    baseHandlers()
+    server.use(
+      http.post(api(`/groups/${group.id}/winner`), async ({ request }) => {
+        sent = await request.json()
+        return ok({ message: 'Kazanan seçildi, grup tamamlandı' })
+      }),
+    )
+    renderApp(PATH)
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Fikir işlemleri' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Kazanan olarak seç' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('“Stanley termos 1 L” kazanan seçilir')
+    expect(sent).toBeNull()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Kazananı seç' }))
+    await waitFor(() => expect(sent).toEqual({ idea_id: 'i-termos' }))
+  })
+
+  it('shows a completed group read-only with the winner on top', async () => {
+    baseHandlers({
+      group: { status: 'COMPLETED', completed_at: '2026-11-09T10:00:00Z' },
+      ideas: [idea({ id: 'i-other', title: 'Kahve seti', score: 5 }), idea({ status: 'SELECTED', score: 2 })],
+    })
+    renderApp(PATH)
+
+    expect(await screen.findByText('Grup tamamlandı. Kazanan: Stanley termos 1 L')).toBeInTheDocument()
+    const cards = screen.getAllByRole('article')
+    expect(within(cards[0]).getByText('Kazanan')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Beğen' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Manuel ekle' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Fikir işlemleri' })).not.toBeInTheDocument()
+  })
+
+  it('reopens a completed group from the admin menu', async () => {
+    let reopened = false
+    baseHandlers({ group: { status: 'COMPLETED' } })
+    server.use(
+      http.delete(api(`/groups/${group.id}/winner`), () => {
+        reopened = true
+        return ok({ message: 'Grup yeniden açıldı' })
+      }),
+    )
+    renderApp(PATH)
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Grup işlemleri' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Grubu yeniden aç' }))
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Yeniden aç' }))
+    await waitFor(() => expect(reopened).toBe(true))
+  })
+
+  it('saves and removes the gift date', async () => {
+    const sent: unknown[] = []
+    baseHandlers({ group: { event_date: '2031-01-15' } })
+    server.use(
+      http.patch(api(`/groups/${group.id}/event-date`), async ({ request }) => {
+        sent.push(await request.json())
+        return ok({ message: 'Hediye tarihi güncellendi' })
+      }),
+    )
+    renderApp(PATH)
+    const user = userEvent.setup()
+
+    expect(await screen.findByText('15 Ocak 2031')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Grup işlemleri' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Hediye tarihini ayarla' }))
+    const dialog = await screen.findByRole('dialog')
+    const input = within(dialog).getByLabelText('Tarih')
+    expect(input).toHaveValue('2031-01-15')
+
+    await user.clear(input)
+    await user.type(input, '2031-02-20')
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+    await waitFor(() => expect(sent).toEqual([{ event_date: '2031-02-20' }]))
+
+    await user.click(screen.getByRole('button', { name: 'Grup işlemleri' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Hediye tarihini ayarla' }))
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Tarihi kaldır' }))
+    await waitFor(() => expect(sent).toEqual([{ event_date: '2031-02-20' }, { event_date: null }]))
+  })
+})
+

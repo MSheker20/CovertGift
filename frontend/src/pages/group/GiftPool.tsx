@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Link2, LoaderCircle, Sparkles } from 'lucide-react'
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CalendarClock, ChevronDown, Link2, LoaderCircle, Sparkles, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
-import { ideasApi, queryKeys } from '@/api/endpoints'
+import { groupsApi, ideasApi, LIVE_REFRESH_MS, mutationKeys, queryKeys } from '@/api/endpoints'
 import type { Idea } from '@/api/types'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Bar, BlockError } from '@/components/Panel'
@@ -14,21 +14,39 @@ import { errorMessage } from '@/lib/errors'
 import { AddIdeaDialog } from './AddIdeaDialog'
 import { IdeaCard } from './IdeaCard'
 
-type Pending = { kind: 'reject' | 'remove'; idea: Idea } | null
+type Pending = { kind: 'reject' | 'remove' | 'winner'; idea: Idea } | null
+
+type Props = {
+  groupId: string
+  meId?: string
+  isAdmin: boolean
+  // Admin kazananı seçtiyse grup tamamlanmıştır: oylar ve yeni öneriler kapalı.
+  completed: boolean
+  // Hediye tarihi geçmiş ve grup hâlâ açıksa admin'e kazananı seçmesi hatırlatılır.
+  datePassed: boolean
+}
 
 // Ekranın sorusu: "Hangi hediyede birleşiyoruz?" En büyük blok bu; en çok oy alan üstte.
-export function GiftPool({ groupId, meId, isAdmin }: { groupId: string; meId?: string; isAdmin: boolean }) {
+export function GiftPool({ groupId, meId, isAdmin, completed, datePassed }: Props) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const key = queryKeys.ideas(groupId)
-  const ideas = useQuery({ queryKey: key, queryFn: ({ signal }) => ideasApi.list(groupId, signal) })
+  // Bir oy ya da fikir işlemi sürerken periyodik yenileme durur; iyimser güncelleme ezilmez.
+  const busy = useIsMutating({ mutationKey: mutationKeys.ideas(groupId) }) > 0
+  const ideas = useQuery({
+    queryKey: key,
+    queryFn: ({ signal }) => ideasApi.list(groupId, signal),
+    refetchInterval: busy || completed ? false : LIVE_REFRESH_MS,
+  })
   const [pending, setPending] = useState<Pending>(null)
   const [showRejected, setShowRejected] = useState(false)
 
   // İyimser oy: skor ve seçili oy hemen güncellenir; yanıt yeni skoru döndürmediği ve çoğunluk
-  // vetosu durumu değiştirebildiği için ardından liste yeniden çekilir.
+  // vetosu durumu değiştirebildiği için ardından liste yeniden çekilir. 0 oyu geri alır.
   const vote = useMutation({
-    mutationFn: ({ idea, value }: { idea: Idea; value: 1 | -1 }) => ideasApi.vote(idea.id, value),
+    mutationKey: mutationKeys.ideas(groupId),
+    mutationFn: ({ idea, value }: { idea: Idea; value: -1 | 0 | 1 }) =>
+      value === 0 ? ideasApi.unvote(idea.id) : ideasApi.vote(idea.id, value),
     onMutate: async ({ idea, value }) => {
       await queryClient.cancelQueries({ queryKey: key })
       const previous = queryClient.getQueryData<Idea[]>(key)
@@ -45,6 +63,7 @@ export function GiftPool({ groupId, meId, isAdmin }: { groupId: string; meId?: s
   })
 
   const gemini = useMutation({
+    mutationKey: mutationKeys.ideas(groupId),
     mutationFn: () => ideasApi.generateAI(groupId),
     onSuccess: (added) => {
       void queryClient.invalidateQueries({ queryKey: key })
@@ -60,52 +79,99 @@ export function GiftPool({ groupId, meId, isAdmin }: { groupId: string; meId?: s
   })
 
   const act = useMutation({
-    mutationFn: (p: NonNullable<Pending>) => (p.kind === 'reject' ? ideasApi.reject(p.idea.id) : ideasApi.remove(p.idea.id)),
+    mutationKey: mutationKeys.ideas(groupId),
+    mutationFn: (p: NonNullable<Pending>) =>
+      p.kind === 'reject'
+        ? ideasApi.reject(p.idea.id)
+        : p.kind === 'winner'
+          ? groupsApi.selectWinner(groupId, p.idea.id)
+          : ideasApi.remove(p.idea.id),
     onSuccess: (_d, p) => {
-      toast.success(t(p.kind === 'reject' ? 'pool.rejected' : 'pool.removed', { title: p.idea.title }))
+      const message = { reject: 'pool.rejected', remove: 'pool.removed', winner: 'pool.winnerSelected' } as const
+      toast.success(t(message[p.kind], { title: p.idea.title }))
       setPending(null)
     },
     onError: (err) => toast.error(errorMessage(err)),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+    onSettled: (_d, _e, p) => {
+      void queryClient.invalidateQueries({ queryKey: key })
+      // Kazanan seçimi grubun durumunu da değiştirir (detay ve liste).
+      if (p?.kind === 'winner') void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
+    },
   })
 
-  const active = ideas.data?.filter((i) => i.status !== 'REJECTED') ?? []
-  const rejected = ideas.data?.filter((i) => i.status === 'REJECTED') ?? []
+  // Kazanan en üstte; diğerleri sunucunun skor sırasıyla.
+  const all = ideas.data ?? []
+  const winner = all.find((i) => i.status === 'SELECTED')
+  const active = [...(winner ? [winner] : []), ...all.filter((i) => i.status === 'ACTIVE')]
+  const rejected = all.filter((i) => i.status === 'REJECTED')
 
   const card = (idea: Idea) => (
     <li key={idea.id}>
       <IdeaCard
         idea={idea}
+        locked={completed}
         canReject={isAdmin}
         canDelete={isAdmin || idea.created_by === meId}
+        canSelectWinner={isAdmin}
         onVote={(value) => vote.mutate({ idea, value })}
         onReject={() => setPending({ kind: 'reject', idea })}
         onDelete={() => setPending({ kind: 'remove', idea })}
+        onSelectWinner={() => setPending({ kind: 'winner', idea })}
       />
     </li>
   )
+
+  const dialog = pending
+    ? ({
+        reject: { title: 'pool.rejectTitle', body: 'pool.rejectBody', confirm: 'pool.rejectConfirm' },
+        remove: { title: 'pool.removeTitle', body: 'pool.removeBody', confirm: 'pool.removeConfirm' },
+        winner: { title: 'pool.winnerTitle', body: 'pool.winnerBody', confirm: 'pool.winnerConfirm' },
+      } as const)[pending.kind]
+    : null
 
   return (
     <section className="-mx-1 rounded-[22px] bg-surface p-3 md:mx-0 md:p-5" aria-busy={gemini.isPending}>
       <header className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-3">
         <div className="mr-auto min-w-0">
           <h2 className="font-display text-[15px] font-semibold">{t('pool.title')}</h2>
-          {ideas.data && <p className="mt-0.5 text-xs text-muted">{t('pool.lead', { count: active.length })}</p>}
+          {ideas.data && (
+            <p className="mt-0.5 text-xs text-muted">
+              {completed ? t('pool.completedLead') : t('pool.lead', { count: active.length })}
+            </p>
+          )}
         </div>
-        <AddIdeaDialog
-          groupId={groupId}
-          trigger={
-            <Button variant="outline">
-              <Link2 />
-              {t('pool.addManual')}
+        {!completed && (
+          <>
+            <AddIdeaDialog
+              groupId={groupId}
+              trigger={
+                <Button variant="outline">
+                  <Link2 />
+                  {t('pool.addManual')}
+                </Button>
+              }
+            />
+            <Button onClick={() => gemini.mutate()} disabled={gemini.isPending}>
+              {gemini.isPending ? <LoaderCircle className="animate-spin" /> : <Sparkles />}
+              {gemini.isPending ? t('pool.geminiWorking') : t('pool.askGemini')}
             </Button>
-          }
-        />
-        <Button onClick={() => gemini.mutate()} disabled={gemini.isPending}>
-          {gemini.isPending ? <LoaderCircle className="animate-spin" /> : <Sparkles />}
-          {gemini.isPending ? t('pool.geminiWorking') : t('pool.askGemini')}
-        </Button>
+          </>
+        )}
       </header>
+
+      {completed && (
+        <p role="status" className="mb-3 flex items-center gap-3 rounded-[14px] bg-soft px-4 py-3.5 text-sm font-medium text-on-soft">
+          <Trophy className="size-4 shrink-0" aria-hidden />
+          {winner ? t('pool.completedBanner', { title: winner.title }) : t('pool.completedNoWinner')}
+        </p>
+      )}
+
+      {!completed && datePassed && isAdmin && (
+        <p className="mb-3 flex items-center gap-3 rounded-[14px] border border-dashed border-control px-4 py-3 text-sm text-muted">
+          <CalendarClock className="size-4 shrink-0" aria-hidden />
+          {t('pool.datePassedHint')}
+        </p>
+      )}
 
       {gemini.isPending && (
         <p role="status" className="mb-2 flex items-center gap-3 rounded-[14px] bg-soft px-4 py-3.5 text-sm text-on-soft">
@@ -155,13 +221,9 @@ export function GiftPool({ groupId, meId, isAdmin }: { groupId: string; meId?: s
       <ConfirmDialog
         open={pending !== null}
         onOpenChange={(o) => !o && !act.isPending && setPending(null)}
-        title={pending?.kind === 'reject' ? t('pool.rejectTitle') : t('pool.removeTitle')}
-        body={
-          pending
-            ? t(pending.kind === 'reject' ? 'pool.rejectBody' : 'pool.removeBody', { title: pending.idea.title })
-            : ''
-        }
-        confirmLabel={pending?.kind === 'reject' ? t('pool.rejectConfirm') : t('pool.removeConfirm')}
+        title={dialog ? t(dialog.title) : ''}
+        body={pending && dialog ? t(dialog.body, { title: pending.idea.title }) : ''}
+        confirmLabel={dialog ? t(dialog.confirm) : ''}
         cancelLabel={t('pool.cancel')}
         pending={act.isPending}
         onConfirm={() => pending && act.mutate(pending)}

@@ -28,6 +28,7 @@ type IdeaService interface {
 	AddManualIdea(groupID, userID uuid.UUID, title, description, searchQuery, productURL, imageURL string, price decimal.Decimal) (*models.GiftIdea, error)
 	GetGroupIdeas(groupID, currentUserID uuid.UUID) ([]repository.IdeaWithScore, error)
 	VoteIdea(ideaID, currentUserID uuid.UUID, voteType int8) error
+	UnvoteIdea(ideaID, currentUserID uuid.UUID) error
 	DeleteIdea(ideaID, currentUserID uuid.UUID) error
 	RejectIdea(ideaID, currentUserID uuid.UUID) error
 	GenerateAIIdeas(ctx context.Context, groupID, currentUserID uuid.UUID) ([]models.GiftIdea, error)
@@ -66,6 +67,9 @@ func (s *ideaService) AddManualIdea(groupID, userID uuid.UUID, title, descriptio
 	// 2. Anti-Spoiler: Hedef kişi hediye önerisi ekleyemez
 	if group.TargetUserID != nil && *group.TargetUserID == userID {
 		return nil, ErrAntiSpoilerTriggered
+	}
+	if group.Status == models.GroupStatusCompleted {
+		return nil, ErrGroupCompleted
 	}
 
 	// 3. Üyelik kontrolü: Sadece grup üyeleri öneri yapabilir
@@ -176,6 +180,9 @@ func (s *ideaService) VoteIdea(ideaID, currentUserID uuid.UUID, voteType int8) e
 	if group.TargetUserID != nil && *group.TargetUserID == currentUserID {
 		return ErrAntiSpoilerTriggered
 	}
+	if group.Status == models.GroupStatusCompleted {
+		return ErrGroupCompleted
+	}
 
 	// 5. Kullanıcı bu grubun üyesi mi?
 	member, err := s.groupRepo.GetMember(idea.GroupID, currentUserID)
@@ -214,21 +221,25 @@ func (s *ideaService) VoteIdea(ideaID, currentUserID uuid.UUID, voteType int8) e
 	return nil
 }
 
-// checkNotTarget fikrin grubunu getirir ve istek atan kişi o grubun hedefiyse
-// ErrAntiSpoilerTriggered döner. /ideas/:id/* uçları grup middleware'inden geçmediği
-// için bu kontrol her fikir işleminde servis katmanında yapılır.
-func (s *ideaService) checkNotTarget(groupID, userID uuid.UUID) error {
+// /ideas/:id/* uçları grup middleware'inden geçmediği için Anti-Spoiler bu katmanda,
+// her fikir işleminde ayrıca denetlenir.
+// openGroupForIdea fikrin grubunu getirir; istek atan hedefse ErrAntiSpoilerTriggered,
+// grup tamamlandıysa ErrGroupCompleted döner. Anti-Spoiler her zaman önce denetlenir.
+func (s *ideaService) openGroupForIdea(groupID, userID uuid.UUID) (*models.Group, error) {
 	group, err := s.groupRepo.GetGroupByID(groupID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if group == nil {
-		return ErrGroupNotFound
+		return nil, ErrGroupNotFound
 	}
 	if group.TargetUserID != nil && *group.TargetUserID == userID {
-		return ErrAntiSpoilerTriggered
+		return nil, ErrAntiSpoilerTriggered
 	}
-	return nil
+	if group.Status == models.GroupStatusCompleted {
+		return nil, ErrGroupCompleted
+	}
+	return group, nil
 }
 
 // RejectIdea grup yöneticisinin bir hediye fikrini doğrudan veto etmesini sağlar
@@ -242,8 +253,8 @@ func (s *ideaService) RejectIdea(ideaID, currentUserID uuid.UUID) error {
 		return ErrIdeaNotFound
 	}
 
-	// 2. KRİTİK: Fikir üzerinden Anti-Spoiler Kontrolü (üyelikten önce)
-	if err := s.checkNotTarget(idea.GroupID, currentUserID); err != nil {
+	// 2. KRİTİK: Fikir üzerinden Anti-Spoiler Kontrolü (üyelikten önce); tamamlanan grupta kapalı
+	if _, err := s.openGroupForIdea(idea.GroupID, currentUserID); err != nil {
 		return err
 	}
 
@@ -276,8 +287,8 @@ func (s *ideaService) DeleteIdea(ideaID, currentUserID uuid.UUID) error {
 		return ErrIdeaNotFound
 	}
 
-	// 2. KRİTİK: Fikir üzerinden Anti-Spoiler Kontrolü (üyelikten önce)
-	if err := s.checkNotTarget(idea.GroupID, currentUserID); err != nil {
+	// 2. KRİTİK: Fikir üzerinden Anti-Spoiler Kontrolü (üyelikten önce); tamamlanan grupta kapalı
+	if _, err := s.openGroupForIdea(idea.GroupID, currentUserID); err != nil {
 		return err
 	}
 
@@ -319,6 +330,9 @@ func (s *ideaService) GenerateAIIdeas(ctx context.Context, groupID, currentUserI
 	// 2. Anti-Spoiler: Hedef kişi asla AI önerisi tetikleyemez!
 	if group.TargetUserID != nil && *group.TargetUserID == currentUserID {
 		return nil, ErrAntiSpoilerTriggered
+	}
+	if group.Status == models.GroupStatusCompleted {
+		return nil, ErrGroupCompleted
 	}
 
 	// 3. Üyelik kontrolü: Sadece grup üyeleri AI önerisi tetikleyebilir
@@ -453,4 +467,28 @@ func (s *ideaService) buildAIPrompt(group *models.Group, existingTitles, rejecte
 	sb.WriteString("7. ADET: Tercihen 3-5 farklı öneri üret; yeterli uygun ve kaynaklı ürün bulunamazsa daha az üret. Adet doldurmak için ürün uydurma.")
 
 	return sb.String()
+}
+
+// UnvoteIdea kullanıcının fikre verdiği oyu kaldırır. Oy yoksa hata vermez.
+// Çoğunluk vetosuyla reddedilmiş bir fikir, oy kaldırılınca kendiliğinden geri açılmaz;
+// REJECTED durumu admin vetosuyla da oluşabildiği için ayırt edilemez.
+func (s *ideaService) UnvoteIdea(ideaID, currentUserID uuid.UUID) error {
+	idea, err := s.ideaRepo.GetIdeaByID(ideaID)
+	if err != nil {
+		return err
+	}
+	if idea == nil {
+		return ErrIdeaNotFound
+	}
+	if _, err := s.openGroupForIdea(idea.GroupID, currentUserID); err != nil {
+		return err
+	}
+	member, err := s.groupRepo.GetMember(idea.GroupID, currentUserID)
+	if err != nil {
+		return err
+	}
+	if member == nil {
+		return ErrNotGroupMember
+	}
+	return s.ideaRepo.RemoveVote(ideaID, currentUserID)
 }

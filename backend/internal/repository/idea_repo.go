@@ -23,6 +23,7 @@ type IdeaRepository interface {
 	GetIdeasWithScores(groupID, currentUserID uuid.UUID) ([]IdeaWithScore, error)
 	GetIdeaByID(ideaID uuid.UUID) (*models.GiftIdea, error)
 	Vote(vote *models.Vote) error
+	RemoveVote(ideaID, userID uuid.UUID) error
 	DeleteIdea(ideaID uuid.UUID) error
 	UpdateStatus(ideaID uuid.UUID, status string) error
 	GetGroupIdeaTitlesByStatus(groupID uuid.UUID) ([]string, []string, error)
@@ -155,3 +156,8 @@ func (r *ideaRepository) GetDownvoteCount(ideaID uuid.UUID) (int64, error) {
 	return count, err
 }
 
+
+// RemoveVote kullanıcının fikre verdiği oyu siler. Oy yoksa hata vermez (idempotent).
+func (r *ideaRepository) RemoveVote(ideaID, userID uuid.UUID) error {
+	return r.db.Where("gift_idea_id = ? AND user_id = ?", ideaID, userID).Delete(&models.Vote{}).Error
+}

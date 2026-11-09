@@ -289,6 +289,10 @@
 | K41 | 11-09 | API CORS başlığı göndermez; frontend her ortamda aynı origin (Vite proxy / nginx) üzerinden erişir. Kullanılmayan `CORS_ORIGIN` kaldırıldı | Gereksiz bir izin yüzeyi açmamak; başka sitelerin tarayıcıdan API çağırmasını varsayılan olarak engelli tutmak |
 | K42 | 11-09 | Loglama `log/slog` ile; 500 yanıtlarında iç hata yalnızca loga yazılır (`RespondInternal`) | Logları sorgulanabilir yapmak; veritabanı/sağlayıcı ayrıntılarının istemciye sızmasını önlemek |
 | K43 | 11-09 | Seed yalnızca ekler, tek transaction'dır, demo yöneticisi varsa hiçbir şey yapmaz ve production'da çalışmaz | Seed komutunun gerçek veriyi silmesini veya yarım veri bırakmasını imkânsız kılmak |
+| K44 | 11-09 | Kazanan seçimi grubu `COMPLETED` yapar ve fikir/oy işlemlerini 409 ile kapatır; admin yeniden açabilir | Kararı kesinleştirmek ama yanlış tıklamayı geri alınabilir tutmak |
+| K45 | 11-09 | Hediye tarihi tek seferlik `DATE`; geçmiş tarih (1 yıla kadar) kabul; "bugün" UTC+3; bildirim yok | Basit tutmak; grup doğum gününden sonra da kapanmamış olabilir; konteynerde tz veritabanına bağımlı olmamak |
+| K46 | 11-09 | Oyu geri almak çoğunluk vetosunu geri çevirmez | REJECTED admin vetosuyla da oluşabildiği için ayırt edilemez |
+| K47 | 11-09 | Canlılık için önce 10 sn periyodik yenileme (TanStack Query); bir fikir işlemi sürerken durur; SSE sonraya | En az kodla çoğu ihtiyacı karşılamak; iyimser güncellemeyi eski yanıtla ezmemek |
 
 
 ---
@@ -666,3 +670,14 @@
 - **Compose:** `app` profiliyle `api` (backend/.env'den okur; `DATABASE_URL` compose ağına göre ezilir, `ALLOW_DB_RESET` her zaman `false`) ve `web` (nginx, `API_TARGET=http://api:8080`, http://localhost:8081). API dışarıya port açmaz.
 - Entegrasyon testleri artık iki pakette (`cmd/api`, `cmd/seed`) ve aynı test DB'sini boşalttığı için `go test -p 1` ile çalıştırılır.
 - Testler: slog kurulumu, istek logu (sızıntı yok, `X-Request-ID`), `RespondInternal` (istemciye sızmaz, loga yazılır), panik kurtarma; seed için yalnızca ekleme, idempotentlik, mevcut kullanıcının korunması ve hedefin grubu görmemesi.
+
+---
+
+## 2026-11-09 — Backlog: kazanan seçimi, oyu geri alma, hediye tarihi ve canlı oylar
+
+- **Kazanan seçimi (K44):** `Group.status` (`ACTIVE`/`COMPLETED`) ve `completed_at` eklendi. `POST /groups/:id/winner` (yalnızca admin) aktif bir fikri `SELECTED`, grubu `COMPLETED` yapar; grup satırı kilitlenir. Tamamlanan grupta fikir ekleme, AI, oy, oyu geri alma, veto ve fikir silme 409 döner; Anti-Spoiler kontrolü her zaman bundan önce gelir. `DELETE /groups/:id/winner` grubu yeniden açar. Arayüz: fikir menüsünde "Kazanan olarak seç" (onaylı), kazanan kart en üstte ve vurgulu, oylar salt okunur, ekleme butonları gizli, grup listesinde "Tamamlandı" etiketi, admin menüsünde "Grubu yeniden aç".
+- **Oyu geri alma (K46):** `DELETE /ideas/:id/vote` (idempotent). Arayüzde seçili oya tekrar basmak oyu kaldırır; iyimser güncelleme ve hata halinde geri alma korunur.
+- **Hediye tarihi (K45):** `Group.event_date` (`models.Date`, JSON `YYYY-MM-DD`, PostgreSQL `DATE`). Grup kurarken veya admin menüsünden ayarlanır/kaldırılır (`PATCH /groups/:id/event-date`). Grup sayfasında tarih + geri sayım, listede geri sayım etiketi (7 gün ve altı vurgulu), sıralama: yaklaşan tarihli açık gruplar en yakın önce, sonra diğer açık gruplar, en sonda tamamlananlar. Tarih geçmiş ve grup açıksa admin'e kazananı seçme hatırlatması. Seed grubu 3 hafta sonrası tarihle kurulur.
+- **Canlı oylar (K47):** Grup detayı ve fikir listesi sayfa açıkken 10 sn'de bir çekilir; bir oy/fikir işlemi sürerken (ortak `mutationKey`) ve grup tamamlanınca fikir yenilemesi durur. Hedef kişi 403 aldığı için yenileme de durur.
+- **Testler:** Backend — `models.Date`, entegrasyon: oyu geri alma (başkasının oyu korunur, üye olmayan 403), kazanan seçimi (yetki, başka grubun fikri 400, reddedilmiş fikir 409, kapalı grupta 7 işlem 409, hedef yine sürpriz mesajı, yeniden açma), hediye tarihi (oluşturma, biçim/aralık 400, admin dışı 403, geçmiş tarih, kaldırma); Anti-Spoiler listesine 4 yeni uç eklendi (toplam 18). Frontend — tarih yardımcıları ve sıralama; oyu geri alma, kazanan seçimi, tamamlanmış grup görünümü, yeniden açma, tarih kaydetme/kaldırma.
+- **Tarayıcıda doğrulama:** Geçici `test-db` + seed verisiyle (gerçek yerel veriye dokunmadan): oyu geri alma, kazanan seçimi ve yeniden açma, başka üyenin API'den verdiği oyun sayfa yenilenmeden yansıması, geçmiş tarihte "5 gün geçti" ve hatırlatma, telefon genişliğinde yatay kaydırma olmaması. Dar ekranda durum etiketi başlığı sıkıştırdığı için alt satıra alındı.

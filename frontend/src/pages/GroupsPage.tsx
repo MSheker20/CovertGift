@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
-import { ChevronRight, Plus } from 'lucide-react'
+import { CalendarDays, ChevronRight, Plus, Trophy } from 'lucide-react'
 
 import { groupsApi, queryKeys } from '@/api/endpoints'
 import type { Group } from '@/api/types'
@@ -12,6 +12,7 @@ import { Bar, BlockError, Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
+import { countdownLabel, daysUntil, sortByUpcoming } from '@/lib/eventDate'
 import { formatDate, formatMoney } from '@/lib/format'
 import { NewGroupDialog } from './NewGroupDialog'
 
@@ -125,7 +126,7 @@ function GroupList({ state, meId }: { state: UseQueryResult<Group[]>; meId?: str
     )
   return (
     <ul className="flex flex-col gap-2">
-      {state.data.map((g) => (
+      {sortByUpcoming(state.data).map((g) => (
         <li key={g.id}>
           <Link
             to={`/groups/${g.id}`}
@@ -137,6 +138,13 @@ function GroupList({ state, meId }: { state: UseQueryResult<Group[]>; meId?: str
               <p className="mt-0.5 truncate text-xs text-muted">
                 {t('home.forPerson', { name: g.target_person_name })} · {formatDate(g.created_at)}
               </p>
+              {/* Dar ekranda durum etiketi başlığı sıkıştırmasın diye alt satırda. */}
+              <div className="mt-1.5 sm:hidden">
+                <GroupStateChip group={g} />
+              </div>
+            </div>
+            <div className="hidden sm:block">
+              <GroupStateChip group={g} />
             </div>
             {g.creator_id === meId && (
               <span className="hidden rounded-full bg-soft px-2 py-0.5 text-xs font-medium whitespace-nowrap text-on-soft sm:inline">
@@ -149,6 +157,31 @@ function GroupList({ state, meId }: { state: UseQueryResult<Group[]>; meId?: str
         </li>
       ))}
     </ul>
+  )
+}
+
+// Tamamlanan grup "Tamamlandı", tarihi olan açık grup geri sayım gösterir.
+function GroupStateChip({ group }: { group: Group }) {
+  const { t } = useTranslation()
+  if (group.status === 'COMPLETED')
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-xs font-medium whitespace-nowrap text-on-primary">
+        <Trophy className="size-3" aria-hidden />
+        {t('home.completed')}
+      </span>
+    )
+  if (!group.event_date) return null
+  const days = daysUntil(group.event_date)
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap',
+        days !== null && days >= 0 && days <= 7 ? 'bg-pill-warn-bg text-pill-warn-ink' : 'bg-pill-neutral-bg text-pill-neutral-ink',
+      )}
+    >
+      <CalendarDays className="size-3" aria-hidden />
+      {countdownLabel(group.event_date)}
+    </span>
   )
 }
 

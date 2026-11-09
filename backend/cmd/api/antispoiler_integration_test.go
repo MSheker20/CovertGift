@@ -226,6 +226,10 @@ func TestAntiSpoilerTargetBlockedOnEveryGroupRoute(t *testing.T) {
 		{http.MethodPost, "/ideas/" + s.ideaID + "/vote", map[string]int{"vote_type": 1}},
 		{http.MethodPost, "/ideas/" + s.ideaID + "/reject", nil},
 		{http.MethodDelete, "/ideas/" + s.ideaID, nil},
+		{http.MethodDelete, "/ideas/" + s.ideaID + "/vote", nil},
+		{http.MethodPatch, g + "/event-date", map[string]any{"event_date": "2027-01-01"}},
+		{http.MethodPost, g + "/winner", map[string]string{"idea_id": s.ideaID}},
+		{http.MethodDelete, g + "/winner", nil},
 	}
 	for _, r := range routes {
 		t.Run(r.method+" "+strings.Replace(strings.Replace(r.path, s.groupID, ":id", 1), s.ideaID, ":idea", 1), func(t *testing.T) {
