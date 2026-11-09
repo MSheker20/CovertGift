@@ -692,3 +692,11 @@
 - **Testler:** Hub (teslim, birleştirme, sınır, abonelik sızıntısı), akış ucu (başlıklar, ping, olay, ömür dolunca kapanma, 503), entegrasyon (hedef ve üye olmayan 403, oturumsuz 401, oy ve bütçe değişikliği olay üretir, başarısız istek üretmez), frontend (Bearer başlığı, açık akıştaki olayla skorun güncellenmesi, hedef için akışın açılmaması).
 - **Doğrulama:** Tarayıcıda (test-db) başka üyenin oyu ~1 sn'de yansıdı. Canlıdaki nginx imajı üzerinden ölçüm: olay ~0,2 sn'de geldi, tamponlama yok.
 - **Sınırlama:** Hub tek kopya içindir. API birden çok replica'ya ölçeklenirse olaylar kopyalar arasında taşınmaz; o zaman PostgreSQL LISTEN/NOTIFY eklenmeli.
+
+---
+
+## 2026-11-09 — Azure dağıtımı `7bb8416`
+
+- `main` (`7bb8416`, #5–#10) yerel Docker ile `linux/amd64` için derlendi, ACR'ye `covertgift-api:7bb8416` ve `covertgift-web:7bb8416` olarak gönderildi, iki Container App güncellendi.
+- Canlı kontrol (yalnızca okuma): `/health` 200 (`db: up`, yani AutoMigrate başarılı), `/` 200, oturumsuz `/api/v1/me` 401, Swagger 200 ve yeni uçlar (`/groups/{id}/events`, `/groups/{id}/winner`) şemada, oturumsuz olay akışı 401, yanıtlarda `X-Request-ID`. Canlı veriye yazan hiçbir istek atılmadı; kullanıcı testi canlıda kendisi yapacak.
+- `az containerapp logs show` bu CLI sürümünde `KeyError: 'eventStreamEndpoint'` ile çalışmıyor.
