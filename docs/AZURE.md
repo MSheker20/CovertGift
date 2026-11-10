@@ -1,7 +1,7 @@
 # Azure demo dağıtımı
 
 > **Güncel AI modu (2026-10-21):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
-> `GEMINI_MODEL=gemini-3.6-flash` (yedek `GEMINI_FALLBACK_MODEL=gemini-3.1-flash-lite`) ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
+> `GEMINI_MODEL=gemini-3.6-flash` (yedek `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite`) ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
 > Model kimlikleri uygulama kodunda sabit değildir. `GEMINI_MODEL` anahtar varsa zorunludur.
 > `GEMINI_FALLBACK_MODEL` boşsa otomatik model geçişi yapılmaz; doluysa yalnızca 503'te denenir.
 > `GEMINI_RESEARCH_MODEL` yalnızca Search açıkken kullanılır; boşsa ana model kullanılır.
