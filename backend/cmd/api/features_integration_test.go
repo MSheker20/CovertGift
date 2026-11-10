@@ -214,3 +214,65 @@ func TestSelectMultipleWinners(t *testing.T) {
 		}
 	}
 }
+
+type listCounts struct {
+	MemberCount  int `json:"member_count"`
+	IdeaCount    int `json:"idea_count"`
+	PendingVotes int `json:"pending_votes"`
+}
+
+func (s *scenario) listCounts(t *testing.T, token string) map[string]listCounts {
+	t.Helper()
+	res := s.api.mustOK(http.MethodGet, "/groups", token, nil, http.StatusOK)
+	var list []struct {
+		ID string `json:"id"`
+		listCounts
+	}
+	if err := json.Unmarshal(res.Data, &list); err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]listCounts{}
+	for _, g := range list {
+		out[g.ID] = g.listCounts
+	}
+	return out
+}
+
+func TestGroupListCounts(t *testing.T) {
+	s := setupScenario(t)
+	g := "/groups/" + s.groupID
+	empty := idOf(t, s.api.mustOK(http.MethodPost, "/groups", s.admin.token, map[string]any{"title": "Boş grup", "target_person_name": "Xavi"}, http.StatusCreated))
+
+	expect := func(token, group string, want listCounts) {
+		t.Helper()
+		if got, ok := s.listCounts(t, token)[group]; !ok || got != want {
+			t.Fatalf("grup %s sayaçları %+v (listede: %v), want %+v", group, got, ok, want)
+		}
+	}
+
+	// Üye fikri ekledi: admin'i bekleyen bir oy var, üyenin kendi fikri sayılmaz.
+	expect(s.admin.token, s.groupID, listCounts{MemberCount: 2, IdeaCount: 1, PendingVotes: 1})
+	expect(s.member.token, s.groupID, listCounts{MemberCount: 2, IdeaCount: 1, PendingVotes: 0})
+	expect(s.admin.token, empty, listCounts{MemberCount: 1, IdeaCount: 0, PendingVotes: 0})
+
+	// Reddedilen fikir ne fikir sayısına ne bekleyen oylara girer.
+	rejected := idOf(t, s.api.mustOK(http.MethodPost, g+"/ideas", s.member.token, map[string]any{"title": "Anahtarlık"}, http.StatusCreated))
+	s.api.mustOK(http.MethodPost, "/ideas/"+rejected+"/reject", s.admin.token, nil, http.StatusOK)
+	second := idOf(t, s.api.mustOK(http.MethodPost, g+"/ideas", s.member.token, map[string]any{"title": "Termos"}, http.StatusCreated))
+	expect(s.admin.token, s.groupID, listCounts{MemberCount: 2, IdeaCount: 2, PendingVotes: 2})
+
+	// Oy verilen fikir (beğeni ya da beğenmeme) bekleyenlerden düşer; başkasının oyu etkilemez.
+	s.api.mustOK(http.MethodPost, "/ideas/"+s.ideaID+"/vote", s.admin.token, map[string]int{"vote_type": -1}, http.StatusOK)
+	expect(s.admin.token, s.groupID, listCounts{MemberCount: 2, IdeaCount: 2, PendingVotes: 1})
+	s.api.mustOK(http.MethodPost, "/ideas/"+second+"/vote", s.member.token, map[string]int{"vote_type": 1}, http.StatusOK)
+	expect(s.admin.token, s.groupID, listCounts{MemberCount: 2, IdeaCount: 2, PendingVotes: 1})
+
+	// Tamamlanan grupta oylama kapalıdır; bekleyen oy kalmaz.
+	s.api.mustOK(http.MethodPost, g+"/winner", s.admin.token, map[string][]string{"idea_ids": {second}}, http.StatusOK)
+	expect(s.admin.token, s.groupID, listCounts{MemberCount: 2, IdeaCount: 2, PendingVotes: 0})
+
+	// Anti-Spoiler: hedef kişinin listesinde grup yine yok.
+	if _, ok := s.listCounts(t, s.target.token)[s.groupID]; ok {
+		t.Fatal("hedef kişi grubu listede gördü")
+	}
+}

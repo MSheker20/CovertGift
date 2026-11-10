@@ -3,6 +3,7 @@ import type {
   CreateGroupInput,
   CreateIdeaInput,
   Group,
+  GroupListItem,
   GroupDetail,
   GroupMember,
   Idea,
@@ -20,7 +21,7 @@ export const authApi = {
 }
 
 export const groupsApi = {
-  list: (signal?: AbortSignal) => api<Group[]>('/groups', { signal }),
+  list: (signal?: AbortSignal) => api<GroupListItem[]>('/groups', { signal }),
   detail: (id: string, signal?: AbortSignal) => api<GroupDetail>(`/groups/${id}`, { signal }),
   create: (input: CreateGroupInput) => api<Group>('/groups', { method: 'POST', body: input }),
   addMember: (id: string, email: string) =>

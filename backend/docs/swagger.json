@@ -216,7 +216,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Giriş yapmış kullanıcının üye olduğu grupları listeler. Anti-Spoiler kuralı gereğince kullanıcının hedef kişi olduğu sürpriz gruplar bu listede ASLA yer almaz.",
+                "description": "Giriş yapmış kullanıcının üye olduğu grupları listeler. Anti-Spoiler kuralı gereğince kullanıcının hedef kişi olduğu sürpriz gruplar bu listede ASLA yer almaz. Her grupta member_count, idea_count (reddedilmemiş fikirler) ve çağıran kullanıcıya özel pending_votes (açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler) bulunur.",
                 "produces": [
                     "application/json"
                 ],
@@ -238,7 +238,7 @@
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/models.Group"
+                                                "$ref": "#/definitions/services.GroupListItem"
                                             }
                                         }
                                     }
@@ -2656,6 +2656,80 @@
                     "type": "string"
                 },
                 "per_person_budget": {
+                    "type": "number"
+                }
+            }
+        },
+        "services.GroupListItem": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "creator": {
+                    "description": "İlişkiler (Foreign Key)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.User"
+                        }
+                    ]
+                },
+                "creator_id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "event_date": {
+                    "description": "Hediyenin verileceği gün (doğum günü vb.). İsteğe bağlı, tek seferlik.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Date"
+                        }
+                    ]
+                },
+                "id": {
+                    "type": "string"
+                },
+                "idea_count": {
+                    "description": "Reddedilmemiş fikir sayısı.",
+                    "type": "integer",
+                    "example": 6
+                },
+                "member_count": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "pending_votes": {
+                    "description": "Çağıran kullanıcıya özel: açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler.",
+                    "type": "integer",
+                    "example": 2
+                },
+                "status": {
+                    "description": "ACTIVE: oylama sürüyor. COMPLETED: admin kazananı seçti; fikir ve oy işlemleri kapalı.",
+                    "type": "string"
+                },
+                "target_interests": {
+                    "description": "Gemini AI için ilgi alanları ve hobiler",
+                    "type": "string"
+                },
+                "target_person_name": {
+                    "type": "string"
+                },
+                "target_user": {
+                    "$ref": "#/definitions/models.User"
+                },
+                "target_user_id": {
+                    "description": "Anti-Spoiler için kritik alan (NULL olabilir)",
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "total_budget": {
                     "type": "number"
                 }
             }

@@ -2,28 +2,35 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
-import { CalendarDays, ChevronRight, Plus, Trophy } from 'lucide-react'
+import { CalendarDays, CalendarPlus, CheckCircle2, ChevronRight, Plus } from 'lucide-react'
 
 import { groupsApi, queryKeys } from '@/api/endpoints'
-import type { Group } from '@/api/types'
+import type { GroupListItem } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
 import { Bar, BlockError, Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
-import { countdownLabel, daysUntil, sortByUpcoming } from '@/lib/eventDate'
-import { formatDate, formatMoney } from '@/lib/format'
+import { countdownLabel, daysUntil, formatEventDate, sortByUpcoming } from '@/lib/eventDate'
+import { formatDate } from '@/lib/format'
+import { nextSurprise, prioritizedTasks, type PriorityLevel, type PriorityTask } from '@/lib/priority'
 import { NewGroupDialog } from './NewGroupDialog'
 
-// Ekranın sorusu: "Hangi sürprizlerin içindeyim ve ne kadar bütçe topladık?"
-// Izgara: 1100px sütun, 12 × 77px + 11 × 16px = 1100. Kutucuklar 4/4/4, sonra 8 + 4.
+// Ekranın sorusu: "Sıradaki sürpriz ne ve benden ne bekleniyor?"
+// Izgara: 1100px sütun, 12 × 77px + 11 × 16px = 1100. Üstte 8 + 4 (sıradaki sürpriz, bekleyenler),
+// altta 8 + 4 (açık gruplar, geçmiş sürprizler). Mobilde tek sütun, aynı sırayla.
 export function GroupsPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
-  const groups = useQuery({ queryKey: queryKeys.groups, queryFn: ({ signal }) => groupsApi.list(signal) })
+  // Oylar ve fikirler grup listesini geçersiz kılmaz; ana ekrana her dönüşte sayaçlar tazelenir.
+  const groups = useQuery({
+    queryKey: queryKeys.groups,
+    queryFn: ({ signal }) => groupsApi.list(signal),
+    refetchOnMount: 'always',
+  })
 
-  const stats = useMemo(() => summarize(groups.data ?? [], user?.id), [groups.data, user?.id])
+  const view = useMemo(() => split(groups.data ?? []), [groups.data])
   const firstName = user?.name.split(/\s+/)[0] ?? ''
 
   const newGroupButton = (
@@ -48,66 +55,234 @@ export function GroupsPage() {
           <p className="mt-2 text-[15px] text-muted">
             {groups.isPending ? (
               <Bar className="mt-1 h-4 w-64" />
-            ) : stats.count > 0 ? (
-              t('home.summary', { count: stats.count, budget: formatMoney(stats.budget) })
+            ) : groups.isError ? null : view.all.length === 0 ? (
+              t('home.noGroups')
+            ) : view.open.length > 0 ? (
+              t('home.openCount', { count: view.open.length })
             ) : (
-              t('home.summaryEmpty')
+              t('home.openNone')
             )}
           </p>
         </div>
         <div className="hidden md:block">{newGroupButton}</div>
       </header>
 
-      <dl className="mt-8 grid grid-cols-2 gap-4 md:mt-[50px] md:grid-cols-12">
-        <Tile label={t('home.tileGroups')} caption={t('home.tileGroupsCaption')} loading={groups.isPending}>
-          {stats.count}
-        </Tile>
-        <Tile label={t('home.tileAdmin')} caption={t('home.tileAdminCaption')} loading={groups.isPending}>
-          {stats.admin}
-        </Tile>
-        <Tile
-          label={t('home.tileBudget')}
-          caption={t('home.tileBudgetCaption')}
-          loading={groups.isPending}
-          tone="field"
-          className="col-span-2"
-        >
-          {formatMoney(stats.budget)}
-        </Tile>
-      </dl>
-
-      <div className="mt-4 grid grid-cols-1 items-start gap-4 md:grid-cols-12">
+      <div className="mt-8 grid grid-cols-1 items-start gap-4 md:mt-[50px] md:grid-cols-12">
+        <NextSurpriseCard state={groups} open={view.open} meId={user?.id} />
+        <TasksPanel state={groups} groups={view.open} meId={user?.id} />
         <Panel
           title={t('home.groupsPanel')}
-          count={groups.data?.length}
+          count={groups.isSuccess ? view.open.length : undefined}
           action={<div className="md:hidden">{newGroupButton}</div>}
           className="md:col-span-8"
         >
-          <GroupList state={groups} meId={user?.id} />
+          <GroupList state={groups} open={view.open} meId={user?.id} />
         </Panel>
-        <Panel title={t('home.targetsPanel')} className="md:col-span-4">
-          {groups.isPending ? (
-            <RowsSkeleton rows={2} compact />
-          ) : stats.targets.length === 0 ? (
-            <p className="text-sm text-muted">{t('home.targetsEmpty')}</p>
-          ) : (
-            <ul className="flex flex-col gap-1">
-              {stats.targets.map((p) => (
-                <li key={p.name} className="flex h-11 items-center gap-3">
-                  <Avatar name={p.name} size="sm" />
-                  <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
-                  <span className="num text-xs text-muted">{t('home.targetGroups', { count: p.count })}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
+        <HistoryPanel state={groups} completed={view.completed} />
       </div>
     </div>
   )
 }
 
-function GroupList({ state, meId }: { state: UseQueryResult<Group[]>; meId?: string }) {
+function split(groups: GroupListItem[]) {
+  const open = sortByUpcoming(groups.filter((g) => g.status !== 'COMPLETED'))
+  const completed = groups
+    .filter((g) => g.status === 'COMPLETED')
+    .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''))
+  return { all: groups, open, completed }
+}
+
+// 1. Sıradaki sürpriz: en yakın tarihli açık grup. Kobalt kart; hardal yalnızca para için.
+function NextSurpriseCard({
+  state,
+  open,
+  meId,
+}: {
+  state: UseQueryResult<GroupListItem[]>
+  open: GroupListItem[]
+  meId?: string
+}) {
+  const { t } = useTranslation()
+  const box = 'flex min-h-[176px] flex-col rounded-[22px] p-5 md:col-span-8 md:self-stretch md:p-6'
+
+  if (state.isPending)
+    return (
+      <div className={cn(box, 'bg-surface')} aria-hidden="true">
+        <Bar className="h-3.5 w-28" />
+        <Bar className="mt-5 h-7 w-2/3" />
+        <Bar className="mt-3 h-3.5 w-1/3" />
+      </div>
+    )
+  if (state.isError)
+    return (
+      <div className={cn(box, 'justify-center bg-surface text-sm text-muted')}>{t('home.loadError')}</div>
+    )
+
+  const next = nextSurprise(open)
+  if (!next) {
+    // Tarih yalnızca yönetici tarafından eklenir; tarihsiz ilk grubumuza yönlendir.
+    const undated = open.find((g) => !g.event_date && g.creator_id === meId)
+    return (
+      <div className={cn(box, 'bg-surface')}>
+        <p className="text-sm font-medium text-muted">{t('home.next.label')}</p>
+        <div className="mt-auto flex items-start gap-3 pt-4">
+          <CalendarPlus className="mt-0.5 size-5 shrink-0 text-muted" aria-hidden />
+          <div className="min-w-0">
+            <p className="font-display text-[17px] font-semibold">{t('home.next.emptyTitle')}</p>
+            <p className="mt-1 text-sm text-muted">{t('home.next.emptyBody')}</p>
+            {undated && (
+              <Link
+                to={`/groups/${undated.id}`}
+                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-accent underline-offset-4 hover:underline"
+              >
+                {t('home.next.addDate', { title: undated.title })}
+                <ChevronRight className="size-4" aria-hidden />
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const { group, days } = next
+  const soon = days <= 1
+  return (
+    <Link
+      to={`/groups/${group.id}`}
+      className={cn(
+        box,
+        'group bg-primary text-on-primary transition-[background-color,transform] hover:bg-primary-hover active:scale-[0.995]',
+      )}
+    >
+      <p className="flex items-center gap-1.5 text-sm font-medium opacity-80">
+        <CalendarDays className="size-4" aria-hidden />
+        {t('home.next.label')}
+      </p>
+      <div className="mt-auto flex items-end gap-4 pt-5">
+        <div className="min-w-0 flex-1">
+          <p className="font-display line-clamp-2 text-[22px] leading-tight font-semibold break-words md:text-[28px]">
+            {group.title}
+          </p>
+          <p className="mt-2 truncate text-sm opacity-80">
+            {t('home.forPerson', { name: group.target_person_name })} · {formatEventDate(group.event_date!)}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          {soon ? (
+            <p className="font-display text-[28px] leading-none font-semibold md:text-[36px]">
+              {days === 0 ? t('home.next.today') : t('home.next.tomorrow')}
+            </p>
+          ) : (
+            <>
+              <p className="font-display num text-[44px] leading-none font-semibold md:text-[56px]">{days}</p>
+              <p className="mt-1 text-sm opacity-80">{t('home.next.daysLeft', { count: days })}</p>
+            </>
+          )}
+        </div>
+        <ChevronRight
+          className="mb-1 size-5 shrink-0 opacity-80 transition-transform group-hover:translate-x-0.5"
+          aria-hidden
+        />
+      </div>
+    </Link>
+  )
+}
+
+// Etiket her zaman yazı içerir; renk tek başına anlam taşımaz.
+const LEVEL_PILL: Record<PriorityLevel, string> = {
+  urgent: 'bg-pill-negative-bg text-pill-negative-ink',
+  high: 'bg-pill-high-bg text-pill-high-ink',
+  normal: 'bg-soft text-on-soft',
+  low: 'bg-pill-neutral-bg text-pill-neutral-ink',
+}
+
+// 2. Senden bekleyenler: öncelik etiketli görevler (kurallar src/lib/priority.ts'de).
+function TasksPanel({
+  state,
+  groups,
+  meId,
+}: {
+  state: UseQueryResult<GroupListItem[]>
+  groups: GroupListItem[]
+  meId?: string
+}) {
+  const { t } = useTranslation()
+  const tasks = useMemo(() => prioritizedTasks(groups, meId), [groups, meId])
+
+  return (
+    <Panel
+      title={t('home.tasks.panel')}
+      count={state.isSuccess && tasks.length > 0 ? tasks.length : undefined}
+      className="md:col-span-4"
+    >
+      {state.isPending ? (
+        <RowsSkeleton rows={3} compact />
+      ) : state.isError ? (
+        <p className="text-sm text-muted">{t('home.loadError')}</p>
+      ) : tasks.length === 0 ? (
+        <div className="flex items-start gap-3 rounded-[14px] bg-raised px-4 py-3.5">
+          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-positive" aria-hidden />
+          <div>
+            <p className="text-sm font-medium">{t('home.tasks.empty')}</p>
+            <p className="mt-0.5 text-xs text-muted">{t('home.tasks.emptyBody')}</p>
+          </div>
+        </div>
+      ) : (
+        <ul className="-mx-2 flex flex-col">
+          {tasks.map((task) => (
+            <li key={task.group.id}>
+              <Link
+                to={`/groups/${task.group.id}`}
+                className="group flex min-h-12 items-center gap-3 rounded-[12px] px-2 py-2 transition-colors hover:bg-raised"
+              >
+                <span
+                  className={cn(
+                    'inline-flex min-w-[60px] shrink-0 justify-center rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap',
+                    LEVEL_PILL[task.level],
+                  )}
+                >
+                  {t(`home.tasks.level.${task.level}`)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{task.group.title}</span>
+                  <span className="mt-0.5 block truncate text-xs text-muted">{taskText(task, t)}</span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  )
+}
+
+function taskText(task: PriorityTask, t: ReturnType<typeof useTranslation>['t']): string {
+  const when = task.group.event_date ? countdownLabel(task.group.event_date) : null
+  const withWhen = (s: string) => (when ? `${s} · ${when}` : s)
+  switch (task.kind) {
+    case 'overdue':
+      return t(task.isAdmin ? 'home.tasks.overdueAdmin' : 'home.tasks.overdueMember', { count: -(task.days ?? 0) })
+    case 'votes':
+      return withWhen(t('home.tasks.votes', { count: task.group.pending_votes }))
+    case 'pickWinner':
+      return withWhen(t('home.tasks.pickWinner'))
+    case 'addDate':
+      return t('home.tasks.addDate')
+  }
+}
+
+// 3. Gruplarım: yalnızca açık gruplar; satırda bütçe yerine üye ve fikir sayısı.
+function GroupList({
+  state,
+  open,
+  meId,
+}: {
+  state: UseQueryResult<GroupListItem[]>
+  open: GroupListItem[]
+  meId?: string
+}) {
   const { t } = useTranslation()
   if (state.isPending) return <RowsSkeleton rows={3} />
   if (state.isError)
@@ -118,58 +293,58 @@ function GroupList({ state, meId }: { state: UseQueryResult<Group[]>; meId?: str
         retryLabel={t('common.retry')}
       />
     )
-  if (state.data.length === 0)
+  if (open.length === 0)
     return (
       <div className="rounded-[14px] border border-dashed border-control px-4 py-6 text-sm text-muted">
-        {t('home.emptyGroups')}
+        {state.data.length === 0 ? t('home.emptyGroups') : t('home.emptyOpen')}
       </div>
     )
   return (
     <ul className="flex flex-col gap-2">
-      {sortByUpcoming(state.data).map((g) => (
-        <li key={g.id}>
-          <Link
-            to={`/groups/${g.id}`}
-            className="group flex min-h-[63px] items-center gap-3 rounded-[14px] border border-border bg-raised px-3.5 py-3 transition-[border-color,transform] hover:border-accent active:scale-[0.99]"
-          >
-            <Avatar name={g.target_person_name} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[15px] font-medium">{g.title}</p>
-              <p className="mt-0.5 truncate text-xs text-muted">
-                {t('home.forPerson', { name: g.target_person_name })} · {formatDate(g.created_at)}
-              </p>
-              {/* Dar ekranda durum etiketi başlığı sıkıştırmasın diye alt satırda. */}
-              <div className="mt-1.5 sm:hidden">
-                <GroupStateChip group={g} />
-              </div>
-            </div>
-            <div className="hidden sm:block">
-              <GroupStateChip group={g} />
-            </div>
-            {g.creator_id === meId && (
-              <span className="hidden rounded-full bg-soft px-2 py-0.5 text-xs font-medium whitespace-nowrap text-on-soft sm:inline">
-                {t('home.admin')}
+      {open.map((g) => {
+        const chips = (
+          <>
+            {g.pending_votes > 0 && (
+              <span className="inline-flex shrink-0 items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium whitespace-nowrap text-on-primary">
+                {t('home.pendingVotes', { count: g.pending_votes })}
               </span>
             )}
-            <span className="num w-[112px] text-right text-sm font-semibold whitespace-nowrap">{formatMoney(g.total_budget)}</span>
-            <ChevronRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
-          </Link>
-        </li>
-      ))}
+            <CountdownChip group={g} />
+          </>
+        )
+        return (
+          <li key={g.id}>
+            <Link
+              to={`/groups/${g.id}`}
+              className="group flex min-h-[63px] items-center gap-3 rounded-[14px] border border-border bg-raised px-3.5 py-3 transition-[border-color,transform] hover:border-accent active:scale-[0.99]"
+            >
+              <Avatar name={g.target_person_name} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px] font-medium">{g.title}</p>
+                <p className="mt-0.5 truncate text-xs text-muted">
+                  {t('home.forPerson', { name: g.target_person_name })} · {t('home.members', { count: g.member_count })}{' '}
+                  · {t('home.ideas', { count: g.idea_count })}
+                </p>
+                {/* Dar ekranda etiketler başlığı sıkıştırmasın diye alt satırda. */}
+                <div className="mt-1.5 flex flex-wrap gap-1.5 empty:hidden sm:hidden">{chips}</div>
+              </div>
+              <div className="hidden items-center gap-1.5 sm:flex">{chips}</div>
+              {g.creator_id === meId && (
+                <span className="hidden rounded-full bg-soft px-2 py-0.5 text-xs font-medium whitespace-nowrap text-on-soft sm:inline">
+                  {t('home.admin')}
+                </span>
+              )}
+              <ChevronRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          </li>
+        )
+      })}
     </ul>
   )
 }
 
-// Tamamlanan grup "Tamamlandı", tarihi olan açık grup geri sayım gösterir.
-function GroupStateChip({ group }: { group: Group }) {
-  const { t } = useTranslation()
-  if (group.status === 'COMPLETED')
-    return (
-      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-xs font-medium whitespace-nowrap text-on-primary">
-        <Trophy className="size-3" aria-hidden />
-        {t('home.completed')}
-      </span>
-    )
+// Tarihi olan açık grup geri sayım gösterir (7 gün ve altı vurgulu).
+function CountdownChip({ group }: { group: GroupListItem }) {
   if (!group.event_date) return null
   const days = daysUntil(group.event_date)
   return (
@@ -185,37 +360,43 @@ function GroupStateChip({ group }: { group: Group }) {
   )
 }
 
-function Tile({
-  label,
-  caption,
-  loading,
-  tone = 'plain',
-  className,
-  children,
-}: {
-  label: string
-  caption: string
-  loading: boolean
-  tone?: 'plain' | 'field'
-  className?: string
-  children: React.ReactNode
-}) {
-  // Hardal yalnızca parayı taşıyan kutucukta; sayaçlar tonal yüzeyde kalır.
-  const field = tone === 'field'
+// 4. Geçmiş sürprizler: tamamlanan gruplar, yeniden eskiye. Kazanan hediye listede yok.
+function HistoryPanel({ state, completed }: { state: UseQueryResult<GroupListItem[]>; completed: GroupListItem[] }) {
+  const { t } = useTranslation()
   return (
-    <div
-      className={cn(
-        'flex min-h-[112px] flex-col rounded-[22px] p-4 md:col-span-4 md:min-h-[128px] md:p-5',
-        field ? 'bg-field text-on-field' : 'bg-surface',
-        className,
-      )}
+    <Panel
+      title={t('home.history.panel')}
+      count={state.isSuccess && completed.length > 0 ? completed.length : undefined}
+      className="md:col-span-4"
     >
-      <dt className={cn('text-sm font-medium', field ? 'text-on-field-muted' : 'text-muted')}>{label}</dt>
-      <dd className="font-display num mt-2 text-[26px] leading-8 font-semibold md:text-[32px] md:leading-10">
-        {loading ? <Bar className="mt-1 h-8 w-24" /> : children}
-      </dd>
-      <dd className={cn('mt-auto pt-2 text-xs', field ? 'text-on-field-muted' : 'text-muted')}>{caption}</dd>
-    </div>
+      {state.isPending ? (
+        <RowsSkeleton rows={2} compact />
+      ) : state.isError ? (
+        <p className="text-sm text-muted">{t('home.loadError')}</p>
+      ) : completed.length === 0 ? (
+        <p className="text-sm text-muted">{t('home.history.empty')}</p>
+      ) : (
+        <ul className="-mx-2 flex flex-col">
+          {completed.map((g) => (
+            <li key={g.id}>
+              <Link
+                to={`/groups/${g.id}`}
+                className="flex min-h-12 items-center gap-3 rounded-[12px] px-2 py-1.5 transition-colors hover:bg-raised"
+              >
+                <Avatar name={g.target_person_name} size="sm" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{g.target_person_name}</span>
+                  <span className="block truncate text-xs text-muted">{g.title}</span>
+                </span>
+                {g.completed_at && (
+                  <span className="num shrink-0 text-xs whitespace-nowrap text-muted">{formatDate(g.completed_at)}</span>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
   )
 }
 
@@ -248,23 +429,4 @@ function greetingKey() {
   if (h >= 12 && h < 18) return 'home.day' as const
   if (h >= 18 && h < 23) return 'home.evening' as const
   return 'home.night' as const
-}
-
-function summarize(groups: Group[], meId?: string) {
-  let budget = 0
-  let admin = 0
-  const targets = new Map<string, number>()
-  for (const g of groups) {
-    budget += Number(g.total_budget) || 0
-    if (g.creator_id === meId) admin++
-    const name = g.target_person_name.trim()
-    targets.set(name, (targets.get(name) ?? 0) + 1)
-  }
-  return {
-    count: groups.length,
-    admin,
-    // Kuruş hassasiyeti: toplam kuruş cinsinden yuvarlanır.
-    budget: Math.round(budget * 100) / 100,
-    targets: [...targets.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
-  }
 }

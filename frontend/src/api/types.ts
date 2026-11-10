@@ -29,6 +29,15 @@ export type Group = {
 
 export type GroupStatus = 'ACTIVE' | 'COMPLETED'
 
+// GET /groups satırı: grup alanları ve ana ekran sayaçları.
+export type GroupListItem = Group & {
+  member_count: number
+  // Reddedilmemiş fikirler.
+  idea_count: number
+  // Bana özel: açık gruptaki, benim eklemediğim ve henüz oy vermediğim aktif fikirler.
+  pending_votes: number
+}
+
 export type GroupMember = {
   id: string
   group_id: string

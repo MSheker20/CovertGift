@@ -42,6 +42,9 @@
   --pill-negative-ink: #8a1119;
   --pill-warn-bg: #fff0c2;
   --pill-warn-ink: #6b4800;
+  /* Ana ekrandaki "Yüksek" öncelik: turuncu; hardaldan (para) ayrı tutulur. */
+  --pill-high-bg: #ffe4cc;
+  --pill-high-ink: #8a3500;
   --pill-neutral-bg: #eceef7;
   --pill-neutral-ink: #3a3d4a;
 
@@ -82,6 +85,8 @@
     --pill-negative-ink: #ffb3b8;
     --pill-warn-bg: #3d300a;
     --pill-warn-ink: #ffd66b;
+    --pill-high-bg: #3d220e;
+    --pill-high-ink: #ffb27a;
     --pill-neutral-bg: #262629;
     --pill-neutral-ink: #cfcfd6;
 
@@ -124,6 +129,8 @@
   --color-pill-negative-ink: var(--pill-negative-ink);
   --color-pill-warn-bg: var(--pill-warn-bg);
   --color-pill-warn-ink: var(--pill-warn-ink);
+  --color-pill-high-bg: var(--pill-high-bg);
+  --color-pill-high-ink: var(--pill-high-ink);
   --color-pill-neutral-bg: var(--pill-neutral-bg);
   --color-pill-neutral-ink: var(--pill-neutral-ink);
   --color-overlay: var(--overlay);
