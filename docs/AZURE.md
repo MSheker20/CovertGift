@@ -10,9 +10,9 @@
 
 Go API ve kalıcı React frontend ayrı imajlar olarak paketlenir. PostgreSQL ayrı bir yönetilen serviste çalışır.
 
-## Güncel durum (2026-11-09)
+## Güncel durum (2026-11-10)
 
-- **Açık.** API `covertgift-api:208fa08`, arayüz `covertgift-web:208fa08` (`main`, #5–#13). Adres: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
+- **Açık.** API `covertgift-api:515aee6`, arayüz `covertgift-web:515aee6` (`main`, #5–#15). Adres: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
 - İmajlar **yerel Docker** ile `linux/amd64` için derlenip gönderilir; bu abonelikte `az acr build` kapalıdır (`TasksOperationsNotAllowed`).
 - API **en fazla 1 replica** kalmalıdır: SSE hub'ı bellek içidir, birden çok kopyada olaylar kopyalar arasında taşınmaz.
 - API başlarken AutoMigrate şemayı günceller (2026-11-09'da `groups.status`, `completed_at`, `event_date` eklendi).
@@ -45,6 +45,7 @@ Eski etiketler geri dönüş için registry'de durur.
 
 | Tarih | API | Arayüz | Not |
 |---|---|---|---|
+| 2026-11-10 | `covertgift-api:515aee6` | `covertgift-web:515aee6` | #15: yeniden tasarlanan ana ekran (`GET /groups` sayaçları), profil sayfası (`PATCH /me`, `PUT /me/password`); şema değişikliği yok |
 | 2026-11-09 | `covertgift-api:208fa08` | `covertgift-web:208fa08` | #13: birden çok kazanan (`idea_ids`) |
 | 2026-11-09 | `covertgift-api:7bb8416` | `covertgift-web:7bb8416` | #5–#10: reset-db koruması, Anti-Spoiler düzeltmesi, limitler ve doğrulama, slog, kazanan seçimi, oyu geri alma, hediye tarihi, SSE |
 | 2026-11-09 | `covertgift-api:security-20261109` | `covertgift-web:security-20261109` | Go 1.27.3, nginx 1.30.6, Node 22.23.4; ortam yeniden açıldı |
