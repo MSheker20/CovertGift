@@ -46,3 +46,25 @@ func TestGenerateAIReturns429ForWrappedProviderQuotaError(t *testing.T) {
 		t.Fatalf("unexpected quota response: %+v", body)
 	}
 }
+
+func TestGenerateAIReturns503ForOverloadedProvider(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	controller := NewIdeaController(failingAIService{err: fmt.Errorf("internal-provider-detail: %w", gemini.ErrOverloaded)})
+	router.POST("/groups/:id/ideas/generate-ai", func(c *gin.Context) {
+		c.Set("userID", uuid.New())
+		controller.GenerateAI(c)
+	})
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/groups/"+uuid.NewString()+"/ideas/generate-ai", nil))
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("got HTTP %d: %s", response.Code, response.Body)
+	}
+	var body Response
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Success || !strings.Contains(body.Error, "yoğun") || strings.Contains(body.Error, "internal-provider-detail") {
+		t.Fatalf("unexpected body: %+v", body)
+	}
+}

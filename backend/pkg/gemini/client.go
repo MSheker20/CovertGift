@@ -21,6 +21,7 @@ var (
 	ErrEmptyResponse      = errors.New("Gemini'den yanıt alınamadı")
 	ErrNoGroundedProducts = errors.New("Türkiye mağazalarında kaynakla desteklenen uygun ürün bulunamadı; ilgi alanlarını veya bütçeyi güncelleyip tekrar deneyin")
 	ErrRateLimited        = errors.New("Gemini kullanım kotası veya istek sınırı aşıldı")
+	ErrOverloaded         = errors.New("Gemini servisi şu an yoğun")
 )
 
 // Source addresses come exclusively from Google grounding metadata, never model JSON.
@@ -223,6 +224,10 @@ func (c *Client) generate(ctx context.Context, model, prompt string, config *gen
 	if err != nil {
 		if errors.As(err, &apiErr) && apiErr.Code == 429 {
 			return nil, fmt.Errorf("%w: %w", ErrRateLimited, err)
+		}
+		// Yedek model de yoksa/yanıt vermediyse 503, geçici yoğunluk olarak ayrıştırılır.
+		if errors.As(err, &apiErr) && apiErr.Code == 503 {
+			return nil, fmt.Errorf("%w: %w", ErrOverloaded, err)
 		}
 		return nil, fmt.Errorf("Gemini içerik üretimi başarısız: %w", err)
 	}
