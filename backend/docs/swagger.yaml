@@ -38,6 +38,22 @@ definitions:
     required:
     - email
     type: object
+  controllers.ChangePasswordRequest:
+    properties:
+      current_password:
+        example: Password123!
+        maxLength: 100
+        type: string
+      new_password:
+        description: Kayıttaki şifre kuralıyla aynıdır (RegisterRequest.Password).
+        example: YeniSifre456!
+        maxLength: 100
+        minLength: 6
+        type: string
+    required:
+    - current_password
+    - new_password
+    type: object
   controllers.CreateGroupRequest:
     properties:
       description:
@@ -149,6 +165,7 @@ definitions:
         minLength: 2
         type: string
       password:
+        description: Şifre kuralı ChangePasswordRequest.NewPassword ile aynı tutulmalıdır.
         example: Password123!
         maxLength: 100
         minLength: 6
@@ -201,6 +218,29 @@ definitions:
         example: "2026-12-31"
         format: date
         type: string
+    type: object
+  controllers.UpdateProfileRequest:
+    properties:
+      email:
+        example: can@demo.com
+        maxLength: 150
+        type: string
+      name:
+        example: Can Yılmaz
+        maxLength: 100
+        minLength: 2
+        type: string
+    required:
+    - email
+    - name
+    type: object
+  controllers.UpdateProfileResponse:
+    properties:
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      user:
+        $ref: '#/definitions/models.User'
     type: object
   controllers.VoteRequest:
     properties:
@@ -1770,6 +1810,103 @@ paths:
       security:
       - BearerAuth: []
       summary: Mevcut Kullanıcı Profili
+      tags:
+      - Kimlik Doğrulama (Auth)
+    patch:
+      consumes:
+      - application/json
+      description: İsim ve e-postayı birlikte günceller (kayıtla aynı doğrulama kuralları).
+        E-posta başka bir kullanıcıdaysa 409 döner. E-posta değiştiyse yanıt yeni
+        bir JWT içerir; istemci saklı token'ı bununla değiştirmelidir.
+      parameters:
+      - description: Yeni isim ve e-posta
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Profil güncellendi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.UpdateProfileResponse'
+              type: object
+        "400":
+          description: Geçersiz istek parametreleri
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış veya geçersiz token
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Kullanıcı bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Bu e-posta adresi zaten kullanımda
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Profili Güncelle
+      tags:
+      - Kimlik Doğrulama (Auth)
+  /api/v1/me/password:
+    put:
+      consumes:
+      - application/json
+      description: Mevcut şifre doğrulanır, yeni şifre kayıtla aynı kurallara uymalı
+        ve eskisinden farklı olmalıdır. Açık oturumlar geçerli kalır.
+      parameters:
+      - description: Mevcut ve yeni şifre
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Şifre değiştirildi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "400":
+          description: Geçersiz istek, mevcut şifre hatalı veya yeni şifre eskisiyle
+            aynı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış veya geçersiz token
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Kullanıcı bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Şifre Değiştir
       tags:
       - Kimlik Doğrulama (Auth)
   /health:

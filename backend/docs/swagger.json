@@ -1989,6 +1989,160 @@
                         }
                     }
                 }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "İsim ve e-postayı birlikte günceller (kayıtla aynı doğrulama kuralları). E-posta başka bir kullanıcıdaysa 409 döner. E-posta değiştiyse yanıt yeni bir JWT içerir; istemci saklı token'ı bununla değiştirmelidir.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Kimlik Doğrulama (Auth)"
+                ],
+                "summary": "Profili Güncelle",
+                "parameters": [
+                    {
+                        "description": "Yeni isim ve e-posta",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateProfileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Profil güncellendi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.UpdateProfileResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz istek parametreleri",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış veya geçersiz token",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Kullanıcı bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Bu e-posta adresi zaten kullanımda",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/me/password": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mevcut şifre doğrulanır, yeni şifre kayıtla aynı kurallara uymalı ve eskisinden farklı olmalıdır. Açık oturumlar geçerli kalır.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Kimlik Doğrulama (Auth)"
+                ],
+                "summary": "Şifre Değiştir",
+                "parameters": [
+                    {
+                        "description": "Mevcut ve yeni şifre",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ChangePasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Şifre değiştirildi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz istek, mevcut şifre hatalı veya yeni şifre eskisiyle aynı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış veya geçersiz token",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Kullanıcı bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
             }
         },
         "/health": {
@@ -2079,6 +2233,27 @@
                     "type": "string",
                     "maxLength": 150,
                     "example": "zeynep@demo.com"
+                }
+            }
+        },
+        "controllers.ChangePasswordRequest": {
+            "type": "object",
+            "required": [
+                "current_password",
+                "new_password"
+            ],
+            "properties": {
+                "current_password": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "Password123!"
+                },
+                "new_password": {
+                    "description": "Kayıttaki şifre kuralıyla aynıdır (RegisterRequest.Password).",
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 6,
+                    "example": "YeniSifre456!"
                 }
             }
         },
@@ -2240,6 +2415,7 @@
                     "example": "Can Yılmaz"
                 },
                 "password": {
+                    "description": "Şifre kuralı ChangePasswordRequest.NewPassword ile aynı tutulmalıdır.",
                     "type": "string",
                     "maxLength": 100,
                     "minLength": 6,
@@ -2308,6 +2484,38 @@
                     "type": "string",
                     "format": "date",
                     "example": "2026-12-31"
+                }
+            }
+        },
+        "controllers.UpdateProfileRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "name"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 150,
+                    "example": "can@demo.com"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "example": "Can Yılmaz"
+                }
+            }
+        },
+        "controllers.UpdateProfileResponse": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                },
+                "user": {
+                    "$ref": "#/definitions/models.User"
                 }
             }
         },

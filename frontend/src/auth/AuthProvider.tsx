@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, tokenStore, UNAUTHORIZED_EVENT } from '@/api/client'
 import { authApi, queryKeys } from '@/api/endpoints'
-import type { User } from '@/api/types'
+import type { UpdateProfileResponse, User } from '@/api/types'
 
 type AuthState = {
   token: string | null
@@ -13,6 +13,8 @@ type AuthState = {
   login: (email: string, password: string) => Promise<void>
   register: (name: string, email: string, password: string) => Promise<void>
   logout: () => void
+  // PATCH /me yanıtını uygular: kullanıcıyı önbelleğe yazar, token geldiyse saklı token'ı değiştirir.
+  updateUser: (res: UpdateProfileResponse) => void
 }
 
 const AuthContext = createContext<AuthState | null>(null)
@@ -79,6 +81,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null)
   }, [queryClient])
 
+  const updateUser = useCallback(
+    ({ user, token: nextToken }: UpdateProfileResponse) => {
+      if (nextToken) {
+        tokenStore.set(nextToken)
+        setToken(nextToken)
+      }
+      queryClient.setQueryData(queryKeys.me, user)
+      // Üye listeleri ve fikir sahipleri adı/e-postayı gömülü taşır; gruplar yeniden çekilsin.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
+    },
+    [queryClient],
+  )
+
   const value = useMemo<AuthState>(
     () => ({
       token,
@@ -88,8 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      updateUser,
     }),
-    [token, me.data, me.isPending, sessionExpired, login, register, logout],
+    [token, me.data, me.isPending, sessionExpired, login, register, logout, updateUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -9,6 +9,7 @@ import type {
   Idea,
   LinkPreview,
   LoginResponse,
+  UpdateProfileResponse,
   User,
 } from './types'
 
@@ -18,6 +19,17 @@ export const authApi = {
   register: (name: string, email: string, password: string) =>
     api<User>('/auth/register', { method: 'POST', body: { name, email, password } }),
   me: (signal?: AbortSignal) => api<User>('/me', { signal }),
+  // İsim ve e-posta birlikte gönderilir. Başka kullanıcının e-postası 409 döner.
+  updateProfile: (name: string, email: string) =>
+    api<UpdateProfileResponse>('/me', { method: 'PATCH', body: { name, email } }),
+  // Yanlış mevcut şifre veya eskisiyle aynı yeni şifre 400 döner (401 değil; oturum kapanmaz).
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api<{ message: string }>('/me/password', {
+      method: 'PUT',
+      body: { current_password: currentPassword, new_password: newPassword },
+    }),
+  // Hesabı ve kullanıcının tüm verisini kalıcı olarak siler.
+  deleteMe: () => api<{ message: string }>('/me', { method: 'DELETE' }),
 }
 
 export const groupsApi = {

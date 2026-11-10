@@ -20,6 +20,7 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, lazy: () => import('@/pages/GroupsPage').then((m) => ({ Component: m.GroupsPage })) },
           { path: '/groups/:id', lazy: () => import('@/pages/GroupPage').then((m) => ({ Component: m.GroupPage })) },
+          { path: '/profile', lazy: () => import('@/pages/ProfilePage').then((m) => ({ Component: m.ProfilePage })) },
         ],
       },
     ],

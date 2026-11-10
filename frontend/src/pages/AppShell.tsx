@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Link, Outlet, useMatch, useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Check, ChevronDown, LayoutGrid, LogOut } from 'lucide-react'
+import { Check, ChevronDown, LayoutGrid, LogOut, UserRound } from 'lucide-react'
 
 import { groupsApi, queryKeys } from '@/api/endpoints'
 import { useAuth } from '@/auth/AuthProvider'
@@ -98,6 +98,7 @@ function GroupSwitcher() {
 function AccountMenu() {
   const { t, i18n } = useTranslation()
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
   if (!user) return <span className="size-10" />
   return (
     <DropdownMenu>
@@ -134,6 +135,10 @@ function AccountMenu() {
           ))}
         </div>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => navigate('/profile')}>
+          <UserRound />
+          {t('nav.profile')}
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={logout}>
           <LogOut />
           {t('nav.logout')}

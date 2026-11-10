@@ -58,6 +58,10 @@ export type GroupDetail = {
 
 export type LoginResponse = { token: string; user: User }
 
+// PATCH /me yanıtı. JWT e-posta taşıdığı için token yalnızca e-posta değiştiğinde gelir;
+// geldiğinde saklı token bununla değiştirilmelidir.
+export type UpdateProfileResponse = { user: User; token?: string }
+
 export type CreateGroupInput = {
   title: string
   target_person_name: string

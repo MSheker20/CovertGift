@@ -13,7 +13,19 @@ type UserRepository interface {
 	Create(user *models.User) error
 	FindByEmail(email string) (*models.User, error)
 	FindByID(id uuid.UUID) (*models.User, error)
+	UpdateProfile(id uuid.UUID, name, email string) error
+	UpdatePasswordHash(id uuid.UUID, passwordHash string) error
 	Delete(id uuid.UUID) error
+}
+
+// ErrDuplicateEmail e-posta benzersizlik kısıtı ihlal edildiğinde döner (eşzamanlı güncelleme yarışı)
+var ErrDuplicateEmail = errors.New("e-posta benzersizlik kısıtı ihlal edildi")
+
+// isUniqueViolation PostgreSQL benzersizlik ihlalini (SQLSTATE 23505) tanır.
+// pgconn.PgError'a doğrudan bağımlı olmamak için SQLState() arayüzü kullanılır.
+func isUniqueViolation(err error) bool {
+	var stateErr interface{ SQLState() string }
+	return errors.As(err, &stateErr) && stateErr.SQLState() == "23505"
 }
 
 // userRepository arayüzün GORM tabanlı somut (concrete) implementasyonudur
@@ -55,6 +67,34 @@ func (r *userRepository) FindByID(id uuid.UUID) (*models.User, error) {
 		return nil, err
 	}
 	return &user, nil
+}
+
+// UpdateProfile kullanıcının adını ve e-postasını günceller. Kullanıcı yoksa
+// gorm.ErrRecordNotFound, e-posta başka kullanıcıdaysa ErrDuplicateEmail döner.
+func (r *userRepository) UpdateProfile(id uuid.UUID, name, email string) error {
+	res := r.db.Model(&models.User{}).Where("id = ?", id).Updates(map[string]any{"name": name, "email": email})
+	if res.Error != nil {
+		if isUniqueViolation(res.Error) {
+			return ErrDuplicateEmail
+		}
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// UpdatePasswordHash kullanıcının parola hash'ini değiştirir. Kullanıcı yoksa gorm.ErrRecordNotFound döner.
+func (r *userRepository) UpdatePasswordHash(id uuid.UUID, passwordHash string) error {
+	res := r.db.Model(&models.User{}).Where("id = ?", id).Update("password_hash", passwordHash)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // Delete bir kullanıcıyı ve ona bağlı tüm ilişkili verileri atomik bir transaction ile siler
