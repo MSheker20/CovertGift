@@ -38,6 +38,22 @@ definitions:
     required:
     - email
     type: object
+  controllers.ChangePasswordRequest:
+    properties:
+      current_password:
+        example: Password123!
+        maxLength: 100
+        type: string
+      new_password:
+        description: Kayıttaki şifre kuralıyla aynıdır (RegisterRequest.Password).
+        example: YeniSifre456!
+        maxLength: 100
+        minLength: 6
+        type: string
+    required:
+    - current_password
+    - new_password
+    type: object
   controllers.CreateGroupRequest:
     properties:
       description:
@@ -149,6 +165,7 @@ definitions:
         minLength: 2
         type: string
       password:
+        description: Şifre kuralı ChangePasswordRequest.NewPassword ile aynı tutulmalıdır.
         example: Password123!
         maxLength: 100
         minLength: 6
@@ -201,6 +218,29 @@ definitions:
         example: "2026-12-31"
         format: date
         type: string
+    type: object
+  controllers.UpdateProfileRequest:
+    properties:
+      email:
+        example: can@demo.com
+        maxLength: 150
+        type: string
+      name:
+        example: Can Yılmaz
+        maxLength: 100
+        minLength: 2
+        type: string
+    required:
+    - email
+    - name
+    type: object
+  controllers.UpdateProfileResponse:
+    properties:
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      user:
+        $ref: '#/definitions/models.User'
     type: object
   controllers.VoteRequest:
     properties:
@@ -438,6 +478,58 @@ definitions:
       per_person_budget:
         type: number
     type: object
+  services.GroupListItem:
+    properties:
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      creator:
+        allOf:
+        - $ref: '#/definitions/models.User'
+        description: İlişkiler (Foreign Key)
+      creator_id:
+        type: string
+      description:
+        type: string
+      event_date:
+        allOf:
+        - $ref: '#/definitions/models.Date'
+        description: Hediyenin verileceği gün (doğum günü vb.). İsteğe bağlı, tek
+          seferlik.
+      id:
+        type: string
+      idea_count:
+        description: Reddedilmemiş fikir sayısı.
+        example: 6
+        type: integer
+      member_count:
+        example: 4
+        type: integer
+      pending_votes:
+        description: 'Çağıran kullanıcıya özel: açık gruptaki, kendisinin eklemediği
+          ve henüz oy vermediği aktif fikirler.'
+        example: 2
+        type: integer
+      status:
+        description: 'ACTIVE: oylama sürüyor. COMPLETED: admin kazananı seçti; fikir
+          ve oy işlemleri kapalı.'
+        type: string
+      target_interests:
+        description: Gemini AI için ilgi alanları ve hobiler
+        type: string
+      target_person_name:
+        type: string
+      target_user:
+        $ref: '#/definitions/models.User'
+      target_user_id:
+        description: Anti-Spoiler için kritik alan (NULL olabilir)
+        type: string
+      title:
+        type: string
+      total_budget:
+        type: number
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -580,7 +672,9 @@ paths:
     get:
       description: Giriş yapmış kullanıcının üye olduğu grupları listeler. Anti-Spoiler
         kuralı gereğince kullanıcının hedef kişi olduğu sürpriz gruplar bu listede
-        ASLA yer almaz.
+        ASLA yer almaz. Her grupta member_count, idea_count (reddedilmemiş fikirler)
+        ve çağıran kullanıcıya özel pending_votes (açık gruptaki, kendisinin eklemediği
+        ve henüz oy vermediği aktif fikirler) bulunur.
       produces:
       - application/json
       responses:
@@ -592,7 +686,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/models.Group'
+                    $ref: '#/definitions/services.GroupListItem'
                   type: array
               type: object
         "401":
@@ -1716,6 +1810,103 @@ paths:
       security:
       - BearerAuth: []
       summary: Mevcut Kullanıcı Profili
+      tags:
+      - Kimlik Doğrulama (Auth)
+    patch:
+      consumes:
+      - application/json
+      description: İsim ve e-postayı birlikte günceller (kayıtla aynı doğrulama kuralları).
+        E-posta başka bir kullanıcıdaysa 409 döner. E-posta değiştiyse yanıt yeni
+        bir JWT içerir; istemci saklı token'ı bununla değiştirmelidir.
+      parameters:
+      - description: Yeni isim ve e-posta
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Profil güncellendi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.UpdateProfileResponse'
+              type: object
+        "400":
+          description: Geçersiz istek parametreleri
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış veya geçersiz token
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Kullanıcı bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Bu e-posta adresi zaten kullanımda
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Profili Güncelle
+      tags:
+      - Kimlik Doğrulama (Auth)
+  /api/v1/me/password:
+    put:
+      consumes:
+      - application/json
+      description: Mevcut şifre doğrulanır, yeni şifre kayıtla aynı kurallara uymalı
+        ve eskisinden farklı olmalıdır. Açık oturumlar geçerli kalır.
+      parameters:
+      - description: Mevcut ve yeni şifre
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Şifre değiştirildi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "400":
+          description: Geçersiz istek, mevcut şifre hatalı veya yeni şifre eskisiyle
+            aynı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış veya geçersiz token
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Kullanıcı bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Şifre Değiştir
       tags:
       - Kimlik Doğrulama (Auth)
   /health:

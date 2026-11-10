@@ -87,6 +87,8 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub
 		protected.Use(middleware.Auth(cfg.JWTSecret))
 		{
 			protected.GET("/me", authController.Me)
+			protected.PATCH("/me", authController.UpdateMe)
+			protected.PUT("/me/password", authController.ChangePassword)
 			protected.DELETE("/me", authController.DeleteMe)
 
 			// Genel Grup İşlemleri

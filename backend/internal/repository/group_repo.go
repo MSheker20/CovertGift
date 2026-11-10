@@ -19,6 +19,7 @@ var ErrMemberIsGroupTarget = errors.New("member is the group's target")
 type GroupRepository interface {
 	CreateGroupWithAdmin(group *models.Group, adminUserID uuid.UUID) error
 	GetUserGroups(userID uuid.UUID) ([]models.Group, error)
+	GetGroupListStats(userID uuid.UUID, groupIDs []uuid.UUID) (map[uuid.UUID]GroupListStats, error)
 	GetGroupByID(groupID uuid.UUID) (*models.Group, error)
 	GetMember(groupID, userID uuid.UUID) (*models.GroupMember, error)
 	GetMemberCount(groupID uuid.UUID) (int64, error)
@@ -86,6 +87,49 @@ func (r *groupRepository) GetUserGroups(userID uuid.UUID) ([]models.Group, error
 		Find(&groups).Error
 
 	return groups, err
+}
+
+// GroupListStats grup listesindeki tek bir grubun sayaçlarıdır.
+// PendingVotes çağıran kullanıcıya özeldir.
+type GroupListStats struct {
+	GroupID      uuid.UUID
+	MemberCount  int64
+	IdeaCount    int64
+	PendingVotes int64
+}
+
+// GetGroupListStats verilen grupların üye/fikir sayılarını ve kullanıcının bekleyen
+// oylarını tek sorguda hesaplar (grup başına sorgu yok).
+// IdeaCount reddedilmemiş fikirleri sayar. PendingVotes yalnızca açık gruplarda, ACTIVE
+// durumdaki, kullanıcının eklemediği ve henüz oy vermediği fikirleri sayar.
+func (r *groupRepository) GetGroupListStats(userID uuid.UUID, groupIDs []uuid.UUID) (map[uuid.UUID]GroupListStats, error) {
+	out := make(map[uuid.UUID]GroupListStats, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return out, nil
+	}
+
+	var rows []GroupListStats
+	err := r.db.Raw(`
+		SELECT g.id AS group_id,
+			(SELECT COUNT(*) FROM group_members gm WHERE gm.group_id = g.id) AS member_count,
+			(SELECT COUNT(*) FROM gift_ideas gi WHERE gi.group_id = g.id AND gi.status <> ?) AS idea_count,
+			CASE WHEN g.status = ? THEN (
+				SELECT COUNT(*) FROM gift_ideas gi
+				WHERE gi.group_id = g.id AND gi.status = ? AND gi.created_by <> ?
+					AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.gift_idea_id = gi.id AND v.user_id = ?)
+			) ELSE 0 END AS pending_votes
+		FROM groups g
+		WHERE g.id IN ?`,
+		"REJECTED", models.GroupStatusActive, "ACTIVE", userID, userID, groupIDs,
+	).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		out[row.GroupID] = row
+	}
+	return out, nil
 }
 
 // GetGroupByID tek bir grubun detaylarını ilişkileriyle birlikte getirir

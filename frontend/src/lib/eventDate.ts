@@ -54,7 +54,7 @@ export function eventDateBounds(now: Date = new Date()) {
 
 // Yaklaşan tarihi olan açık gruplar en üstte (en yakın önce); ardından diğer açık gruplar,
 // en sonda tamamlananlar. Grup içindeki sıra sunucunun sırasıdır.
-export function sortByUpcoming(groups: Group[], now: Date = new Date()): Group[] {
+export function sortByUpcoming<T extends Group>(groups: T[], now: Date = new Date()): T[] {
   const bucket = (g: Group) => {
     if (g.status === 'COMPLETED') return 2
     const d = g.event_date ? daysUntil(g.event_date, now) : null

@@ -58,7 +58,7 @@ type GroupService interface {
 	SelectWinners(groupID, userID uuid.UUID, ideaIDs []uuid.UUID) error
 	ReopenGroup(groupID, userID uuid.UUID) error
 	SetEventDate(groupID, userID uuid.UUID, date *models.Date) error
-	GetUserGroups(userID uuid.UUID) ([]models.Group, error)
+	GetUserGroups(userID uuid.UUID) ([]GroupListItem, error)
 	GetGroupDetail(groupID, userID uuid.UUID) (*GroupDetailResponse, error)
 	AddMemberByEmail(groupID, currentUserID uuid.UUID, email string) (*models.GroupMember, error)
 	AddInterest(groupID, userID uuid.UUID, interest string) ([]string, error)
@@ -129,9 +129,40 @@ func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPerso
 	return group, nil
 }
 
-// GetUserGroups kullanıcının üye olduğu grupları listeler (hedef olduğu gruplar filtrelenir)
-func (s *groupService) GetUserGroups(userID uuid.UUID) ([]models.Group, error) {
-	return s.groupRepo.GetUserGroups(userID)
+// GroupListItem grup listesindeki tek satırdır: grup alanları ve ana ekran sayaçları.
+// Sayaçlar veritabanı sütunu değildir; şema etkilenmez.
+type GroupListItem struct {
+	models.Group
+	MemberCount int64 `json:"member_count" example:"4"`
+	// Reddedilmemiş fikir sayısı.
+	IdeaCount int64 `json:"idea_count" example:"6"`
+	// Çağıran kullanıcıya özel: açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler.
+	PendingVotes int64 `json:"pending_votes" example:"2"`
+}
+
+// GetUserGroups kullanıcının üye olduğu grupları sayaçlarıyla listeler (hedef olduğu gruplar filtrelenir).
+// Sayaçlar tüm gruplar için tek ek sorguyla gelir.
+func (s *groupService) GetUserGroups(userID uuid.UUID) ([]GroupListItem, error) {
+	groups, err := s.groupRepo.GetUserGroups(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]uuid.UUID, len(groups))
+	for i, g := range groups {
+		ids[i] = g.ID
+	}
+	stats, err := s.groupRepo.GetGroupListStats(userID, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]GroupListItem, len(groups))
+	for i, g := range groups {
+		st := stats[g.ID]
+		items[i] = GroupListItem{Group: g, MemberCount: st.MemberCount, IdeaCount: st.IdeaCount, PendingVotes: st.PendingVotes}
+	}
+	return items, nil
 }
 
 // GetGroupDetail Anti-Spoiler kontrolünü yapar ve kişi başı bütçeyi anlık hesaplar

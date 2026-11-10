@@ -17,6 +17,8 @@ var (
 	ErrEmailAlreadyExists = errors.New("bu e-posta adresi zaten kullanımda")
 	ErrInvalidCredentials = errors.New("geçersiz e-posta veya şifre")
 	ErrUserNotFound       = errors.New("kullanıcı bulunamadı")
+	ErrWrongPassword      = errors.New("mevcut şifre hatalı")
+	ErrSamePassword       = errors.New("yeni şifre mevcut şifreyle aynı olamaz")
 )
 
 // JWTClaims token içinde taşınacak özel verileri tanımlar
@@ -32,6 +34,8 @@ type AuthService interface {
 	Login(email, password string) (*models.User, string, error)
 	GetUserByID(id uuid.UUID) (*models.User, error)
 	GenerateToken(user *models.User) (string, error)
+	UpdateProfile(id uuid.UUID, name, email string) (*models.User, string, error)
+	ChangePassword(id uuid.UUID, currentPassword, newPassword string) error
 	DeleteUser(id uuid.UUID) error
 }
 
@@ -132,6 +136,82 @@ func (s *authService) GenerateToken(user *models.User) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(s.jwtSecret))
+}
+
+// UpdateProfile kullanıcının adını ve e-postasını günceller. E-posta kayıttaki gibi
+// olduğu gibi saklanır; benzersizlik kontrolü büyük/küçük harf duyarsızdır. Token e-posta
+// claim'i taşıdığından e-posta değiştiyse yeni token döner, değişmediyse token boştur.
+func (s *authService) UpdateProfile(id uuid.UUID, name, email string) (*models.User, string, error) {
+	user, err := s.GetUserByID(id)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// 1. E-posta başka bir kullanıcıda mı? (Kendi e-postasının harf düzenini değiştirmek serbest)
+	existing, err := s.userRepo.FindByEmail(email)
+	if err != nil {
+		return nil, "", err
+	}
+	if existing != nil && existing.ID != id {
+		return nil, "", ErrEmailAlreadyExists
+	}
+
+	// 2. Güncelle (eşzamanlı yarışta DB kısıtı yine 409'a çevrilir)
+	if err := s.userRepo.UpdateProfile(id, name, email); err != nil {
+		if errors.Is(err, repository.ErrDuplicateEmail) {
+			return nil, "", ErrEmailAlreadyExists
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", ErrUserNotFound
+		}
+		return nil, "", err
+	}
+
+	emailChanged := user.Email != email
+	user.Name = name
+	user.Email = email
+
+	// 3. E-posta değiştiyse token'daki claim eskimesin diye yeni token üret
+	if !emailChanged {
+		return user, "", nil
+	}
+	token, err := s.GenerateToken(user)
+	if err != nil {
+		return nil, "", err
+	}
+	return user, token, nil
+}
+
+// ChangePassword mevcut şifreyi doğrular ve yeni şifrenin hash'ini yazar.
+// Açık oturumlar (mevcut token'lar) geçerli kalır.
+func (s *authService) ChangePassword(id uuid.UUID, currentPassword, newPassword string) error {
+	user, err := s.GetUserByID(id)
+	if err != nil {
+		return err
+	}
+
+	// 1. Mevcut şifre doğru mu?
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return ErrWrongPassword
+	}
+
+	// 2. Yeni şifre eskisiyle aynı olamaz
+	if currentPassword == newPassword {
+		return ErrSamePassword
+	}
+
+	// 3. Yeni hash'i yaz
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	if err := s.userRepo.UpdatePasswordHash(id, string(hashedPassword)); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+	return nil
 }
 
 // DeleteUser kullanıcının hesabını ve tüm ilişkili verilerini siler

@@ -121,11 +121,11 @@ func (ctl *GroupController) CreateGroup(c *gin.Context) {
 
 // GetUserGroups kullanıcının dahil olduğu grupları listeler
 // @Summary      Kullanıcının Gruplarını Listele (Anti-Spoiler Korumalı)
-// @Description  Giriş yapmış kullanıcının üye olduğu grupları listeler. Anti-Spoiler kuralı gereğince kullanıcının hedef kişi olduğu sürpriz gruplar bu listede ASLA yer almaz.
+// @Description  Giriş yapmış kullanıcının üye olduğu grupları listeler. Anti-Spoiler kuralı gereğince kullanıcının hedef kişi olduğu sürpriz gruplar bu listede ASLA yer almaz. Her grupta member_count, idea_count (reddedilmemiş fikirler) ve çağıran kullanıcıya özel pending_votes (açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler) bulunur.
 // @Tags         Hediye Grupları (Groups)
 // @Produce      json
 // @Security     BearerAuth
-// @Success      200 {object} Response{data=[]models.Group} "Kullanıcının dahil olduğu gruplar listesi"
+// @Success      200 {object} Response{data=[]services.GroupListItem} "Kullanıcının dahil olduğu gruplar listesi"
 // @Failure      401 {object} Response "Oturum açılmamış"
 // @Failure      500 {object} Response "Sunucu hatası"
 // @Router       /api/v1/groups [get]
@@ -143,7 +143,7 @@ func (ctl *GroupController) GetUserGroups(c *gin.Context) {
 	}
 
 	if groups == nil {
-		groups = []models.Group{}
+		groups = []services.GroupListItem{}
 	}
 
 	RespondOK(c, groups)
