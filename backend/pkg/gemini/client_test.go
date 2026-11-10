@@ -330,3 +330,20 @@ func TestModelMustBeConfigured(t *testing.T) {
 		t.Fatalf("unexpected configuration: %+v", client)
 	}
 }
+
+func TestGenerateWrapsPersistent503AsOverloaded(t *testing.T) {
+	calls := 0
+	client := testClient(t, func(r *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: 503, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":503,"message":"high demand","status":"UNAVAILABLE"}}`))}, nil
+	})
+	client.fallbackModel = "yedek-model"
+	_, err := client.generate(context.Background(), "birincil-model", "Kahve", nil)
+	var upstream genai.APIError
+	if !errors.Is(err, ErrOverloaded) || !errors.As(err, &upstream) || upstream.Code != 503 {
+		t.Fatalf("503 not mapped to ErrOverloaded: %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("expected primary + fallback attempt, got %d calls", calls)
+	}
+}

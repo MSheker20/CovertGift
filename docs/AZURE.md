@@ -1,7 +1,7 @@
 # Azure demo dağıtımı
 
 > **Güncel AI modu (2026-10-21):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
-> `GEMINI_MODEL=gemini-3.8-flash` ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
+> `GEMINI_MODEL=gemini-3.6-flash` (yedek `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite`) ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
 > Model kimlikleri uygulama kodunda sabit değildir. `GEMINI_MODEL` anahtar varsa zorunludur.
 > `GEMINI_FALLBACK_MODEL` boşsa otomatik model geçişi yapılmaz; doluysa yalnızca 503'te denenir.
 > `GEMINI_RESEARCH_MODEL` yalnızca Search açıkken kullanılır; boşsa ana model kullanılır.
@@ -130,7 +130,7 @@ kayıt defterinin izin modeline uygun imaj çekme yetkisini verin.
 - HTTP ölçeklendirme: minimum 0, maksimum 1 replica.
 - Ortam değişkenleri: `PORT=8080`, `APP_ENV=production`, `GIN_MODE=release`.
 - Secret üzerinden: `DATABASE_URL`, `JWT_SECRET`; AI için ayrıca `GEMINI_API_KEY`.
-- `GEMINI_MODEL`: öneri modeli; anahtar varsa **zorunludur**, kodda varsayılan yoktur (canlıda `gemini-3.8-flash`).
+- `GEMINI_MODEL`: öneri modeli; anahtar varsa **zorunludur**, kodda varsayılan yoktur (`gemini-3.6-flash`; 2026-11-10'da `gemini-3.7/3.8-flash` yanıt vermeyi bıraktığı için değişti).
 - `GEMINI_RESEARCH_MODEL`: yalnızca Search açıkken kullanılır; boşsa `GEMINI_MODEL` kullanılır.
 - Kota/istek sınırı hataları API üzerinden HTTP 429 döner.
 

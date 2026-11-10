@@ -736,3 +736,11 @@
 - **Testler:** Vitest `pages/profile.test.tsx` (10 senaryo: menüden giriş, kaydet pasif/aktif, başarılı güncelleme + yeni token, 409, istemci doğrulaması, göster/gizle, yanlış şifre, başarılı şifre değişimi, silme onayı ve vazgeç, silme hatası). Playwright `e2e/profile.spec.ts` (masaüstü + telefon), test API'sine yönlendirilmiş geçici :5174 sunucusuyla; tüm e2e 8/8.
 - **Tarayıcıda (test-db):** 1280px ve 375px, açık/koyu temada kontrol edildi; 375px'te yatay kaydırma yok. İpucu ("En az 6 karakter.") hata mesajının üstüne alındı.
 - **Bilinen kararsız test:** Vitest arada bir "1 error" bildiriyor: `group.test.tsx` "deletes the group…" sonrasında MSW interceptor'ının soket kapanışında Node undici `assert(!this.aborted)` hatası. Büyük olasılıkla sayfadan çıkılınca iptal edilen, hiç kapanmayan SSE (`/events`) isteği (Node 26, @mswjs/interceptors 0.45.9). Testler geçiyor; profil testleriyle ilgisi yok.
+
+## 2026-11-10 — AI önerileri çalışmıyordu: model değişimi ve 503 mesajı
+
+- Belirti: "Gemini ile öner" 500 dönüyordu. `gemini-3.8-flash` ve `gemini-3.7-flash` küçük istekte bile 45 sn içinde yanıt vermedi; arada 503 "high demand" geldi. `gemini-3.5-flash` 503 verdi. `gemini-3.6-flash` ve `gemini-3.5-flash-lite` 1–8 sn'de yanıt verdi. `gemini-2.5-flash` yeni kullanıcılara kapalı (404).
+- Düzeltme: birincil model `gemini-3.6-flash`, yedek `gemini-3.5-flash-lite` (ikisi de `GEMINI_THINKING_LEVEL=low` ile çalışıyor). Kod yalnızca 503'te yedeğe geçer; zaman aşımında geçmez.
+- Kod: `pkg/gemini` kalıcı 503'ü `ErrOverloaded` olarak sarar; `POST /groups/:id/ideas/generate-ai` bunu 503 ve "Yapay zekâ servisi şu an yoğun. Birkaç dakika sonra tekrar deneyin." mesajıyla döner (önceden genel 500). İki yeni test eklendi.
+- Doğrulama: test DB'ye bağlı yerel API ile tek istek, HTTP 201, 4 öneri, ~6 sn. Canlıya AI isteği atılmadı (fikirleri DB'ye yazar).
+

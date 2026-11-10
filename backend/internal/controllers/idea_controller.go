@@ -269,6 +269,10 @@ func (ctl *IdeaController) GenerateAI(c *gin.Context) {
 			RespondErr(c, http.StatusTooManyRequests, "Yapay zekâ servisinin kullanım kotası veya istek sınırı aşıldı. Bir süre sonra tekrar deneyin; sorun sürerse proje kotasını kontrol edin.")
 			return
 		}
+		if errors.Is(err, gemini.ErrOverloaded) {
+			RespondErr(c, http.StatusServiceUnavailable, "Yapay zekâ servisi şu an yoğun. Birkaç dakika sonra tekrar deneyin.")
+			return
+		}
 		if errors.Is(err, services.ErrNoAIIdeasGenerated) {
 			RespondErr(c, http.StatusUnprocessableEntity, err.Error())
 			return
