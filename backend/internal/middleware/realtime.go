@@ -3,8 +3,10 @@ package middleware
 import (
 	"net/http"
 
+	"github.com/MSheker20/CovertGift/backend/internal/controllers"
 	"github.com/MSheker20/CovertGift/backend/internal/realtime"
 	"github.com/MSheker20/CovertGift/backend/internal/repository"
+	"github.com/MSheker20/CovertGift/backend/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -50,5 +52,29 @@ func PublishIdeaChanges(hub *realtime.Hub, ideas repository.IdeaRepository) gin.
 		if groupID != uuid.Nil && succeeded(c) {
 			hub.Publish(groupID)
 		}
+	}
+}
+
+// Notify /groups/:id/* ve /ideas/:id/* altında başarılı her değişiklikten sonra, handler'ın
+// controllers.RecordNotification ile bildirdiği olayları kalıcı bildirime çevirir ve
+// alıcıların bildirim akışına sinyal gönderir. Rota grubuna bağlı olduğu için yeni eklenen
+// bir değişiklik ucu da otomatik olarak bu zincirden geçer; başarısız istek (>= 400) ya da
+// olay bildirmeyen handler hiçbir şey üretmez. Alıcı seçimi ve Anti-Spoiler
+// NotificationService.Dispatch içindedir.
+func Notify(notifications services.NotificationService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+		if !isMutation(c) || !succeeded(c) {
+			return
+		}
+		events := controllers.RecordedNotifications(c)
+		if len(events) == 0 {
+			return
+		}
+		actorID, ok := GetUserID(c)
+		if !ok {
+			return
+		}
+		notifications.Dispatch(actorID, events)
 	}
 }

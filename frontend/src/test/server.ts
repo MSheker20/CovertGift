@@ -5,7 +5,14 @@ import type { Group, GroupDetail, Idea, User } from '@/api/types'
 
 // Testler gerçek API yerine bu MSW sunucusuna konuşur. Her test kendi yanıtlarını
 // server.use(...) ile ekler; tanımsız bir istek testi hata ile durdurur.
-export const server = setupServer()
+// Üst bardaki bildirim zili her sayfada çalıştığı için varsayılan yanıtları burada durur:
+// boş liste ve açılmayan akış (404'te istemci yeniden denemez). Zili deneyen testler bunları ezer.
+export const server = setupServer(
+  http.get('/api/v1/notifications', () => HttpResponse.json({ success: true, data: { items: [], unread_count: 0 } })),
+  http.get('/api/v1/notifications/stream', () =>
+    HttpResponse.json({ success: false, error: 'akış testte kapalı' }, { status: 404 }),
+  ),
+)
 
 export const ok = <T>(data: T, status = 200) => HttpResponse.json({ success: true, data }, { status })
 export const fail = (status: number, error: string) => HttpResponse.json({ success: false, error }, { status })

@@ -11,9 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// EventsController grup sayfalarına Server-Sent Events akışı sağlar.
+// EventsController Server-Sent Events akışlarını sağlar: grup sayfaları için grup akışı,
+// bildirim zili için kullanıcı akışı. İkisi de aynı çerçeveyi (heartbeat, ömür) kullanır.
 type EventsController struct {
 	hub *realtime.Hub
+	// userHub kullanıcı kimliğiyle anahtarlanır (bildirimler). nil ise bildirim akışı kapalıdır.
+	userHub *realtime.Hub
 	// Heartbeat bağlantıyı proxy'lerde canlı tutan yorum satırı aralığıdır.
 	Heartbeat time.Duration
 	// MaxLifetime bir akışın en uzun süresidir. Süre dolunca sunucu kapatır, istemci
@@ -22,8 +25,8 @@ type EventsController struct {
 }
 
 // NewEventsController varsayılan sürelerle bir EventsController oluşturur.
-func NewEventsController(hub *realtime.Hub) *EventsController {
-	return &EventsController{hub: hub, Heartbeat: 25 * time.Second, MaxLifetime: 5 * time.Minute}
+func NewEventsController(hub, userHub *realtime.Hub) *EventsController {
+	return &EventsController{hub: hub, userHub: userHub, Heartbeat: 25 * time.Second, MaxLifetime: 5 * time.Minute}
 }
 
 // Stream grubun değişiklik olaylarını SSE olarak yayınlar
@@ -44,7 +47,35 @@ func (ctl *EventsController) Stream(c *gin.Context) {
 		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
 		return
 	}
-	events, cancel, err := ctl.hub.Subscribe(groupID)
+	ctl.serve(c, ctl.hub, groupID)
+}
+
+// NotificationStream kullanıcının bildirim değişikliklerini SSE olarak yayınlar
+// @Summary      Bildirim Olay Akışı (Server-Sent Events)
+// @Description  Giriş yapan kullanıcıya yeni bir bildirim geldiğinde ya da bildirimleri okundu yapıldığında "changed" olayı gönderir. Olay veri taşımaz; istemci `GET /notifications` ucunu yeniden çeker (Anti-Spoiler süzgeci orada uygulanır). Bağlantı en fazla 5 dakika açık kalır, ardından istemci yeniden bağlanır; 25 sn'de bir `: ping`.
+// @Tags         Bildirimler (Notifications)
+// @Produce      text/event-stream
+// @Security     BearerAuth
+// @Success      200 {string} string "event: changed"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      503 {object} Response "Açık bağlantı sınırı doldu"
+// @Router       /api/v1/notifications/stream [get]
+func (ctl *EventsController) NotificationStream(c *gin.Context) {
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+	if ctl.userHub == nil {
+		RespondErr(c, http.StatusServiceUnavailable, "Canlı güncelleme şu an kullanılamıyor")
+		return
+	}
+	ctl.serve(c, ctl.userHub, userID)
+}
+
+// serve hub'daki anahtara abone olur ve her sinyalde veri taşımayan "changed" olayı yazar.
+func (ctl *EventsController) serve(c *gin.Context, hub *realtime.Hub, key uuid.UUID) {
+	events, cancel, err := hub.Subscribe(key)
 	if errors.Is(err, realtime.ErrTooManySubscribers) {
 		RespondErr(c, http.StatusServiceUnavailable, "Canlı güncelleme şu an kullanılamıyor")
 		return

@@ -83,7 +83,7 @@ func TestEventsStreamRejectsWhenFull(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	hub := realtime.NewHub(0)
 	r := gin.New()
-	r.GET("/groups/:id/events", NewEventsController(hub).Stream)
+	r.GET("/groups/:id/events", NewEventsController(hub, nil).Stream)
 	res := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/groups/"+uuid.NewString()+"/events", nil).WithContext(context.Background())
 	r.ServeHTTP(res, req)

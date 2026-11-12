@@ -120,3 +120,47 @@ export type CreateIdeaInput = {
   product_url?: string
   image_url?: string
 }
+
+// Bildirim türleri (backend/internal/models/notification.go). Metin istemcide type + params
+// ile oluşturulur (src/lib/notifications.ts).
+export type NotificationType =
+  | 'idea_added'
+  | 'ai_ideas_added'
+  | 'added_to_group'
+  | 'member_joined'
+  | 'winner_selected'
+  | 'group_reopened'
+  | 'event_date_changed'
+  | 'budget_changed'
+  | 'event_reminder'
+  | 'winner_overdue'
+
+export type NotificationParams = {
+  // İşlemi yapan üyenin adı (hatırlatmalarda yok).
+  actor_name?: string
+  idea_title?: string
+  member_name?: string
+  count?: number
+  // "YYYY-MM-DD"; tarih kaldırıldıysa null.
+  event_date?: string | null
+  total_budget?: string
+  // Hatırlatma üretildiği anda kalan gün (0: bugün, 1: yarın).
+  days_left?: number
+}
+
+export type AppNotification = {
+  id: string
+  group_id: string
+  group_title: string
+  // Bilinmeyen (yeni) türler genel bir metinle gösterilir.
+  type: NotificationType | (string & {})
+  params: NotificationParams
+  read_at?: string
+  created_at: string
+}
+
+// GET /notifications
+export type NotificationList = {
+  items: AppNotification[]
+  unread_count: number
+}

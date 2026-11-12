@@ -2145,6 +2145,212 @@
                 }
             }
         },
+        "/api/v1/notifications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Giriş yapan kullanıcının en yeni 50 bildirimini (yeniden eskiye) ve okunmamış bildirim sayısını döner. Metin istemcide `type` ve `params` ile oluşturulur. Anti-Spoiler: kullanıcının hedef kişisi olduğu gruplara ait bildirimler hiçbir zaman üretilmez ve bu listede ayrıca süzülür.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Bildirimler (Notifications)"
+                ],
+                "summary": "Bildirimleri Listele (Anti-Spoiler Korumalı)",
+                "responses": {
+                    "200": {
+                        "description": "Bildirimler ve okunmamış sayısı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/services.NotificationList"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/notifications/read-all": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Giriş yapan kullanıcının okunmamış tüm bildirimlerini okundu olarak işaretler.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Bildirimler (Notifications)"
+                ],
+                "summary": "Tüm Bildirimleri Okundu Yap",
+                "responses": {
+                    "200": {
+                        "description": "Tüm bildirimler okundu yapıldı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/notifications/stream": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Giriş yapan kullanıcıya yeni bir bildirim geldiğinde ya da bildirimleri okundu yapıldığında \"changed\" olayı gönderir. Olay veri taşımaz; istemci `GET /notifications` ucunu yeniden çeker (Anti-Spoiler süzgeci orada uygulanır). Bağlantı en fazla 5 dakika açık kalır, ardından istemci yeniden bağlanır; 25 sn'de bir `: ping`.",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "Bildirimler (Notifications)"
+                ],
+                "summary": "Bildirim Olay Akışı (Server-Sent Events)",
+                "responses": {
+                    "200": {
+                        "description": "event: changed",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "Açık bağlantı sınırı doldu",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/notifications/{id}/read": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Kullanıcının kendi bildirimini okundu olarak işaretler (tekrar çağırmak güvenlidir). Bildirim yoksa ya da başka bir kullanıcıya aitse 404 döner.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Bildirimler (Notifications)"
+                ],
+                "summary": "Bildirimi Okundu Yap",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Bildirim UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Bildirim okundu yapıldı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz bildirim kimliği",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Bildirim bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "API sunucusunun ve PostgreSQL veritabanı bağlantı havuzunun durumunu kontrol eder.",
@@ -2839,6 +3045,34 @@
                 }
             }
         },
+        "repository.NotificationItem": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "string"
+                },
+                "group_title": {
+                    "type": "string",
+                    "example": "Ahmet'in 30. Yaş Sürprizi"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "params": {
+                    "type": "object"
+                },
+                "read_at": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "idea_added"
+                }
+            }
+        },
         "services.GroupDetailResponse": {
             "type": "object",
             "properties": {
@@ -2939,6 +3173,21 @@
                 },
                 "total_budget": {
                     "type": "number"
+                }
+            }
+        },
+        "services.NotificationList": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.NotificationItem"
+                    }
+                },
+                "unread_count": {
+                    "type": "integer",
+                    "example": 3
                 }
             }
         }

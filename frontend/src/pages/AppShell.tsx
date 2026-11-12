@@ -8,6 +8,7 @@ import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
 import { LanguageSwitch } from '@/components/LanguageSwitch'
 import { Logo, LogoMark } from '@/components/Logo'
+import { NotificationBell } from '@/components/NotificationBell'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +20,7 @@ import {
 import { LANGUAGES } from '@/i18n'
 
 // Yüzen üst bar (kullanıcı isteği, 2026-10-21): sayfanın üstünde, kenarlardan içeride duran
-// yuvarlatılmış tek bar. Solda işaret, yanında grup seçici; sağda dil ve hesap menüsü.
+// yuvarlatılmış tek bar. Solda işaret, yanında grup seçici; sağda dil, bildirim zili ve hesap menüsü.
 // Opak yüzey ve 1px kenar; bulanıklık yok. Telefonda aynı bar, kelime işareti ve dil anahtarı gizli.
 export function AppShell() {
   return (
@@ -31,8 +32,9 @@ export function AppShell() {
             <Logo className="hidden sm:inline-flex" />
           </Link>
           <GroupSwitcher />
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
             <LanguageSwitch className="hidden md:inline-flex" />
+            <NotificationBell />
             <AccountMenu />
           </div>
         </header>

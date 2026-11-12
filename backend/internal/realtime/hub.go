@@ -1,4 +1,6 @@
-// Package realtime grup sayfalarına "bu grupta bir şey değişti" olayını iletir (SSE).
+// Package realtime "bir şey değişti" olayını açık SSE akışlarına iletir. Hub bir anahtara
+// (UUID) göre abone tutar; uygulama iki ayrı Hub kullanır: grup sayfaları için grup
+// kimliğiyle, bildirim zili için kullanıcı kimliğiyle.
 //
 // Olaylar veri taşımaz; istemci yalnızca ilgili sorguları yeniden çeker ve veriyi her
 // zamanki Anti-Spoiler korumalı uçlardan alır. Hub bellek içidir ve tek bir API
@@ -16,7 +18,7 @@ import (
 // ErrTooManySubscribers aynı anda açık bağlantı sınırı aşıldığında döner.
 var ErrTooManySubscribers = errors.New("realtime: too many open streams")
 
-// Hub grup kimliğine göre aboneleri tutar.
+// Hub bir anahtara (grup ya da kullanıcı kimliği) göre aboneleri tutar.
 type Hub struct {
 	mu    sync.Mutex
 	subs  map[uuid.UUID]map[chan struct{}]struct{}
@@ -29,28 +31,28 @@ func NewHub(max int) *Hub {
 	return &Hub{subs: map[uuid.UUID]map[chan struct{}]struct{}{}, max: max}
 }
 
-// Subscribe gruba abone olur. Dönen kanal bir değişiklikte sinyal alır; art arda gelen
+// Subscribe anahtara abone olur. Dönen kanal bir değişiklikte sinyal alır; art arda gelen
 // değişiklikler tek sinyalde birleşir (kanal 1 kapasitelidir). İş bitince cancel çağrılmalıdır.
-func (h *Hub) Subscribe(groupID uuid.UUID) (<-chan struct{}, func(), error) {
+func (h *Hub) Subscribe(key uuid.UUID) (<-chan struct{}, func(), error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.total >= h.max {
 		return nil, nil, ErrTooManySubscribers
 	}
 	ch := make(chan struct{}, 1)
-	if h.subs[groupID] == nil {
-		h.subs[groupID] = map[chan struct{}]struct{}{}
+	if h.subs[key] == nil {
+		h.subs[key] = map[chan struct{}]struct{}{}
 	}
-	h.subs[groupID][ch] = struct{}{}
+	h.subs[key][ch] = struct{}{}
 	h.total++
 	var once sync.Once
 	cancel := func() {
 		once.Do(func() {
 			h.mu.Lock()
 			defer h.mu.Unlock()
-			delete(h.subs[groupID], ch)
-			if len(h.subs[groupID]) == 0 {
-				delete(h.subs, groupID)
+			delete(h.subs[key], ch)
+			if len(h.subs[key]) == 0 {
+				delete(h.subs, key)
 			}
 			h.total--
 		})
@@ -58,11 +60,11 @@ func (h *Hub) Subscribe(groupID uuid.UUID) (<-chan struct{}, func(), error) {
 	return ch, cancel, nil
 }
 
-// Publish gruba abone olan herkese sinyal gönderir; hiçbir zaman bloklamaz.
-func (h *Hub) Publish(groupID uuid.UUID) {
+// Publish anahtara abone olan herkese (aynı kullanıcının birden çok sekmesi dahil) sinyal gönderir; hiçbir zaman bloklamaz.
+func (h *Hub) Publish(key uuid.UUID) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for ch := range h.subs[groupID] {
+	for ch := range h.subs[key] {
 		select {
 		case ch <- struct{}{}:
 		default: // bekleyen bir sinyal zaten var

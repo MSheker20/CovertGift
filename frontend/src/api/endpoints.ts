@@ -9,6 +9,7 @@ import type {
   Idea,
   LinkPreview,
   LoginResponse,
+  NotificationList,
   UpdateProfileResponse,
   User,
 } from './types'
@@ -70,8 +71,16 @@ export const ideasApi = {
   remove: (ideaId: string) => api<unknown>(`/ideas/${ideaId}`, { method: 'DELETE' }),
 }
 
+export const notificationsApi = {
+  // En yeni 50 bildirim ve okunmamış sayısı. Hedefi olduğum grupların bildirimleri hiç gelmez.
+  list: (signal?: AbortSignal) => api<NotificationList>('/notifications', { signal }),
+  markRead: (id: string) => api<unknown>(`/notifications/${id}/read`, { method: 'POST' }),
+  markAllRead: () => api<unknown>('/notifications/read-all', { method: 'POST' }),
+}
+
 export const queryKeys = {
   me: ['me'] as const,
+  notifications: ['notifications'] as const,
   groups: ['groups'] as const,
   group: (id: string) => ['groups', id] as const,
   ideas: (groupId: string) => ['groups', groupId, 'ideas'] as const,
@@ -90,3 +99,7 @@ export const LIVE_REFRESH_MS = 10_000
 export const LIVE_FALLBACK_MS = 60_000
 
 export const liveInterval = (connected: boolean) => (connected ? LIVE_FALLBACK_MS : LIVE_REFRESH_MS)
+
+// Bildirimler SSE ile anında gelir; bağlantı yoksa bu aralıkla çekilir.
+export const NOTIFICATIONS_REFRESH_MS = 30_000
+export const NOTIFICATIONS_FALLBACK_MS = 5 * 60_000

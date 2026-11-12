@@ -43,6 +43,9 @@ type apiResponse struct {
 type testAPI struct {
 	t      *testing.T
 	router *gin.Engine
+	db     *gorm.DB
+	// userHub bildirim akışlarının hub'ıdır; testler sinyali buradan dinler.
+	userHub *realtime.Hub
 }
 
 // testDatabaseURL TEST_DATABASE_URL'yi döndürür; tanımlı değilse testi atlar, veritabanı
@@ -83,7 +86,8 @@ func newTestAPI(t *testing.T) *testAPI {
 	}
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{JWTSecret: "integration-test-secret", AppEnv: "test"}
-	return &testAPI{t: t, router: newRouter(db, cfg, nil, realtime.NewHub(100))}
+	userHub := realtime.NewHub(100)
+	return &testAPI{t: t, router: newRouter(db, cfg, nil, realtime.NewHub(100), userHub), db: db, userHub: userHub}
 }
 
 func (a *testAPI) call(method, path, token string, body any) (int, apiResponse) {
