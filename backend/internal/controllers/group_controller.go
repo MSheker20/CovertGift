@@ -261,6 +261,12 @@ func (ctl *GroupController) AddMember(c *gin.Context) {
 		return
 	}
 
+	// Eklenen kişiye "gruba eklendin", diğer üyelere "yeni üye katıldı".
+	RecordNotification(c, services.NotificationEvent{GroupID: groupID, Type: models.NotificationAddedToGroup, Only: []uuid.UUID{member.UserID}})
+	RecordNotification(c, services.NotificationEvent{
+		GroupID: groupID, Type: models.NotificationMemberJoined, Exclude: []uuid.UUID{member.UserID},
+		Params: models.NotificationParams{"member_name": member.User.Name},
+	})
 	RespondCreated(c, member)
 }
 
@@ -390,6 +396,13 @@ func (ctl *GroupController) UpdateBudget(c *gin.Context) {
 		}
 		return
 	}
+	// Aynı tutar yeniden kaydedildiyse bildirim üretilmez.
+	if before := groupBeforeRequest(c); before == nil || !before.TotalBudget.Equal(*req.TotalBudget) {
+		RecordNotification(c, services.NotificationEvent{
+			GroupID: groupID, Type: models.NotificationBudgetChanged,
+			Params: models.NotificationParams{"total_budget": req.TotalBudget.StringFixed(2)},
+		})
+	}
 	RespondOK(c, MessageData{Message: "Bütçe güncellendi"})
 }
 
@@ -441,6 +454,10 @@ func (ctl *GroupController) LinkTarget(c *gin.Context) {
 			RespondInternal(c, "Hedef kişi bağlanırken bir hata oluştu", err)
 		}
 		return
+	}
+	// Hedefin bu gruba ait bildirimleri bağlama transaction'ında silindi; açık zili yenilensin.
+	if group.TargetUserID != nil {
+		RecordNotification(c, services.NotificationEvent{GroupID: groupID, RefreshOnly: true, Only: []uuid.UUID{*group.TargetUserID}})
 	}
 	RespondOK(c, group)
 }
@@ -560,6 +577,14 @@ func (ctl *GroupController) SelectWinner(c *gin.Context) {
 		groupAdminError(c, err, "Kazanan seçilirken bir hata oluştu")
 		return
 	}
+	unique := map[uuid.UUID]bool{}
+	for _, id := range req.IdeaIDs {
+		unique[id] = true
+	}
+	RecordNotification(c, services.NotificationEvent{
+		GroupID: groupID, Type: models.NotificationWinnerSelected,
+		Params: models.NotificationParams{"count": len(unique)},
+	})
 	RespondOK(c, MessageData{Message: "Kazanan seçildi, grup tamamlandı"})
 }
 
@@ -590,6 +615,7 @@ func (ctl *GroupController) ReopenGroup(c *gin.Context) {
 		groupAdminError(c, err, "Grup yeniden açılırken bir hata oluştu")
 		return
 	}
+	RecordNotification(c, services.NotificationEvent{GroupID: groupID, Type: models.NotificationGroupReopened})
 	RespondOK(c, MessageData{Message: "Grup yeniden açıldı"})
 }
 
@@ -627,5 +653,25 @@ func (ctl *GroupController) UpdateEventDate(c *gin.Context) {
 		groupAdminError(c, err, "Hediye tarihi güncellenirken bir hata oluştu")
 		return
 	}
+	// Tarih gerçekten değiştiyse bildir (aynı tarih ya da zaten boşken kaldırma bildirilmez).
+	before := groupBeforeRequest(c)
+	if before == nil || !sameDate(before.EventDate, req.EventDate) {
+		var date any
+		if req.EventDate != nil {
+			date = req.EventDate.String()
+		}
+		RecordNotification(c, services.NotificationEvent{
+			GroupID: groupID, Type: models.NotificationEventDateChanged,
+			Params: models.NotificationParams{"event_date": date},
+		})
+	}
 	RespondOK(c, MessageData{Message: "Hediye tarihi güncellendi"})
+}
+
+// sameDate iki isteğe bağlı tarihin aynı gün (ya da ikisinin de boş) olduğunu söyler.
+func sameDate(a, b *models.Date) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.String() == b.String()
 }

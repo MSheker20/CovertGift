@@ -25,7 +25,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 
 ---
 
-## 3. Veritabanı Modelleri (5 Temel Varlık / Entity)
+## 3. Veritabanı Modelleri (5 Temel Varlık / Entity + Bildirimler)
 
 ### 1. `User` (Kullanıcılar)
 - `id`: UUID (Primary Key, varsayılan gen_random_uuid())
@@ -82,6 +82,17 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `created_at`: TIMESTAMP, varsayılan now()
 - *Kısıtlama:* UNIQUE(`gift_idea_id`, `user_id`)
 
+### 6. `Notification` (Bildirimler)
+- `id`: UUID (Primary Key)
+- `user_id`: UUID (Foreign Key -> `users.id`, ON DELETE CASCADE), boş geçilemez -- bildirimin sahibi
+- `group_id`: UUID (Foreign Key -> `groups.id`, ON DELETE CASCADE), boş geçilemez
+- `type`: VARCHAR(40), boş geçilemez -- `idea_added`, `ai_ideas_added`, `added_to_group`, `member_joined`, `winner_selected`, `group_reopened`, `event_date_changed`, `budget_changed`, `event_reminder`, `winner_overdue`
+- `params`: JSONB, boş geçilemez -- metni oluşturmak için küçük veri (`actor_name`, `idea_title`, `member_name`, `count`, `event_date`, `total_budget`, `days_left`). Metin sunucuda üretilmez; frontend `type` + `params` ile TR/EN oluşturur.
+- `dedupe_key`: VARCHAR(200), opsiyonel -- yalnızca hatırlatmalarda dolu (`reminder:3d:<grup>:<tarih>`, `reminder:1d:<grup>:<tarih>`, `overdue:<grup>:<tarih>`); anlık olaylarda NULL
+- `read_at`: TIMESTAMP, opsiyonel -- NULL ise okunmamış
+- `created_at`: TIMESTAMP, varsayılan now()
+- *Kısıtlama:* UNIQUE(`user_id`, `dedupe_key`) -- her hatırlatma kullanıcı başına bir kez (NULL anahtarlar birbirinden farklı sayılır). İndeks: (`user_id`, `created_at`).
+
 ---
 
 ## 4. Temel İş Mantığı ve Mimari Kurallar (Business Logic)
@@ -126,6 +137,14 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
    - **Güvenlik (SSRF koruması):** Sadece `http/https` şemaları kabul edilir; izinli alan adı listesi (allowlist: `ty.gl`, `trendyol.com`, `adj.st`, `amazon.com.tr`, `amzn.eu`, `hepsiburada.com` vb.) dışındaki hostlar ve özel/yerel IP aralıkları (`127.0.0.0/8`, `10.0.0.0/8`, `192.168.0.0/16`, `169.254.0.0/16`) reddedilir. Yanıt gövdesi en fazla 2 MB okunur, en fazla 10 yönlendirme takip edilir.
    - Önizleme başarısız olursa hata fırlatılmaz; kullanıcı formu elle doldurmaya devam edebilir (`{"success": true, "data": {"partial": true, ...}}`).
 
+6. **Bildirimler (kalıcı + anlık):**
+   - **Olaylar:** yeni fikir (manuel / AI), gruba eklenme ("gruba eklendin" eklenen kişiye, "yeni üye" diğerlerine), kazanan seçimi, grubun yeniden açılması, hediye tarihi ve bütçe değişikliği (değer gerçekten değiştiyse). Oy, veto, ilgi alanı ve fikir silme bildirim üretmez.
+   - **Alıcılar:** grubun üyeleri; işlemi yapan **hariç**, hedef kişi **hariç**.
+   - **Anti-Spoiler (kritik):** Bir grubun `target_user_id`'si olan kullanıcıya o gruba ait hiçbir bildirim üretilmez (alıcı seçiminde grup her olayda yeniden okunur). Hedef sonradan bağlanırsa (`PATCH /groups/:id/target`) o kullanıcının o gruba ait bildirimleri aynı transaction'da silinir. Ayrıca listeleme, sayaç ve okundu işaretleme sorguları `groups.target_user_id` ile süzülür (savunma derinliği): tabloda bir satır kalsa bile hedef onu göremez, sayaçta sayılmaz, okundu yapamaz.
+   - **Üretim noktası:** Handler başarılı işlemden sonra `controllers.RecordNotification` ile olayı bildirir; `/groups/:id/*` ve `/ideas/:id/*` rota gruplarına bağlı `middleware.Notify` yalnızca istek başarılıysa (< 400) `NotificationService.Dispatch`'i çağırır (alıcılar, Anti-Spoiler, kayıt, SSE sinyali tek yerde). Yeni bir değişiklik ucu eklendiğinde entegrasyon testi (`TestEveryMutationRouteHasANotificationDecision`) bildirim kararı verilene kadar kırılır.
+   - **Hatırlatmalar:** API içindeki zamanlayıcı (`services.ReminderScheduler`) başlangıçta bir kez, sonra saatte bir çalışır. Hediye tarihine 3 gün kala ve 1 gün kala tüm üyelere (`event_reminder`; grup tamamlanmış olsa da), tarih geçtiyse ve grup hâlâ `ACTIVE` ise yalnızca yöneticilere bir kez (`winner_overdue`). "Bugün" UTC+3'e göredir. Gün sayısına aralıkla bakılır (2–3 gün → 3 günlük, 0–1 gün → 1 günlük), böylece API kapalıyken kaçan hatırlatma açılınca kalan gün sayısıyla üretilir; `dedupe_key` tarihi içerdiği için tarih değişirse yeni tarih için yeniden hatırlatılır. Saat enjekte edilebilir (`Now`), `context` iptalinde durur.
+   - **Teslim:** Kullanıcı bazlı SSE (`GET /notifications/stream`); olay veri taşımaz, istemci `GET /notifications` ucunu yeniden çeker. Kullanıcı hub'ı da bellek içidir (grup hub'ıyla aynı `realtime.Hub` tipi, kullanıcı kimliğiyle anahtarlı); API tek replica kuralı geçerlidir.
+
 ---
 
 ## 5. REST API Uç Noktaları (REST Contract)
@@ -161,6 +180,12 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `POST /api/v1/ideas/:id/reject` -> Grup admini doğrudan hediye fikrini veto eder (`status = REJECTED`)
 - `DELETE /api/v1/ideas/:id` -> Hediyeyi kaldırır (Sadece öneren kişi veya grup admini silebilir)
 
+### Bildirimler
+- `GET /api/v1/notifications` -> `{ items: Notification[], unread_count }`. Giriş yapan kullanıcının en yeni 50 bildirimi (yeniden eskiye); öğe: `{ id, group_id, group_title, type, params, read_at?, created_at }`. `unread_count` tüm okunmamışları sayar. Kullanıcının hedef kişisi olduğu gruplara ait satırlar hiçbir zaman dönmez (Anti-Spoiler).
+- `GET /api/v1/notifications/stream` -> Server-Sent Events akışı. Kullanıcıya yeni bildirim geldiğinde ya da bildirimleri okundu yapıldığında (diğer sekmeler için) `event: changed` gönderir; olay veri taşımaz. Grup akışıyla aynı çerçeve: 25 sn'de bir `: ping`, en fazla 5 dakika ömür, `X-Accel-Buffering: no`, en fazla 2000 açık akış (aşılırsa 503), token `Authorization` başlığıyla.
+- `POST /api/v1/notifications/:id/read` -> Kullanıcının kendi bildirimini okundu yapar (idempotent; ilk okunma anı korunur). Bildirim yoksa, başka kullanıcıya aitse ya da Anti-Spoiler nedeniyle gizliyse 404; geçersiz kimlik 400.
+- `POST /api/v1/notifications/read-all` -> Kullanıcının okunmamış tüm bildirimlerini okundu yapar.
+
 ### Sistem & Test
 - `POST /api/v1/dev/reset-db` -> Tüm tabloları TRUNCATE CASCADE ile sıfırlar. Yalnızca `ALLOW_DB_RESET=true` ile açılır ve gövdede `{"confirm": "RESET"}` ister (yoksa 403 / 400). Production ortamında her durumda devre dışıdır
 - Üretim frontend'inin nginx'i `/api/`, `/health`, `/swagger/`, `/docs` yollarını API'ye iletir; `/api/v1/dev/*` büyük/küçük harften bağımsız olarak 403 ile engellenir. Geliştirmede Vite proxy'si bu ucu **engellemez**; yerel API'de çağrılırsa yerel veritabanı sıfırlanır.
@@ -190,7 +215,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
   - JSON yanıtları standart formatta dönmelidir: `{"success": true, "data": ...}` veya `{"success": false, "error": "mesaj"}`.
 
 - **React Frontend:**
-  - Düzen: üstte yüzen bar (işaret, grup seçici, dil, hesap menüsü); grup sayfasında bütçe/kişi başı/ilgi alanı kutuları, ortada oylama kartları, sağda üyeler. Mobil öncelikli.
+  - Düzen: üstte yüzen bar (işaret, grup seçici, dil, bildirim zili, hesap menüsü); grup sayfasında bütçe/kişi başı/ilgi alanı kutuları, ortada oylama kartları, sağda üyeler. Mobil öncelikli.
   - API istekleri `src/api/` katmanında `fetch` ile yönetilir (`{success, data | error}` zarfı, Bearer token, 401'de oturum kapanır). Sunucu durumu TanStack Query ile tutulur.
   - Renkler yalnızca `src/index.css` token'larından gelir; bileşenlerde sabit renk yazılmaz. Ana renk iki temada kobalt `#2f5bff`, para alanları hardal `#ffc93c`, koyu tema "Nötr grafit". Metin kontrastı en az 4.5:1 tutulur.
   - Tüm metinler i18next sözlüklerinde (TR varsayılan, EN). Anti-Spoiler 403'ünde özel "Bu bir sürpriz!" ekranı gösterilir.

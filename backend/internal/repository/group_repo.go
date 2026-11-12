@@ -231,6 +231,7 @@ func (r *groupRepository) UpdateBudget(groupID uuid.UUID, budget decimal.Decimal
 }
 
 // SetTargetUser locks the group row so the guard sees the current target and membership.
+// The new target's notifications for this group are deleted in the same transaction.
 func (r *groupRepository) SetTargetUser(groupID, targetID uuid.UUID, guard func(current *uuid.UUID, isMember bool) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var group models.Group
@@ -246,7 +247,12 @@ func (r *groupRepository) SetTargetUser(groupID, targetID uuid.UUID, guard func(
 		if err := guard(group.TargetUserID, memberCount > 0); err != nil {
 			return err
 		}
-		return tx.Model(&models.Group{}).Where("id = ?", groupID).Update("target_user_id", targetID).Error
+		if err := tx.Model(&models.Group{}).Where("id = ?", groupID).Update("target_user_id", targetID).Error; err != nil {
+			return err
+		}
+		// Anti-Spoiler: hedef kişinin bu gruba ait bildirimleri aynı transaction'da silinir;
+		// bağlandığı andan itibaren zilinde bu gruptan hiçbir iz kalmaz.
+		return tx.Where("group_id = ? AND user_id = ?", groupID, targetID).Delete(&models.Notification{}).Error
 	})
 }
 

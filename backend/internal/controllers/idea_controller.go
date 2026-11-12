@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/MSheker20/CovertGift/backend/internal/models"
 	"github.com/MSheker20/CovertGift/backend/internal/repository"
 	"github.com/MSheker20/CovertGift/backend/internal/services"
 	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
@@ -114,6 +115,10 @@ func (ctl *IdeaController) AddIdea(c *gin.Context) {
 		return
 	}
 
+	RecordNotification(c, services.NotificationEvent{
+		GroupID: groupID, Type: models.NotificationIdeaAdded,
+		Params: models.NotificationParams{"idea_title": idea.Title},
+	})
 	RespondCreated(c, idea)
 }
 
@@ -281,6 +286,10 @@ func (ctl *IdeaController) GenerateAI(c *gin.Context) {
 		return
 	}
 
+	RecordNotification(c, services.NotificationEvent{
+		GroupID: groupID, Type: models.NotificationAIIdeasAdded,
+		Params: models.NotificationParams{"count": len(ideas)},
+	})
 	RespondCreated(c, ideas)
 }
 

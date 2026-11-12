@@ -1,16 +1,22 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/MSheker20/CovertGift/backend/internal/config"
 	"github.com/MSheker20/CovertGift/backend/internal/controllers"
 	"github.com/MSheker20/CovertGift/backend/internal/logging"
 	"github.com/MSheker20/CovertGift/backend/internal/realtime"
+	"github.com/MSheker20/CovertGift/backend/internal/repository"
+	"github.com/MSheker20/CovertGift/backend/internal/services"
 	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
@@ -80,14 +86,52 @@ func main() {
 		slog.Warn("GEMINI_API_KEY tanımlı değil; AI hediye üretimi devre dışı")
 	}
 
-	r := newRouter(db, cfg, geminiClient, realtime.NewHub(realtimeMaxStreams))
+	// 5. Katmanları, rotaları kur. İki ayrı hub: grup sayfaları ve kullanıcı bildirimleri.
+	userHub := realtime.NewHub(realtimeMaxStreams)
+	r := newRouter(db, cfg, geminiClient, realtime.NewHub(realtimeMaxStreams), userHub)
 
-	// 5. Katmanları, rotaları kur ve sunucuyu ayağa kaldır
+	// SIGINT/SIGTERM gelince zamanlayıcı durur ve sunucu kapanır.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// 6. Hatırlatma zamanlayıcısı: başlangıçta bir kez, sonra saatte bir. API tek kopya
+	// çalıştığı için tek zamanlayıcı vardır; dedupe_key yine de çift üretimi engeller.
+	scheduler := services.NewReminderScheduler(repository.NewNotificationRepository(db), userHub)
+	schedulerDone := make(chan struct{})
+	go func() {
+		defer close(schedulerDone)
+		scheduler.Run(ctx)
+	}()
+
+	// 7. Sunucuyu ayağa kaldır. WriteTimeout bilerek yok: SSE akışları uzun süre açık kalır.
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r, ReadHeaderTimeout: 10 * time.Second}
+	serverErr := make(chan error, 1)
+	go func() { serverErr <- srv.ListenAndServe() }()
 	slog.Info("CovertGift API çalışıyor", "port", cfg.Port, "env", cfg.AppEnv)
-	if err := r.Run(":" + cfg.Port); err != nil {
-		fatal("sunucu başlatılamadı", err)
+
+	select {
+	case err := <-serverErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			fatal("sunucu başlatılamadı", err)
+		}
+	case <-ctx.Done():
+		slog.Info("kapanış sinyali alındı; sunucu kapatılıyor")
+	}
+	stop()
+	<-schedulerDone
+
+	// Açık SSE akışları kendiliğinden bitmez; kısa bir süre beklenir, sonra bağlantılar kesilir.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		if closeErr := srv.Close(); closeErr != nil {
+			slog.Warn("sunucu kapatılırken hata", "error", closeErr)
+		}
 	}
 }
+
+// shutdownGrace kapanışta süren isteklerin bitmesi için tanınan süredir.
+const shutdownGrace = 5 * time.Second
 
 // realtimeMaxStreams aynı anda açık SSE bağlantısı sınırıdır (kaynak tükenmesine karşı).
 const realtimeMaxStreams = 2000

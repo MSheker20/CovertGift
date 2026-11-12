@@ -27,7 +27,9 @@ func migrate(db *gorm.DB) error {
 // newRouter katmanları bağlar ve tüm rotaları kurar. main ve entegrasyon testleri
 // aynı kurulumu kullanır; böylece testler gerçek middleware zincirini dener.
 // geminiClient nil olabilir (AI üretimi devre dışı).
-func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub *realtime.Hub) *gin.Engine {
+// hub grup sayfası akışlarını (grup kimliğiyle), userHub bildirim akışlarını (kullanıcı
+// kimliğiyle) taşır.
+func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub, userHub *realtime.Hub) *gin.Engine {
 	sqlDB, err := db.DB()
 	if err != nil {
 		slog.Error("veritabanı havuzu alınamadı", "error", err)
@@ -38,15 +40,18 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub
 	userRepo := repository.NewUserRepository(db)
 	groupRepo := repository.NewGroupRepository(db)
 	ideaRepo := repository.NewIdeaRepository(db)
+	notificationRepo := repository.NewNotificationRepository(db)
 
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
 	groupService := services.NewGroupService(groupRepo, userRepo)
 	ideaService := services.NewIdeaService(ideaRepo, groupRepo, geminiClient)
+	notificationService := services.NewNotificationService(notificationRepo, groupRepo, userRepo, userHub)
 
 	authController := controllers.NewAuthController(authService)
 	groupController := controllers.NewGroupController(groupService)
 	ideaController := controllers.NewIdeaController(ideaService)
-	eventsController := controllers.NewEventsController(hub)
+	eventsController := controllers.NewEventsController(hub, userHub)
+	notificationController := controllers.NewNotificationController(notificationService)
 	devController := controllers.NewDevController(db, cfg.AppEnv, cfg.AllowDBReset)
 	if cfg.AllowDBReset && cfg.AppEnv != "production" {
 		slog.Warn("ALLOW_DB_RESET=true: POST /api/v1/dev/reset-db açık ve tüm tabloları silebilir")
@@ -91,13 +96,19 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub
 			protected.PUT("/me/password", authController.ChangePassword)
 			protected.DELETE("/me", authController.DeleteMe)
 
+			// Bildirimler (kullanıcıya özel; Anti-Spoiler süzgeci sorguda)
+			protected.GET("/notifications", notificationController.List)
+			protected.GET("/notifications/stream", eventsController.NotificationStream)
+			protected.POST("/notifications/read-all", notificationController.MarkAllRead)
+			protected.POST("/notifications/:id/read", notificationController.MarkRead)
+
 			// Genel Grup İşlemleri
 			protected.POST("/groups", groupController.CreateGroup)
 			protected.GET("/groups", groupController.GetUserGroups)
 
 			// Belirli Bir Gruba Ait Rotalar (Anti-Spoiler + Üyelik Denetimli)
 			groupSpecific := protected.Group("/groups/:id")
-			groupSpecific.Use(middleware.GroupAccess(groupRepo), middleware.PublishGroupChanges(hub))
+			groupSpecific.Use(middleware.GroupAccess(groupRepo), middleware.PublishGroupChanges(hub), middleware.Notify(notificationService))
 			{
 				groupSpecific.GET("", groupController.GetGroupDetail)
 				groupSpecific.GET("/events", eventsController.Stream)
@@ -120,7 +131,7 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub
 
 			// Fikir ve Oylama Rotaları
 			ideasGroup := protected.Group("/ideas/:id")
-			ideasGroup.Use(middleware.PublishIdeaChanges(hub, ideaRepo))
+			ideasGroup.Use(middleware.PublishIdeaChanges(hub, ideaRepo), middleware.Notify(notificationService))
 			{
 				ideasGroup.POST("/vote", ideaController.Vote)
 				ideasGroup.DELETE("/vote", ideaController.Unvote)

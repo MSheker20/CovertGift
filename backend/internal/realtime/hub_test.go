@@ -45,3 +45,71 @@ func TestHubDeliversCoalescesAndUnsubscribes(t *testing.T) {
 	}
 	h.Publish(g1) // abonesiz grup
 }
+
+// Bildirim zili: Hub kullanıcı kimliğiyle anahtarlanır. Aynı kullanıcının iki sekmesi de
+// sinyal alır, başka kullanıcı almaz; bir sekme kapanınca diğeri almaya devam eder.
+func TestHubPerUserFanOut(t *testing.T) {
+	h := NewHub(10)
+	alice, bob := uuid.New(), uuid.New()
+	tab1, cancel1, err := h.Subscribe(alice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab2, cancel2, _ := h.Subscribe(alice)
+	other, cancelOther, _ := h.Subscribe(bob)
+	defer cancel2()
+	defer cancelOther()
+
+	got := func(ch <-chan struct{}) bool {
+		select {
+		case <-ch:
+			return true
+		default:
+			return false
+		}
+	}
+	h.Publish(alice)
+	if !got(tab1) || !got(tab2) {
+		t.Fatal("kullanıcının tüm sekmeleri sinyal almadı")
+	}
+	if got(other) {
+		t.Fatal("başka kullanıcı sinyal aldı")
+	}
+
+	cancel1()
+	h.Publish(alice)
+	if got(tab1) {
+		t.Fatal("kapanan sekme sinyal aldı")
+	}
+	if !got(tab2) {
+		t.Fatal("açık kalan sekme sinyal almadı")
+	}
+	if h.Count() != 2 {
+		t.Fatalf("abonelik sayısı %d, beklenen 2", h.Count())
+	}
+}
+
+// Eşzamanlı abone ol / yayınla / bırak yarışında kilitlenme ve sızıntı olmamalı (-race ile).
+func TestHubConcurrentUse(t *testing.T) {
+	h := NewHub(1000)
+	key := uuid.New()
+	done := make(chan struct{})
+	for i := 0; i < 50; i++ {
+		go func() {
+			defer func() { done <- struct{}{} }()
+			_, cancel, err := h.Subscribe(key)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			h.Publish(key)
+			cancel()
+		}()
+	}
+	for i := 0; i < 50; i++ {
+		<-done
+	}
+	if h.Count() != 0 {
+		t.Fatalf("abonelik sızdı: %d", h.Count())
+	}
+}
