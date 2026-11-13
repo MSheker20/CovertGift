@@ -61,7 +61,7 @@ func (r *inviteRepository) GetActive(groupID uuid.UUID, now time.Time) (*models.
 
 func lockGroup(tx *gorm.DB, groupID uuid.UUID) (*models.Group, error) {
 	var group models.Group
-	if err := tx.Select("id", "target_user_id").Clauses(clause.Locking{Strength: "UPDATE"}).
+	if err := tx.Select("id", "target_user_id").Clauses(clause.Locking{Strength: lockNoKeyUpdate}).
 		First(&group, "id = ?", groupID).Error; err != nil {
 		return nil, err
 	}
@@ -141,6 +141,10 @@ func (r *inviteRepository) Join(hash string, userID uuid.UUID, now time.Time) (*
 			return nil
 		}
 		if err := tx.Create(&models.GroupMember{GroupID: invite.GroupID, UserID: userID, Role: "member"}).Error; err != nil {
+			return err
+		}
+		// MULTI grup: yeni üye, alıcısı kendisi olmayan her havuza varsayılan olarak katkı verir.
+		if err := AddContributionsForMember(tx, invite.GroupID, userID); err != nil {
 			return err
 		}
 		result.Joined = true

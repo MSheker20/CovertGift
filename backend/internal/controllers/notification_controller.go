@@ -42,6 +42,24 @@ func groupBeforeRequest(c *gin.Context) *models.Group {
 	return group
 }
 
+// Context anahtarları: PoolAccess middleware'inin işlemden ÖNCE okuduğu havuz ve çağıranın
+// yönetim yetkisi.
+const (
+	CurrentPoolKey          = "currentPool"
+	CurrentPoolCanManageKey = "currentPoolCanManage"
+)
+
+// poolBeforeRequest PoolAccess middleware'inin işlemden ÖNCE okuduğu havuzu döner; bütçe ve
+// tarih gibi alanların gerçekten değişip değişmediğini anlamak için kullanılır.
+func poolBeforeRequest(c *gin.Context) *models.GiftPool {
+	val, exists := c.Get(CurrentPoolKey)
+	if !exists {
+		return nil
+	}
+	pool, _ := val.(*models.GiftPool)
+	return pool
+}
+
 // NotificationController bildirim zili uçlarını yönetir.
 type NotificationController struct {
 	service services.NotificationService

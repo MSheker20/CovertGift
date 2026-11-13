@@ -23,10 +23,15 @@ func NewGroupController(groupService services.GroupService) *GroupController {
 
 // CreateGroupRequest yeni grup açma isteği için DTO. Açıklama kırpıldıktan sonra en fazla
 // 1000 karakterdir; servis denetler (düzenleme ucuyla aynı kural).
+//
+// mode verilmezse SINGLE'dır (eski istemciler aynı davranır). SINGLE'da target_person_name
+// zorunludur. MULTI'de target_*, total_budget (> 0) ve event_date gönderilemez (400); alıcılar
+// sonradan POST /groups/:id/recipients ile seçilir.
 type CreateGroupRequest struct {
 	Title            string          `json:"title" binding:"required,min=2,max=150" example:"Ahmet'in 30. Yaş Sürprizi"`
 	Description      string          `json:"description" maxLength:"1000" example:"Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu"`
-	TargetPersonName string          `json:"target_person_name" binding:"required,min=2,max=100" example:"Ahmet"`
+	Mode             string          `json:"mode" binding:"omitempty,oneof=SINGLE MULTI" enums:"SINGLE,MULTI" example:"SINGLE"`
+	TargetPersonName string          `json:"target_person_name" binding:"omitempty,min=2,max=100" example:"Ahmet"`
 	TargetInterests  string          `json:"target_interests" binding:"max=2000" example:"Kamp, 3. nesil kahve demleme, trekking, outdoor"`
 	TargetUserID     *uuid.UUID      `json:"target_user_id,omitempty" format:"uuid" example:"b49770ed-7518-40e6-839d-5810f79bbd86"`
 	TargetEmail      string          `json:"target_email,omitempty" binding:"omitempty,email,max=150" example:"ahmet@demo.com"`
@@ -74,7 +79,7 @@ type UpdateBudgetRequest struct {
 
 // CreateGroup yeni grup oluşturur
 // @Summary      Yeni Hediye Grubu Oluştur
-// @Description  Yeni bir sürpriz hediye grubu açar ve oluşturan kullanıcıyı atomik transaction ile 'admin' rolüyle üye yapar. Hedef kişi isteğe bağlı `target_email` ile seçilir; sunucu kayıtlı kullanıcıyı bulur ve `target_user_id` alanını doldurur. `target_email` ve `target_user_id` birlikte gönderilemez. Hedef seçilmezse yalnızca `target_person_name` kullanılır ve Anti-Spoiler devreye girmez.
+// @Description  Yeni bir sürpriz hediye grubu açar ve oluşturan kullanıcıyı atomik transaction ile 'admin' rolüyle üye yapar. `mode` SINGLE (varsayılan, tek kişi için) veya MULTI (birden çok kişi için; her alıcının havuzu ayrı). SINGLE'da `target_person_name` zorunludur; hedef kişi isteğe bağlı `target_email` ile seçilir; sunucu kayıtlı kullanıcıyı bulur ve `target_user_id` alanını doldurur. `target_email` ve `target_user_id` birlikte gönderilemez. Hedef seçilmezse yalnızca `target_person_name` kullanılır ve Anti-Spoiler devreye girmez. MULTI'de hedef alanları, `total_budget` > 0 ve `event_date` 400 döner; alıcılar sonradan `POST /groups/{id}/recipients` ile seçilir. Tür sonradan değişmez.
 // @Tags         Hediye Grupları (Groups)
 // @Accept       json
 // @Produce      json
@@ -96,6 +101,29 @@ func (ctl *GroupController) CreateGroup(c *gin.Context) {
 	userID, ok := getUserID(c)
 	if !ok {
 		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+
+	if req.Mode == models.GroupModeMulti {
+		if req.TargetPersonName != "" || req.TargetInterests != "" || req.TargetUserID != nil || req.TargetEmail != "" ||
+			!req.TotalBudget.IsZero() || req.EventDate != nil {
+			RespondErr(c, http.StatusBadRequest, services.ErrMultiTargetFields.Error())
+			return
+		}
+		group, err := ctl.groupService.CreateMultiGroup(userID, req.Title, req.Description)
+		if err != nil {
+			if errors.Is(err, services.ErrInvalidDescription) {
+				RespondErr(c, http.StatusBadRequest, err.Error())
+				return
+			}
+			RespondInternal(c, "Grup oluşturulurken bir hata oluştu", err)
+			return
+		}
+		RespondCreated(c, group)
+		return
+	}
+	if req.TargetPersonName == "" {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: target_person_name alanı zorunludur (2–100 karakter)")
 		return
 	}
 
@@ -128,7 +156,7 @@ func (ctl *GroupController) CreateGroup(c *gin.Context) {
 
 // GetUserGroups kullanıcının dahil olduğu grupları listeler
 // @Summary      Kullanıcının Gruplarını Listele (Anti-Spoiler Korumalı)
-// @Description  Giriş yapmış kullanıcının üye olduğu grupları listeler. Anti-Spoiler kuralı gereğince kullanıcının hedef kişi olduğu sürpriz gruplar bu listede ASLA yer almaz. Her grupta member_count, idea_count (reddedilmemiş fikirler) ve çağıran kullanıcıya özel pending_votes (açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler) bulunur.
+// @Description  Giriş yapmış kullanıcının üye olduğu grupları listeler. Anti-Spoiler kuralı gereğince kullanıcının hedef kişi olduğu sürpriz gruplar bu listede ASLA yer almaz. Her grupta member_count, idea_count (reddedilmemiş fikirler) ve çağıran kullanıcıya özel pending_votes (açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler) bulunur. MULTI gruplarda ayrıca recipients ve next_event_date bulunur; sayaçlar, status/completed_at ve next_event_date yalnızca çağıranın alıcısı olmadığı havuzlardan hesaplanır (Anti-Spoiler).
 // @Tags         Hediye Grupları (Groups)
 // @Produce      json
 // @Security     BearerAuth
@@ -158,7 +186,7 @@ func (ctl *GroupController) GetUserGroups(c *gin.Context) {
 
 // GetGroupDetail grubun detaylarını, bütçesini ve üyelerini getirir
 // @Summary      Grup Detayı ve Dinamik Kişi Başı Bütçe (Anti-Spoiler Korumalı)
-// @Description  Grup detayını, aktif üye listesini, toplam bütçeyi ve anlık hesaplanan kişi başı bütçeyi getirir. Hedef kişi bu uç noktaya erişmeye çalışırsa 403 Forbidden alır.
+// @Description  Grup detayını, aktif üye listesini, toplam bütçeyi ve anlık hesaplanan kişi başı bütçeyi getirir. Hedef kişi bu uç noktaya erişmeye çalışırsa 403 Forbidden alır. MULTI grupta grup düzeyindeki bütçe/ilgi alanı boştur ve `pools` dizisi döner: çağıranın kendi havuzu yalnızca `{id, recipient, is_mine: true, locked: true}`, diğerleri OpenPool.
 // @Tags         Hediye Grupları (Groups)
 // @Produce      json
 // @Security     BearerAuth

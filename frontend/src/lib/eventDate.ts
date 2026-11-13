@@ -1,4 +1,4 @@
-import type { Group } from '@/api/types'
+import type { Group, GroupListItem } from '@/api/types'
 import i18n from '@/i18n'
 
 // Hediye tarihi "YYYY-MM-DD" takvim günüdür; saat dilimi taşımaz. Hesaplar kullanıcının
@@ -7,6 +7,12 @@ import i18n from '@/i18n'
 function parts(date: string): [number, number, number] | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
   return m ? [Number(m[1]), Number(m[2]) - 1, Number(m[3])] : null
+}
+
+// Listede gösterilecek hediye tarihi: SINGLE'da grubun tarihi, MULTI'de görebildiğim aktif
+// havuzların en yakın tarihi (sunucu hesaplar).
+export function effectiveEventDate(g: Pick<GroupListItem, 'event_date' | 'next_event_date'>): string | undefined {
+  return g.event_date ?? g.next_event_date
 }
 
 // Bugünden hedef güne kalan gün; geçmiş tarihlerde negatif.
@@ -54,14 +60,18 @@ export function eventDateBounds(now: Date = new Date()) {
 
 // Yaklaşan tarihi olan açık gruplar en üstte (en yakın önce); ardından diğer açık gruplar,
 // en sonda tamamlananlar. Grup içindeki sıra sunucunun sırasıdır.
-export function sortByUpcoming<T extends Group>(groups: T[], now: Date = new Date()): T[] {
-  const bucket = (g: Group) => {
+export function sortByUpcoming<T extends Group & { next_event_date?: string }>(groups: T[], now: Date = new Date()): T[] {
+  const bucket = (g: T) => {
     if (g.status === 'COMPLETED') return 2
-    const d = g.event_date ? daysUntil(g.event_date, now) : null
+    const date = effectiveEventDate(g)
+    const d = date ? daysUntil(date, now) : null
     return d !== null && d >= 0 ? 0 : 1
   }
   return groups
-    .map((g, i) => ({ g, i, b: bucket(g), d: g.event_date ? (daysUntil(g.event_date, now) ?? 0) : 0 }))
+    .map((g, i) => {
+      const date = effectiveEventDate(g)
+      return { g, i, b: bucket(g), d: date ? (daysUntil(date, now) ?? 0) : 0 }
+    })
     .sort((x, y) => x.b - y.b || (x.b === 0 ? x.d - y.d : 0) || x.i - y.i)
     .map((x) => x.g)
 }

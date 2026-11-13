@@ -1,5 +1,6 @@
 import { api, apiBlob } from './client'
 import type {
+  ContributionResult,
   CoverUploadResult,
   CreateGroupInput,
   CreateIdeaInput,
@@ -15,6 +16,9 @@ import type {
   LinkPreview,
   LoginResponse,
   NotificationList,
+  OpenPool,
+  PoolDetail,
+  PoolView,
   UpdateProfileResponse,
   User,
 } from './types'
@@ -96,6 +100,61 @@ export const ideasApi = {
   remove: (ideaId: string) => api<unknown>(`/ideas/${ideaId}`, { method: 'DELETE' }),
 }
 
+// MULTI havuzlar. Hepsi OpenPool ister: kendi havuzum (LockedPool) için istek yapmak tür düzeyinde
+// engellenir, çünkü sunucu o istekleri zaten 403 + sürpriz mesajıyla reddeder.
+// Yalnızca açık (kilitli olmayan) havuz: LockedPool derleme hatası verir.
+export type PoolRef = Pick<OpenPool, 'id' | 'locked'>
+
+const poolPath = (groupId: string, pool: PoolRef) => `/groups/${groupId}/pools/${pool.id}`
+
+export const poolsApi = {
+  detail: (groupId: string, pool: PoolRef, signal?: AbortSignal) =>
+    api<PoolDetail>(poolPath(groupId, pool), { signal }),
+  ideas: (groupId: string, pool: PoolRef, signal?: AbortSignal) =>
+    api<Idea[]>(`${poolPath(groupId, pool)}/ideas`, { signal }),
+  createIdea: (groupId: string, pool: PoolRef, input: CreateIdeaInput) =>
+    api<Idea>(`${poolPath(groupId, pool)}/ideas`, { method: 'POST', body: input }),
+  previewLink: (groupId: string, url: string, signal?: AbortSignal) =>
+    api<LinkPreview>(`/groups/${groupId}/ideas/preview-link`, { method: 'POST', body: { url }, signal }),
+  generateAI: (groupId: string, pool: PoolRef) =>
+    api<Idea[]>(`${poolPath(groupId, pool)}/ideas/generate-ai`, { method: 'POST' }),
+  addInterest: (groupId: string, pool: PoolRef, interest: string) =>
+    api<{ interests: string[] }>(`${poolPath(groupId, pool)}/interests`, { method: 'POST', body: { interest } }),
+  removeInterest: (groupId: string, pool: PoolRef, interest: string) =>
+    api<{ interests: string[] }>(`${poolPath(groupId, pool)}/interests`, { method: 'DELETE', body: { interest } }),
+  updateBudget: (groupId: string, pool: PoolRef, totalBudget: string) =>
+    api<unknown>(`${poolPath(groupId, pool)}/budget`, { method: 'PATCH', body: { total_budget: totalBudget } }),
+  updateEventDate: (groupId: string, pool: PoolRef, eventDate: string | null) =>
+    api<unknown>(`${poolPath(groupId, pool)}/event-date`, { method: 'PATCH', body: { event_date: eventDate } }),
+  selectWinners: (groupId: string, pool: PoolRef, ideaIds: string[]) =>
+    api<unknown>(`${poolPath(groupId, pool)}/winner`, { method: 'POST', body: { idea_ids: ideaIds } }),
+  reopen: (groupId: string, pool: PoolRef) =>
+    api<unknown>(`${poolPath(groupId, pool)}/winner`, { method: 'DELETE' }),
+  // Yalnızca kendi bayrağım. Havuz tamamlanmışken 409.
+  setContribution: (groupId: string, pool: PoolRef, contributing: boolean) =>
+    api<ContributionResult>(`${poolPath(groupId, pool)}/contribution`, { method: 'PUT', body: { contributing } }),
+}
+
+// Yalnızca grup yöneticisi. userId hediye alacak kişinin hesap kimliğidir.
+export const recipientsApi = {
+  add: (groupId: string, userId: string, managerUserId?: string) =>
+    api<{ pool: PoolView }>(`/groups/${groupId}/recipients`, {
+      method: 'POST',
+      body: { user_id: userId, ...(managerUserId ? { manager_user_id: managerUserId } : {}) },
+    }),
+  // Yalnızca yöneticinin kendi havuzu için anlamlıdır (başkası için yalnızca null kabul edilir).
+  setManager: (groupId: string, userId: string, managerUserId: string | null) =>
+    api<{ pool_id: string }>(`/groups/${groupId}/recipients/${userId}/manager`, {
+      method: 'PATCH',
+      body: { manager_user_id: managerUserId },
+    }),
+  // Havuzda fikir varsa (ya da yönetici kendi havuzunu kaldırıyorsa) confirm olmadan 409 döner.
+  remove: (groupId: string, userId: string, confirm: boolean) =>
+    api<{ message: string }>(`/groups/${groupId}/recipients/${userId}${confirm ? '?confirm=true' : ''}`, {
+      method: 'DELETE',
+    }),
+}
+
 export const notificationsApi = {
   // En yeni 50 bildirim ve okunmamış sayısı. Hedefi olduğum grupların bildirimleri hiç gelmez.
   list: (signal?: AbortSignal) => api<NotificationList>('/notifications', { signal }),
@@ -124,6 +183,9 @@ export const queryKeys = {
   invite: (groupId: string) => ['groups', groupId, 'invite'] as const,
   invitePreview: (token: string) => ['invites', token] as const,
   ideas: (groupId: string) => ['groups', groupId, 'ideas'] as const,
+  // MULTI havuz sorguları da ['groups', id] altındadır: SSE ve grup geçersiz kılmaları onları da yeniler.
+  pool: (groupId: string, poolId: string) => ['groups', groupId, 'pools', poolId] as const,
+  poolIdeas: (groupId: string, poolId: string) => ['groups', groupId, 'pools', poolId, 'ideas'] as const,
   // Bilerek ['groups'] altında değil: grup listesi geçersiz kılındığında görseller yeniden
   // indirilmez. Sürüm değişince anahtar değişir ve yeni görsel çekilir.
   cover: (groupId: string, version: string) => ['cover', groupId, version] as const,
@@ -133,6 +195,9 @@ export const queryKeys = {
 // iyimser güncelleme eski bir yanıtla ezilmez.
 export const mutationKeys = {
   ideas: (groupId: string) => ['ideas', groupId] as const,
+  poolIdeas: (groupId: string, poolId: string) => ['ideas', groupId, 'pool', poolId] as const,
+  // Katkı anahtarı: bu grubun tüm havuzlarındaki katkı işlemleri (periyodik yenilemeyi durdurur).
+  contribution: (groupId: string) => ['pool-contribution', groupId] as const,
 }
 
 // Grup sayfası açıkken değişiklikler SSE ile anında gelir. Bağlantı yoksa (proxy, ağ)

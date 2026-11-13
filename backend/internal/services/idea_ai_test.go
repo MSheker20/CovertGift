@@ -19,10 +19,13 @@ type aiIdeaRepository struct {
 	written            []models.GiftIdea
 }
 
-func (r *aiIdeaRepository) GetGroupIdeaTitlesByStatus(uuid.UUID) ([]string, []string, error) {
+func (r *aiIdeaRepository) GetIdeaTitlesByStatus(repository.IdeaScope) ([]string, []string, error) {
 	return r.existing, r.rejected, nil
 }
-func (r *aiIdeaRepository) CreateIdeasBatch(ideas []models.GiftIdea) error {
+func (r *aiIdeaRepository) CreateIdeas(_ repository.IdeaScope, ideas []models.GiftIdea, guard func(string) error) error {
+	if err := guard(models.GroupStatusActive); err != nil {
+		return err
+	}
 	r.written = ideas
 	return nil
 }
@@ -55,7 +58,7 @@ func TestAIRejectsDuplicatesAndInvalidProductsBeforeSaving(t *testing.T) {
 		aiProduct("AeroPress Go", "AeroPress Go Kahve Seti"),
 		aiProduct("AeroPress taşınabilir set", "AeroPress Go Kahve Seti"),
 	}}
-	got, err := NewIdeaService(ideas, groups, generator).GenerateAIIdeas(context.Background(), id, user)
+	got, err := NewIdeaService(ideas, groups, nil, generator).GenerateAIIdeas(context.Background(), repository.GroupScope(id), user)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +87,7 @@ func TestAIStillProtectsSurpriseAndMembership(t *testing.T) {
 				groups.member = &models.GroupMember{Role: "admin"}
 			}
 			generator := &aiGenerator{}
-			_, err := NewIdeaService(&aiIdeaRepository{}, groups, generator).GenerateAIIdeas(context.Background(), id, user)
+			_, err := NewIdeaService(&aiIdeaRepository{}, groups, nil, generator).GenerateAIIdeas(context.Background(), repository.GroupScope(id), user)
 			if !errors.Is(err, tc.want) || generator.calls != 0 {
 				t.Fatalf("err = %v, generator calls = %d", err, generator.calls)
 			}
@@ -94,7 +97,7 @@ func TestAIStillProtectsSurpriseAndMembership(t *testing.T) {
 
 func TestAIPromptPreservesLocalMarketAndBudgetRules(t *testing.T) {
 	s := &ideaService{}
-	prompt := s.buildAIPrompt(&models.Group{TargetInterests: "Kahve\nKamp", TotalBudget: decimal.NewFromInt(3000)}, []string{"Termos"}, []string{"Çadır"})
+	prompt := s.buildAIPrompt(giftScope{Group: &models.Group{TargetInterests: "Kahve\nKamp", TotalBudget: decimal.NewFromInt(3000)}}, []string{"Termos"}, []string{"Çadır"})
 	for _, want := range []string{"Türkiye", "TRY/TL", "Kahve\nKamp", "3000.00 TL", "Termos", "Çadır", "öneri sayısına bölme", "ürün uydurma"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("prompt missing %q", want)
@@ -111,7 +114,7 @@ func TestUnverifiedSuggestionsAreLabelledAndRetainFilters(t *testing.T) {
 	duplicate := item
 	duplicate.Title, duplicate.SearchQuery = "Kamp Termosu", "Kamp Termosu"
 	generator := &aiGenerator{items: []gemini.AIIdeaSuggestion{duplicate, item, item}}
-	got, err := NewIdeaService(ideas, groups, generator).GenerateAIIdeas(context.Background(), id, user)
+	got, err := NewIdeaService(ideas, groups, nil, generator).GenerateAIIdeas(context.Background(), repository.GroupScope(id), user)
 	if err != nil || len(got) != 1 || len(ideas.written) != 1 {
 		t.Fatalf("got=%+v err=%v", got, err)
 	}

@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { formatRelativeTime } from '@/lib/format'
-import { badgeLabel, notificationText } from '@/lib/notifications'
+import { badgeLabel, notificationPath, notificationText } from '@/lib/notifications'
 import { cn } from '@/lib/utils'
 
 const ICONS: Record<string, LucideIcon> = {
@@ -94,7 +94,7 @@ export function NotificationBell() {
 
   const open = (n: AppNotification) => {
     if (!n.read_at) markRead.mutate(n.id)
-    void navigate(`/groups/${n.group_id}`)
+    void navigate(notificationPath(n))
   }
 
   return (

@@ -44,6 +44,17 @@ definitions:
     required:
     - email
     type: object
+  controllers.AddRecipientRequest:
+    properties:
+      manager_user_id:
+        format: uuid
+        type: string
+      user_id:
+        format: uuid
+        type: string
+    required:
+    - user_id
+    type: object
   controllers.ChangePasswordRequest:
     properties:
       current_password:
@@ -59,6 +70,14 @@ definitions:
     required:
     - current_password
     - new_password
+    type: object
+  controllers.ContributionRequest:
+    properties:
+      contributing:
+        example: false
+        type: boolean
+    required:
+    - contributing
     type: object
   controllers.CoverPolicyResponse:
     properties:
@@ -88,6 +107,12 @@ definitions:
         example: "2026-12-31"
         format: date
         type: string
+      mode:
+        enum:
+        - SINGLE
+        - MULTI
+        example: SINGLE
+        type: string
       target_email:
         example: ahmet@demo.com
         maxLength: 150
@@ -114,7 +139,6 @@ definitions:
         example: 2500
         type: number
     required:
-    - target_person_name
     - title
     type: object
   controllers.CreateInviteRequest:
@@ -239,6 +263,12 @@ definitions:
         type: array
     required:
     - idea_ids
+    type: object
+  controllers.SetManagerRequest:
+    properties:
+      manager_user_id:
+        format: uuid
+        type: string
     type: object
   controllers.UpdateBudgetRequest:
     properties:
@@ -382,6 +412,11 @@ definitions:
       is_over_budget:
         description: Bütçeyi aşıyor mu uyarısı
         type: boolean
+      pool_id:
+        description: PoolID fikrin ait olduğu havuzdur (yalnızca MULTI gruplarda).
+          SINGLE grubun fikirlerinde NULL.
+        format: uuid
+        type: string
       product_url:
         description: Sadece MANUAL eklemelerde dolu
         type: string
@@ -429,6 +464,14 @@ definitions:
           seferlik.
       id:
         type: string
+      mode:
+        description: |-
+          Mode grup türüdür (SINGLE | MULTI); kurulurken seçilir, değişmez. Eski satırlar SINGLE'dır.
+          MULTI grupta hedef, bütçe, ilgi alanı ve tarih alanları boştur; bunlar havuzlardadır.
+        enum:
+        - SINGLE
+        - MULTI
+        type: string
       status:
         description: 'ACTIVE: oylama sürüyor. COMPLETED: admin kazananı seçti; fikir
           ve oy işlemleri kapalı.'
@@ -475,6 +518,18 @@ definitions:
       name:
         type: string
     type: object
+  repository.Contributor:
+    properties:
+      contributing:
+        example: true
+        type: boolean
+      name:
+        example: Zeynep Kaya
+        type: string
+      user_id:
+        format: uuid
+        type: string
+    type: object
   repository.IdeaWithScore:
     properties:
       ai_search_suggestions:
@@ -505,6 +560,11 @@ definitions:
       my_vote:
         description: 'Kullanıcının oyu: 1, -1 veya 0'
         type: integer
+      pool_id:
+        description: PoolID fikrin ait olduğu havuzdur (yalnızca MULTI gruplarda).
+          SINGLE grubun fikirlerinde NULL.
+        format: uuid
+        type: string
       product_url:
         description: Sadece MANUAL eklemelerde dolu
         type: string
@@ -535,6 +595,10 @@ definitions:
         type: string
       params:
         type: object
+      pool_id:
+        description: PoolID olay MULTI gruptaki bir havuza aitse doludur.
+        format: uuid
+        type: string
       read_at:
         type: string
       type:
@@ -548,6 +612,20 @@ definitions:
         type: string
       name:
         example: Ahmet Yılmaz
+        type: string
+    type: object
+  services.ContributionResult:
+    properties:
+      contributing:
+        example: false
+        type: boolean
+      contributor_count:
+        example: 2
+        type: integer
+      no_contributors:
+        type: boolean
+      per_person_budget:
+        example: "1500"
         type: string
     type: object
   services.GroupDetailResponse:
@@ -568,6 +646,13 @@ definitions:
         type: string
       per_person_budget:
         type: number
+      pools:
+        description: |-
+          Pools yalnızca MULTI gruplarda vardır (SINGLE'da alan yer almaz): kurulma sırasıyla havuz
+          kartları. Çağıranın kendi havuzu LockedPool ({id, recipient, is_mine, locked}), diğerleri OpenPool.
+        items:
+          type: object
+        type: array
       target_account:
         allOf:
         - $ref: '#/definitions/services.AccountSummary'
@@ -614,11 +699,34 @@ definitions:
       member_count:
         example: 4
         type: integer
+      mode:
+        description: |-
+          Mode grup türüdür (SINGLE | MULTI); kurulurken seçilir, değişmez. Eski satırlar SINGLE'dır.
+          MULTI grupta hedef, bütçe, ilgi alanı ve tarih alanları boştur; bunlar havuzlardadır.
+        enum:
+        - SINGLE
+        - MULTI
+        type: string
+      next_event_date:
+        description: 'NextEventDate yalnızca MULTI gruplarda: çağıranın alıcısı olmadığı
+          açık havuzların en yakın yaklaşan (bugün veya sonrası, UTC+3) tarihi; yaklaşan
+          yoksa en erken geçmiş tarih.'
+        example: "2026-12-31"
+        format: date
+        type: string
       pending_votes:
-        description: 'Çağıran kullanıcıya özel: açık gruptaki, kendisinin eklemediği
-          ve henüz oy vermediği aktif fikirler.'
+        description: |-
+          Çağıran kullanıcıya özel: açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler.
+          MULTI grupta sayaçlar yalnızca çağıranın alıcısı olmadığı havuzlardan hesaplanır.
         example: 2
         type: integer
+      recipients:
+        description: |-
+          Recipients yalnızca MULTI gruplarda vardır: hediye alacak kişiler (kurulma sırasıyla; çağıran
+          da olabilir). SINGLE'da alan yer almaz.
+        items:
+          $ref: '#/definitions/services.AccountSummary'
+        type: array
       status:
         description: 'ACTIVE: oylama sürüyor. COMPLETED: admin kazananı seçti; fikir
           ve oy işlemleri kapalı.'
@@ -674,6 +782,12 @@ definitions:
       expires_at:
         type: string
     type: object
+  services.ManagerChanged:
+    properties:
+      pool_id:
+        format: uuid
+        type: string
+    type: object
   services.NotificationList:
     properties:
       items:
@@ -683,6 +797,133 @@ definitions:
       unread_count:
         example: 3
         type: integer
+    type: object
+  services.OpenPool:
+    properties:
+      can_manage:
+        description: CanManage çağıranın bütçe, tarih, kazanan, veto, ilgi alanı silme
+          ve fikir silme yetkisidir.
+        type: boolean
+      completed_at:
+        type: string
+      contributor_count:
+        example: 3
+        type: integer
+      event_date:
+        example: "2026-12-31"
+        format: date
+        type: string
+      id:
+        format: uuid
+        type: string
+      idea_count:
+        example: 4
+        type: integer
+      is_mine:
+        example: false
+        type: boolean
+      locked:
+        example: false
+        type: boolean
+      manager:
+        allOf:
+        - $ref: '#/definitions/services.AccountSummary'
+        description: Manager havuzun etkin yöneticisidir; yoksa null (grup yöneticisinin
+          havuzunda yönetici atanmamış).
+      my_contribution:
+        example: true
+        type: boolean
+      no_contributors:
+        type: boolean
+      pending_votes:
+        example: 1
+        type: integer
+      per_person_budget:
+        description: PerPersonBudget toplam bütçe / katkı veren sayısıdır; katkı veren
+          yoksa null.
+        example: "1000"
+        type: string
+      recipient:
+        $ref: '#/definitions/services.AccountSummary'
+      status:
+        enum:
+        - ACTIVE
+        - COMPLETED
+        example: ACTIVE
+        type: string
+      total_budget:
+        example: "3000"
+        type: string
+    type: object
+  services.PoolDetail:
+    properties:
+      can_manage:
+        description: CanManage çağıranın bütçe, tarih, kazanan, veto, ilgi alanı silme
+          ve fikir silme yetkisidir.
+        type: boolean
+      completed_at:
+        type: string
+      contributor_count:
+        example: 3
+        type: integer
+      contributors:
+        items:
+          $ref: '#/definitions/repository.Contributor'
+        type: array
+      event_date:
+        example: "2026-12-31"
+        format: date
+        type: string
+      id:
+        format: uuid
+        type: string
+      idea_count:
+        example: 4
+        type: integer
+      interests:
+        items:
+          type: string
+        type: array
+      is_mine:
+        example: false
+        type: boolean
+      locked:
+        example: false
+        type: boolean
+      manager:
+        allOf:
+        - $ref: '#/definitions/services.AccountSummary'
+        description: Manager havuzun etkin yöneticisidir; yoksa null (grup yöneticisinin
+          havuzunda yönetici atanmamış).
+      my_contribution:
+        example: true
+        type: boolean
+      no_contributors:
+        type: boolean
+      pending_votes:
+        example: 1
+        type: integer
+      per_person_budget:
+        description: PerPersonBudget toplam bütçe / katkı veren sayısıdır; katkı veren
+          yoksa null.
+        example: "1000"
+        type: string
+      recipient:
+        $ref: '#/definitions/services.AccountSummary'
+      status:
+        enum:
+        - ACTIVE
+        - COMPLETED
+        example: ACTIVE
+        type: string
+      total_budget:
+        example: "3000"
+        type: string
+    type: object
+  services.RecipientAdded:
+    properties:
+      pool:
+        type: object
     type: object
 host: localhost:8080
 info:
@@ -828,7 +1069,9 @@ paths:
         kuralı gereğince kullanıcının hedef kişi olduğu sürpriz gruplar bu listede
         ASLA yer almaz. Her grupta member_count, idea_count (reddedilmemiş fikirler)
         ve çağıran kullanıcıya özel pending_votes (açık gruptaki, kendisinin eklemediği
-        ve henüz oy vermediği aktif fikirler) bulunur.
+        ve henüz oy vermediği aktif fikirler) bulunur. MULTI gruplarda ayrıca recipients
+        ve next_event_date bulunur; sayaçlar, status/completed_at ve next_event_date
+        yalnızca çağıranın alıcısı olmadığı havuzlardan hesaplanır (Anti-Spoiler).
       produces:
       - application/json
       responses:
@@ -860,11 +1103,14 @@ paths:
       consumes:
       - application/json
       description: Yeni bir sürpriz hediye grubu açar ve oluşturan kullanıcıyı atomik
-        transaction ile 'admin' rolüyle üye yapar. Hedef kişi isteğe bağlı `target_email`
-        ile seçilir; sunucu kayıtlı kullanıcıyı bulur ve `target_user_id` alanını
-        doldurur. `target_email` ve `target_user_id` birlikte gönderilemez. Hedef
-        seçilmezse yalnızca `target_person_name` kullanılır ve Anti-Spoiler devreye
-        girmez.
+        transaction ile 'admin' rolüyle üye yapar. `mode` SINGLE (varsayılan, tek
+        kişi için) veya MULTI (birden çok kişi için; her alıcının havuzu ayrı). SINGLE'da
+        `target_person_name` zorunludur; hedef kişi isteğe bağlı `target_email` ile
+        seçilir; sunucu kayıtlı kullanıcıyı bulur ve `target_user_id` alanını doldurur.
+        `target_email` ve `target_user_id` birlikte gönderilemez. Hedef seçilmezse
+        yalnızca `target_person_name` kullanılır ve Anti-Spoiler devreye girmez. MULTI'de
+        hedef alanları, `total_budget` > 0 ve `event_date` 400 döner; alıcılar sonradan
+        `POST /groups/{id}/recipients` ile seçilir. Tür sonradan değişmez.
       parameters:
       - description: Grup Oluşturma Bilgileri
         in: body
@@ -955,9 +1201,11 @@ paths:
       tags:
       - Hediye Grupları (Groups)
     get:
-      description: Grup detayını, aktif üye listesini, toplam bütçeyi ve anlık hesaplanan
+      description: 'Grup detayını, aktif üye listesini, toplam bütçeyi ve anlık hesaplanan
         kişi başı bütçeyi getirir. Hedef kişi bu uç noktaya erişmeye çalışırsa 403
-        Forbidden alır.
+        Forbidden alır. MULTI grupta grup düzeyindeki bütçe/ilgi alanı boştur ve `pools`
+        dizisi döner: çağıranın kendi havuzu yalnızca `{id, recipient, is_mine: true,
+        locked: true}`, diğerleri OpenPool.'
       parameters:
       - description: Grup UUID
         format: uuid
@@ -1391,9 +1639,13 @@ paths:
   /api/v1/groups/{id}/events:
     get:
       description: Grupta bir fikir, oy, bütçe, üye veya durum değişikliği olduğunda
-        "changed" olayı gönderir. Olay veri taşımaz; istemci grubu ve fikirleri yeniden
-        çeker. Bağlantı en fazla 5 dakika açık kalır, ardından istemci yeniden bağlanır.
-        Anti-Spoiler ve üyelik kontrolü bağlantı açılırken uygulanır.
+        "changed" olayı gönderir. MULTI grupta akış grup anahtarına ve yalnızca çağıranın
+        alıcısı OLMADIĞI havuzlara abone olur; çağıranın kendi havuzundaki değişiklikler
+        hiçbir olay üretmez (Anti-Spoiler). Görünen havuz kümesi değişirse (alıcı
+        eklendi/kaldırıldı) olaydan sonra akış kapanır ve istemci yeniden bağlanır.
+        Olay veri taşımaz; istemci grubu ve fikirleri yeniden çeker. Bağlantı en fazla
+        5 dakika açık kalır, ardından istemci yeniden bağlanır. Anti-Spoiler ve üyelik
+        kontrolü bağlantı açılırken uygulanır.
       parameters:
       - description: Grup UUID
         format: uuid
@@ -1466,6 +1718,10 @@ paths:
           description: Grup bulunamadı
           schema:
             $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup türü uygun değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
         "500":
           description: Sunucu hatası
           schema:
@@ -1521,6 +1777,10 @@ paths:
           description: Grup bulunamadı
           schema:
             $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup/havuz tamamlandı veya grup türü uygun değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
         "500":
           description: Sunucu hatası
           schema:
@@ -1574,6 +1834,10 @@ paths:
             $ref: '#/definitions/controllers.Response'
         "404":
           description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup/havuz tamamlandı veya grup türü uygun değil
           schema:
             $ref: '#/definitions/controllers.Response'
         "422":
@@ -1966,6 +2230,833 @@ paths:
       summary: Gruba E-posta ile Üye Ekle
       tags:
       - Hediye Grupları (Groups)
+  /api/v1/groups/{id}/pools:
+    get:
+      description: 'Her üye çağırabilir. Kurulma sırasıyla havuz kartları döner: çağıranın
+        kendi havuzu yalnızca `{id, recipient, is_mine: true, locked: true}` (LockedPool),
+        diğerleri OpenPool. SINGLE grupta 409.'
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Havuz kartları (kendi havuzun LockedPool)
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/services.OpenPool'
+                  type: array
+              type: object
+        "403":
+          description: Anti-Spoiler veya gruba üye değilsiniz
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup türü uygun değil (SINGLE)
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Havuzları Listele (MULTI, Anti-Spoiler Korumalı)
+      tags:
+      - Havuzlar (Pools)
+  /api/v1/groups/{id}/pools/{poolId}:
+    get:
+      description: Alıcı dışındaki üyeler. OpenPool alanlarına ek olarak ilgi alanları
+        ve alıcı dışındaki tüm üyelerin katkı durumu. Havuzun alıcısı 403 + sürpriz
+        mesajı alır.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Havuz UUID
+        format: uuid
+        in: path
+        name: poolId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Havuz detayı
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/services.PoolDetail'
+              type: object
+        "403":
+          description: Anti-Spoiler (havuzun alıcısı) veya gruba üye değilsiniz
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup veya havuz bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Havuz Detayı (MULTI, Anti-Spoiler Korumalı)
+      tags:
+      - Havuzlar (Pools)
+  /api/v1/groups/{id}/pools/{poolId}/budget:
+    patch:
+      consumes:
+      - application/json
+      description: Yalnızca havuzun etkin yöneticisi. 0–99999999.99, en fazla iki
+        ondalık. Kişi başı tutar = bütçe / katkı veren sayısı (anlık). Değer gerçekten
+        değiştiyse `budget_changed` bildirimi (pool_id ile, alıcı hariç).
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Havuz UUID
+        format: uuid
+        in: path
+        name: poolId
+        required: true
+        type: string
+      - description: Yeni toplam bütçe
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateBudgetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Bütçe güncellendi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "400":
+          description: Geçersiz bütçe
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler, üye değil veya havuz yöneticisi değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup veya havuz bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Havuz Bütçesini Güncelle (Havuz Yöneticisi)
+      tags:
+      - Havuzlar (Pools)
+  /api/v1/groups/{id}/pools/{poolId}/contribution:
+    put:
+      consumes:
+      - application/json
+      description: Alıcı dışındaki her üye yalnızca kendi katkısını açıp kapatır.
+        Katkı vermeyen üye yine fikir ekler ve oy verir; hiçbir şey silinmez. Kişi
+        başı tutar = bütçe / katkı veren sayısı; katkı veren yoksa `per_person_budget`
+        null ve `no_contributors` true. Havuz tamamlandıysa 409. Bildirim üretmez.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Havuz UUID
+        format: uuid
+        in: path
+        name: poolId
+        required: true
+        type: string
+      - description: Katkı durumu
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ContributionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Güncel katkı durumu
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/services.ContributionResult'
+              type: object
+        "400":
+          description: Geçersiz istek
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler veya gruba üye değilsiniz
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup veya havuz bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Havuz tamamlandı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Havuza Katkımı Ayarla
+      tags:
+      - Havuzlar (Pools)
+  /api/v1/groups/{id}/pools/{poolId}/event-date:
+    patch:
+      consumes:
+      - application/json
+      description: Yalnızca havuzun etkin yöneticisi. "YYYY-MM-DD" veya null. Bugünden
+        en fazla 1 yıl önce, 5 yıl sonra. Tarih gerçekten değiştiyse `event_date_changed`
+        bildirimi (pool_id ile, alıcı hariç).
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Havuz UUID
+        format: uuid
+        in: path
+        name: poolId
+        required: true
+        type: string
+      - description: Hediye tarihi
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateEventDateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Tarih güncellendi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "400":
+          description: Geçersiz tarih
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler, üye değil veya havuz yöneticisi değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup veya havuz bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Havuz Hediye Tarihini Güncelle (Havuz Yöneticisi)
+      tags:
+      - Havuzlar (Pools)
+  /api/v1/groups/{id}/pools/{poolId}/ideas:
+    get:
+      description: Gruptaki hediye havuzunu, her hediyenin toplam oy skorunu (+1/-1
+        toplamı) ve istek yapan kullanıcının kendi oyunu listeler. Anti-Spoiler korumalıdır.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Hediye önerileri ve oy skorları
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/repository.IdeaWithScore'
+                  type: array
+              type: object
+        "400":
+          description: Geçersiz grup kimliği
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: 'Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz'
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup türü uygun değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Gruptaki Hediye Önerilerini ve Oy Skorlarını Listele
+      tags:
+      - Hediye Havuzu (Gift Ideas)
+    post:
+      consumes:
+      - application/json
+      description: Grubun hediye havuzuna manuel bir hediye fikri ekler (isteğe bağlı
+        pazar yeri linki ile). Anti-Spoiler korumalıdır.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Hediye Önerisi Bilgileri
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.AddIdeaRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Hediye önerisi başarıyla eklendi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.GiftIdea'
+              type: object
+        "400":
+          description: Geçersiz istek parametreleri
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: 'Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz'
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup/havuz tamamlandı veya grup türü uygun değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Manuel Hediye Önerisi Ekle
+      tags:
+      - Hediye Havuzu (Gift Ideas)
+  /api/v1/groups/{id}/pools/{poolId}/ideas/generate-ai:
+    post:
+      description: Google Search ile Türkiye mağazalarında ürün ve TL fiyatı araştırır;
+        kaynakla desteklenen sonuçlardan kişinin ilgi alanına uygun en fazla 5 yeni
+        hediye üretir. Mevcut/veto edilmiş fikirler ve bütçe dikkate alınır. ai_sources
+        araştırma kaynaklarını, ai_search_suggestions Google arama önerisi HTML'ini
+        taşır; anlık stok garantisi vermez. Kaynaksız araştırma şu an 500, servis
+        filtresinden sonra boş sonuç 422 döner. Geçici panel kaynak alanlarını henüz
+        göstermez.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Yapay zekâ tarafından üretilen yeni hediye önerileri
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.GiftIdea'
+                  type: array
+              type: object
+        "400":
+          description: Geçersiz grup kimliği
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: 'Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz'
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup/havuz tamamlandı veya grup türü uygun değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "422":
+          description: Yapay zekâ öneri üretemedi
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "429":
+          description: Gemini kullanım kotası veya istek sınırı aşıldı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "503":
+          description: Gemini API anahtarı yapılandırılmamış veya servis geçici olarak
+            kullanılamıyor
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Gemini 3.8 Flash ile Yapay Zekâ Hediye Önerileri Üret (Faz 6)
+      tags:
+      - Hediye Havuzu (Gift Ideas)
+  /api/v1/groups/{id}/pools/{poolId}/interests:
+    delete:
+      consumes:
+      - application/json
+      description: Yalnızca havuzun etkin yöneticisi. Bildirim üretmez.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Havuz UUID
+        format: uuid
+        in: path
+        name: poolId
+        required: true
+        type: string
+      - description: Silinecek ilgi alanı
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.InterestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Güncel ilgi alanı listesi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.InterestListResponse'
+              type: object
+        "400":
+          description: Geçersiz istek
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler, üye değil veya havuz yöneticisi değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup, havuz veya ilgi alanı bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Havuzdan İlgi Alanı Sil (Havuz Yöneticisi)
+      tags:
+      - Havuzlar (Pools)
+    post:
+      consumes:
+      - application/json
+      description: Alıcı dışındaki tüm üyeler (alıcı kendi havuzuna ilgi alanı ekleyemez;
+        403 + sürpriz mesajı). 1–100 karakter, virgül/noktalı virgül/satır sonu yok;
+        tekrar 409. Bildirim üretmez.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Havuz UUID
+        format: uuid
+        in: path
+        name: poolId
+        required: true
+        type: string
+      - description: Eklenecek ilgi alanı
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.InterestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Güncel ilgi alanı listesi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.InterestListResponse'
+              type: object
+        "400":
+          description: Geçersiz ilgi alanı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler veya gruba üye değilsiniz
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup veya havuz bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: İlgi alanı zaten listede
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Havuza İlgi Alanı Ekle
+      tags:
+      - Havuzlar (Pools)
+  /api/v1/groups/{id}/pools/{poolId}/winner:
+    delete:
+      description: Yalnızca havuzun etkin yöneticisi. Kazanan fikirler ACTIVE'e, havuz
+        ACTIVE'e döner. Havuz zaten açıksa 409.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Havuz UUID
+        format: uuid
+        in: path
+        name: poolId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Havuz yeniden açıldı
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "403":
+          description: Anti-Spoiler, üye değil veya havuz yöneticisi değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup veya havuz bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Havuz zaten açık
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Havuzu Yeniden Aç (Havuz Yöneticisi)
+      tags:
+      - Havuzlar (Pools)
+    post:
+      consumes:
+      - application/json
+      description: Yalnızca havuzun etkin yöneticisi. 1–20 aktif fikir SELECTED, havuz
+        COMPLETED olur. Fikirlerden biri bu havuza ait değilse 400, aktif değilse
+        ya da havuz zaten tamamlandıysa 409. Tamamlanan havuzda fikir ekleme, AI,
+        oy, veto, fikir silme ve katkı değişikliği 409 döner.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Havuz UUID
+        format: uuid
+        in: path
+        name: poolId
+        required: true
+        type: string
+      - description: Kazanan fikirler
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.SelectWinnerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Havuz tamamlandı
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "400":
+          description: Fikir bu havuza ait değil veya istek geçersiz
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler, üye değil veya havuz yöneticisi değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup veya havuz bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Havuz zaten tamamlandı veya fikir aktif değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Havuzun Kazananlarını Seç (Havuz Yöneticisi)
+      tags:
+      - Havuzlar (Pools)
+  /api/v1/groups/{id}/recipients:
+    post:
+      consumes:
+      - application/json
+      description: 'Yalnızca grup yöneticisi. Üye alıcı yapılır ve havuzu kurulur;
+        alıcı dışındaki tüm üyeler varsayılan olarak katkı verir. Yönetici kendini
+        alıcı yapabilir ama yalnızca `manager_user_id` ile başka bir üyeyi havuz yöneticisi
+        seçerek; başka bir alıcı için `manager_user_id` gönderilemez. Yanıttaki havuz
+        çağırana göredir: yönetici kendini alıcı yaptıysa LockedPool.'
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Alıcı ve (gerekirse) havuz yöneticisi
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.AddRecipientRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Havuz kuruldu
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/services.RecipientAdded'
+              type: object
+        "400":
+          description: Kişi veya yönetici üye değil, yönetici alıcıyla aynı, yönetici
+            gereksiz ya da eksik
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler, üye değil veya admin değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup türü SINGLE veya kişi zaten alıcı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Hediye Alacak Kişi Ekle (MULTI, Admin)
+      tags:
+      - Havuzlar (Pools)
+  /api/v1/groups/{id}/recipients/{userId}:
+    delete:
+      description: 'Yalnızca grup yöneticisi. Havuz; fikirleri, oyları, katkıları
+        ve bildirimleriyle birlikte silinir. Havuzda fikir varsa `confirm=true` olmadan
+        409 döner. Anti-Spoiler: çağıran o havuzun alıcısıysa (yönetici kendi havuzu)
+        `confirm=true` olmadan fikir olsun olmasın her zaman 409 döner; böylece havuzda
+        fikir olup olmadığı anlaşılamaz. Bildirim üretmez.'
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Alıcının kullanıcı UUID'si
+        format: uuid
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: Fikirli havuzu silmeyi onayla
+        in: query
+        name: confirm
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Alıcı kaldırıldı
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "403":
+          description: Anti-Spoiler, üye değil veya admin değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı veya kişi alıcı değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup türü SINGLE veya onay gerekli
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Hediye Alacak Kişiyi Kaldır (MULTI, Admin)
+      tags:
+      - Havuzlar (Pools)
+  /api/v1/groups/{id}/recipients/{userId}/manager:
+    patch:
+      consumes:
+      - application/json
+      description: Yalnızca grup yöneticisi. Grup yöneticisinin kendi havuzu için
+        `manager_user_id` zorunludur (null 400); hesabı silinen yöneticinin yerine
+        yenisini atamak için de kullanılır. Diğer alıcıların havuzunu her zaman grup
+        yöneticisi yönetir; onlar için yalnızca null kabul edilir (değişiklik yapmaz).
+        Yeni yöneticiye `pool_manager_assigned` bildirimi gider.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Alıcının kullanıcı UUID'si
+        format: uuid
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: Yeni havuz yöneticisi
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.SetManagerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Havuz yöneticisi güncellendi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/services.ManagerChanged'
+              type: object
+        "400":
+          description: Yönetici üye değil, alıcıyla aynı, gereksiz ya da eksik
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler, üye değil veya admin değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı veya kişi alıcı değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "409":
+          description: Grup türü SINGLE
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Havuz Yöneticisini Değiştir (MULTI, Admin)
+      tags:
+      - Havuzlar (Pools)
   /api/v1/groups/{id}/target:
     patch:
       consumes:

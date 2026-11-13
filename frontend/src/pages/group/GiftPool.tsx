@@ -5,7 +5,7 @@ import { CalendarClock, ChevronDown, Link2, LoaderCircle, Sparkles, Trophy } fro
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
-import { groupsApi, ideasApi, liveInterval, mutationKeys, queryKeys } from '@/api/endpoints'
+import { ideasApi, liveInterval, queryKeys } from '@/api/endpoints'
 import type { Idea } from '@/api/types'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Bar, BlockError } from '@/components/Panel'
@@ -13,15 +13,19 @@ import { Button } from '@/components/ui/button'
 import { errorMessage } from '@/lib/errors'
 import { AddIdeaDialog } from './AddIdeaDialog'
 import { IdeaCard } from './IdeaCard'
+import type { Scope } from './scope'
 import { WinnersDialog } from './WinnersDialog'
 
 type Pending = { kind: 'reject' | 'remove'; idea: Idea } | null
 
 type Props = {
-  groupId: string
+  // Fikirlerin yaşadığı yer: grubun kendisi (SINGLE) ya da bir hediye alacak kişinin havuzu (MULTI).
+  scope: Scope
   meId?: string
-  isAdmin: boolean
-  // Admin kazananı seçtiyse grup tamamlanmıştır: oylar ve yeni öneriler kapalı.
+  // Veto, kazanan seçimi ve başkasının fikrini silme: SINGLE'da grup yöneticisi, MULTI'de havuzun
+  // yöneticisi (sunucudaki can_manage). Yetki API'de ayrıca denetlenir.
+  canManage: boolean
+  // Kazanan seçildiyse grup (ya da havuz) tamamlanmıştır: oylar ve yeni öneriler kapalı.
   completed: boolean
   // Kazanan seçim penceresinde seçilenlerin toplamı bununla karşılaştırılır.
   totalBudget?: string
@@ -32,15 +36,16 @@ type Props = {
 }
 
 // Ekranın sorusu: "Hangi hediyede birleşiyoruz?" En büyük blok bu; en çok oy alan üstte.
-export function GiftPool({ groupId, meId, isAdmin, completed, totalBudget, live, datePassed }: Props) {
+export function GiftPool({ scope, meId, canManage, completed, totalBudget, live, datePassed }: Props) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const key = queryKeys.ideas(groupId)
+  const key = scope.ideasKey
+  const isPool = scope.kind === 'pool'
   // Bir oy ya da fikir işlemi sürerken periyodik yenileme durur; iyimser güncelleme ezilmez.
-  const busy = useIsMutating({ mutationKey: mutationKeys.ideas(groupId) }) > 0
+  const busy = useIsMutating({ mutationKey: scope.mutationKey }) > 0
   const ideas = useQuery({
     queryKey: key,
-    queryFn: ({ signal }) => ideasApi.list(groupId, signal),
+    queryFn: ({ signal }) => scope.listIdeas(signal),
     refetchInterval: busy || completed ? false : liveInterval(live),
   })
   const [pending, setPending] = useState<Pending>(null)
@@ -51,7 +56,7 @@ export function GiftPool({ groupId, meId, isAdmin, completed, totalBudget, live,
   // İyimser oy: skor ve seçili oy hemen güncellenir; yanıt yeni skoru döndürmediği ve çoğunluk
   // vetosu durumu değiştirebildiği için ardından liste yeniden çekilir. 0 oyu geri alır.
   const vote = useMutation({
-    mutationKey: mutationKeys.ideas(groupId),
+    mutationKey: scope.mutationKey,
     mutationFn: ({ idea, value }: { idea: Idea; value: -1 | 0 | 1 }) =>
       value === 0 ? ideasApi.unvote(idea.id) : ideasApi.vote(idea.id, value),
     onMutate: async ({ idea, value }) => {
@@ -70,8 +75,8 @@ export function GiftPool({ groupId, meId, isAdmin, completed, totalBudget, live,
   })
 
   const gemini = useMutation({
-    mutationKey: mutationKeys.ideas(groupId),
-    mutationFn: () => ideasApi.generateAI(groupId),
+    mutationKey: scope.mutationKey,
+    mutationFn: () => scope.generateAI(),
     onSuccess: (added) => {
       void queryClient.invalidateQueries({ queryKey: key })
       if (added.length > 0) toast.success(t('pool.geminiDone', { count: added.length }))
@@ -86,7 +91,7 @@ export function GiftPool({ groupId, meId, isAdmin, completed, totalBudget, live,
   })
 
   const act = useMutation({
-    mutationKey: mutationKeys.ideas(groupId),
+    mutationKey: scope.mutationKey,
     mutationFn: (p: NonNullable<Pending>) => (p.kind === 'reject' ? ideasApi.reject(p.idea.id) : ideasApi.remove(p.idea.id)),
     onSuccess: (_d, p) => {
       toast.success(t(p.kind === 'reject' ? 'pool.rejected' : 'pool.removed', { title: p.idea.title }))
@@ -97,11 +102,11 @@ export function GiftPool({ groupId, meId, isAdmin, completed, totalBudget, live,
   })
 
   const pickWinners = useMutation({
-    mutationKey: mutationKeys.ideas(groupId),
-    mutationFn: (ids: string[]) => groupsApi.selectWinners(groupId, ids),
+    mutationKey: scope.mutationKey,
+    mutationFn: (ids: string[]) => scope.selectWinners(ids),
     onSuccess: (_d, ids) => {
       const titles = all.filter((i) => ids.includes(i.id)).map((i) => i.title)
-      toast.success(t('pool.winnersSelected', { count: ids.length, titles: titles.join(', ') }))
+      toast.success(t(isPool ? 'pools.winnersSelected' : 'pool.winnersSelected', { count: ids.length, titles: titles.join(', ') }))
       setWinnerFor(null)
     },
     onError: (err) => toast.error(errorMessage(err)),
@@ -121,9 +126,9 @@ export function GiftPool({ groupId, meId, isAdmin, completed, totalBudget, live,
       <IdeaCard
         idea={idea}
         locked={completed}
-        canReject={isAdmin}
-        canDelete={isAdmin || idea.created_by === meId}
-        canSelectWinner={isAdmin}
+        canReject={canManage}
+        canDelete={canManage || idea.created_by === meId}
+        canSelectWinner={canManage}
         onVote={(value) => vote.mutate({ idea, value })}
         onReject={() => setPending({ kind: 'reject', idea })}
         onDelete={() => setPending({ kind: 'remove', idea })}
@@ -146,14 +151,14 @@ export function GiftPool({ groupId, meId, isAdmin, completed, totalBudget, live,
           <h2 className="font-display text-[15px] font-semibold">{t('pool.title')}</h2>
           {ideas.data && (
             <p className="mt-0.5 text-xs text-muted">
-              {completed ? t('pool.completedLead') : t('pool.lead', { count: active.length })}
+              {completed ? t(isPool ? 'pools.completedLead' : 'pool.completedLead') : t('pool.lead', { count: active.length })}
             </p>
           )}
         </div>
         {!completed && (
           <>
             <AddIdeaDialog
-              groupId={groupId}
+              scope={scope}
               trigger={
                 <Button variant="outline">
                   <Link2 />
@@ -173,15 +178,18 @@ export function GiftPool({ groupId, meId, isAdmin, completed, totalBudget, live,
         <p role="status" className="mb-3 flex items-center gap-3 rounded-[14px] bg-soft px-4 py-3.5 text-sm font-medium text-on-soft">
           <Trophy className="size-4 shrink-0" aria-hidden />
           {winners.length > 0
-            ? t('pool.completedBanner', { count: winners.length, titles: winners.map((w) => w.title).join(', ') })
-            : t('pool.completedNoWinner')}
+            ? t(isPool ? 'pools.completedBanner' : 'pool.completedBanner', {
+                count: winners.length,
+                titles: winners.map((w) => w.title).join(', '),
+              })
+            : t(isPool ? 'pools.completedNoWinner' : 'pool.completedNoWinner')}
         </p>
       )}
 
-      {!completed && datePassed && isAdmin && (
+      {!completed && datePassed && canManage && (
         <p className="mb-3 flex items-center gap-3 rounded-[14px] border border-dashed border-control px-4 py-3 text-sm text-muted">
           <CalendarClock className="size-4 shrink-0" aria-hidden />
-          {t('pool.datePassedHint')}
+          {t(isPool ? 'pools.datePassedHint' : 'pool.datePassedHint')}
         </p>
       )}
 
@@ -243,6 +251,7 @@ export function GiftPool({ groupId, meId, isAdmin, completed, totalBudget, live,
       {winnerFor && (
         <WinnersDialog
           key={winnerFor.id}
+          scopeKind={scope.kind}
           open
           onOpenChange={(o) => !o && !pickWinners.isPending && setWinnerFor(null)}
           ideas={candidates}

@@ -216,7 +216,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Giriş yapmış kullanıcının üye olduğu grupları listeler. Anti-Spoiler kuralı gereğince kullanıcının hedef kişi olduğu sürpriz gruplar bu listede ASLA yer almaz. Her grupta member_count, idea_count (reddedilmemiş fikirler) ve çağıran kullanıcıya özel pending_votes (açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler) bulunur.",
+                "description": "Giriş yapmış kullanıcının üye olduğu grupları listeler. Anti-Spoiler kuralı gereğince kullanıcının hedef kişi olduğu sürpriz gruplar bu listede ASLA yer almaz. Her grupta member_count, idea_count (reddedilmemiş fikirler) ve çağıran kullanıcıya özel pending_votes (açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler) bulunur. MULTI gruplarda ayrıca recipients ve next_event_date bulunur; sayaçlar, status/completed_at ve next_event_date yalnızca çağıranın alıcısı olmadığı havuzlardan hesaplanır (Anti-Spoiler).",
                 "produces": [
                     "application/json"
                 ],
@@ -266,7 +266,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Yeni bir sürpriz hediye grubu açar ve oluşturan kullanıcıyı atomik transaction ile 'admin' rolüyle üye yapar. Hedef kişi isteğe bağlı `target_email` ile seçilir; sunucu kayıtlı kullanıcıyı bulur ve `target_user_id` alanını doldurur. `target_email` ve `target_user_id` birlikte gönderilemez. Hedef seçilmezse yalnızca `target_person_name` kullanılır ve Anti-Spoiler devreye girmez.",
+                "description": "Yeni bir sürpriz hediye grubu açar ve oluşturan kullanıcıyı atomik transaction ile 'admin' rolüyle üye yapar. `mode` SINGLE (varsayılan, tek kişi için) veya MULTI (birden çok kişi için; her alıcının havuzu ayrı). SINGLE'da `target_person_name` zorunludur; hedef kişi isteğe bağlı `target_email` ile seçilir; sunucu kayıtlı kullanıcıyı bulur ve `target_user_id` alanını doldurur. `target_email` ve `target_user_id` birlikte gönderilemez. Hedef seçilmezse yalnızca `target_person_name` kullanılır ve Anti-Spoiler devreye girmez. MULTI'de hedef alanları, `total_budget` \u003e 0 ve `event_date` 400 döner; alıcılar sonradan `POST /groups/{id}/recipients` ile seçilir. Tür sonradan değişmez.",
                 "consumes": [
                     "application/json"
                 ],
@@ -341,7 +341,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Grup detayını, aktif üye listesini, toplam bütçeyi ve anlık hesaplanan kişi başı bütçeyi getirir. Hedef kişi bu uç noktaya erişmeye çalışırsa 403 Forbidden alır.",
+                "description": "Grup detayını, aktif üye listesini, toplam bütçeyi ve anlık hesaplanan kişi başı bütçeyi getirir. Hedef kişi bu uç noktaya erişmeye çalışırsa 403 Forbidden alır. MULTI grupta grup düzeyindeki bütçe/ilgi alanı boştur ve `pools` dizisi döner: çağıranın kendi havuzu yalnızca `{id, recipient, is_mine: true, locked: true}`, diğerleri OpenPool.",
                 "produces": [
                     "application/json"
                 ],
@@ -1072,7 +1072,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Grupta bir fikir, oy, bütçe, üye veya durum değişikliği olduğunda \"changed\" olayı gönderir. Olay veri taşımaz; istemci grubu ve fikirleri yeniden çeker. Bağlantı en fazla 5 dakika açık kalır, ardından istemci yeniden bağlanır. Anti-Spoiler ve üyelik kontrolü bağlantı açılırken uygulanır.",
+                "description": "Grupta bir fikir, oy, bütçe, üye veya durum değişikliği olduğunda \"changed\" olayı gönderir. MULTI grupta akış grup anahtarına ve yalnızca çağıranın alıcısı OLMADIĞI havuzlara abone olur; çağıranın kendi havuzundaki değişiklikler hiçbir olay üretmez (Anti-Spoiler). Görünen havuz kümesi değişirse (alıcı eklendi/kaldırıldı) olaydan sonra akış kapanır ve istemci yeniden bağlanır. Olay veri taşımaz; istemci grubu ve fikirleri yeniden çeker. Bağlantı en fazla 5 dakika açık kalır, ardından istemci yeniden bağlanır. Anti-Spoiler ve üyelik kontrolü bağlantı açılırken uygulanır.",
                 "produces": [
                     "text/event-stream"
                 ],
@@ -1189,6 +1189,12 @@
                             "$ref": "#/definitions/controllers.Response"
                         }
                     },
+                    "409": {
+                        "description": "Grup türü uygun değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
                     "500": {
                         "description": "Sunucu hatası",
                         "schema": {
@@ -1276,6 +1282,12 @@
                             "$ref": "#/definitions/controllers.Response"
                         }
                     },
+                    "409": {
+                        "description": "Grup/havuz tamamlandı veya grup türü uygun değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
                     "500": {
                         "description": "Sunucu hatası",
                         "schema": {
@@ -1352,6 +1364,12 @@
                     },
                     "404": {
                         "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Grup/havuz tamamlandı veya grup türü uygun değil",
                         "schema": {
                             "$ref": "#/definitions/controllers.Response"
                         }
@@ -1957,6 +1975,1274 @@
                     },
                     "500": {
                         "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/pools": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Her üye çağırabilir. Kurulma sırasıyla havuz kartları döner: çağıranın kendi havuzu yalnızca `{id, recipient, is_mine: true, locked: true}` (LockedPool), diğerleri OpenPool. SINGLE grupta 409.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Havuzlar (Pools)"
+                ],
+                "summary": "Havuzları Listele (MULTI, Anti-Spoiler Korumalı)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Havuz kartları (kendi havuzun LockedPool)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/services.OpenPool"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler veya gruba üye değilsiniz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Grup türü uygun değil (SINGLE)",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/pools/{poolId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Alıcı dışındaki üyeler. OpenPool alanlarına ek olarak ilgi alanları ve alıcı dışındaki tüm üyelerin katkı durumu. Havuzun alıcısı 403 + sürpriz mesajı alır.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Havuzlar (Pools)"
+                ],
+                "summary": "Havuz Detayı (MULTI, Anti-Spoiler Korumalı)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Havuz UUID",
+                        "name": "poolId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Havuz detayı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/services.PoolDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler (havuzun alıcısı) veya gruba üye değilsiniz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup veya havuz bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/pools/{poolId}/budget": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca havuzun etkin yöneticisi. 0–99999999.99, en fazla iki ondalık. Kişi başı tutar = bütçe / katkı veren sayısı (anlık). Değer gerçekten değiştiyse `budget_changed` bildirimi (pool_id ile, alıcı hariç).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Havuzlar (Pools)"
+                ],
+                "summary": "Havuz Bütçesini Güncelle (Havuz Yöneticisi)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Havuz UUID",
+                        "name": "poolId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Yeni toplam bütçe",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateBudgetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Bütçe güncellendi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz bütçe",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya havuz yöneticisi değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup veya havuz bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/pools/{poolId}/contribution": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Alıcı dışındaki her üye yalnızca kendi katkısını açıp kapatır. Katkı vermeyen üye yine fikir ekler ve oy verir; hiçbir şey silinmez. Kişi başı tutar = bütçe / katkı veren sayısı; katkı veren yoksa `per_person_budget` null ve `no_contributors` true. Havuz tamamlandıysa 409. Bildirim üretmez.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Havuzlar (Pools)"
+                ],
+                "summary": "Havuza Katkımı Ayarla",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Havuz UUID",
+                        "name": "poolId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Katkı durumu",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ContributionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Güncel katkı durumu",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/services.ContributionResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz istek",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler veya gruba üye değilsiniz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup veya havuz bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Havuz tamamlandı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/pools/{poolId}/event-date": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca havuzun etkin yöneticisi. \"YYYY-MM-DD\" veya null. Bugünden en fazla 1 yıl önce, 5 yıl sonra. Tarih gerçekten değiştiyse `event_date_changed` bildirimi (pool_id ile, alıcı hariç).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Havuzlar (Pools)"
+                ],
+                "summary": "Havuz Hediye Tarihini Güncelle (Havuz Yöneticisi)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Havuz UUID",
+                        "name": "poolId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Hediye tarihi",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateEventDateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tarih güncellendi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz tarih",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya havuz yöneticisi değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup veya havuz bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/pools/{poolId}/ideas": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Gruptaki hediye havuzunu, her hediyenin toplam oy skorunu (+1/-1 toplamı) ve istek yapan kullanıcının kendi oyunu listeler. Anti-Spoiler korumalıdır.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hediye Havuzu (Gift Ideas)"
+                ],
+                "summary": "Gruptaki Hediye Önerilerini ve Oy Skorlarını Listele",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Hediye önerileri ve oy skorları",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/repository.IdeaWithScore"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz grup kimliği",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Grup türü uygun değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Grubun hediye havuzuna manuel bir hediye fikri ekler (isteğe bağlı pazar yeri linki ile). Anti-Spoiler korumalıdır.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hediye Havuzu (Gift Ideas)"
+                ],
+                "summary": "Manuel Hediye Önerisi Ekle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Hediye Önerisi Bilgileri",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.AddIdeaRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Hediye önerisi başarıyla eklendi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.GiftIdea"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz istek parametreleri",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Grup/havuz tamamlandı veya grup türü uygun değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/pools/{poolId}/ideas/generate-ai": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Google Search ile Türkiye mağazalarında ürün ve TL fiyatı araştırır; kaynakla desteklenen sonuçlardan kişinin ilgi alanına uygun en fazla 5 yeni hediye üretir. Mevcut/veto edilmiş fikirler ve bütçe dikkate alınır. ai_sources araştırma kaynaklarını, ai_search_suggestions Google arama önerisi HTML'ini taşır; anlık stok garantisi vermez. Kaynaksız araştırma şu an 500, servis filtresinden sonra boş sonuç 422 döner. Geçici panel kaynak alanlarını henüz göstermez.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hediye Havuzu (Gift Ideas)"
+                ],
+                "summary": "Gemini 3.8 Flash ile Yapay Zekâ Hediye Önerileri Üret (Faz 6)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Yapay zekâ tarafından üretilen yeni hediye önerileri",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.GiftIdea"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz grup kimliği",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Grup/havuz tamamlandı veya grup türü uygun değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Yapay zekâ öneri üretemedi",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Gemini kullanım kotası veya istek sınırı aşıldı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "Gemini API anahtarı yapılandırılmamış veya servis geçici olarak kullanılamıyor",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/pools/{poolId}/interests": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Alıcı dışındaki tüm üyeler (alıcı kendi havuzuna ilgi alanı ekleyemez; 403 + sürpriz mesajı). 1–100 karakter, virgül/noktalı virgül/satır sonu yok; tekrar 409. Bildirim üretmez.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Havuzlar (Pools)"
+                ],
+                "summary": "Havuza İlgi Alanı Ekle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Havuz UUID",
+                        "name": "poolId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Eklenecek ilgi alanı",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.InterestRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Güncel ilgi alanı listesi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.InterestListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz ilgi alanı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler veya gruba üye değilsiniz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup veya havuz bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "İlgi alanı zaten listede",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca havuzun etkin yöneticisi. Bildirim üretmez.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Havuzlar (Pools)"
+                ],
+                "summary": "Havuzdan İlgi Alanı Sil (Havuz Yöneticisi)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Havuz UUID",
+                        "name": "poolId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Silinecek ilgi alanı",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.InterestRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Güncel ilgi alanı listesi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.InterestListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz istek",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya havuz yöneticisi değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup, havuz veya ilgi alanı bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/pools/{poolId}/winner": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca havuzun etkin yöneticisi. 1–20 aktif fikir SELECTED, havuz COMPLETED olur. Fikirlerden biri bu havuza ait değilse 400, aktif değilse ya da havuz zaten tamamlandıysa 409. Tamamlanan havuzda fikir ekleme, AI, oy, veto, fikir silme ve katkı değişikliği 409 döner.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Havuzlar (Pools)"
+                ],
+                "summary": "Havuzun Kazananlarını Seç (Havuz Yöneticisi)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Havuz UUID",
+                        "name": "poolId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Kazanan fikirler",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.SelectWinnerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Havuz tamamlandı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Fikir bu havuza ait değil veya istek geçersiz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya havuz yöneticisi değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup veya havuz bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Havuz zaten tamamlandı veya fikir aktif değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca havuzun etkin yöneticisi. Kazanan fikirler ACTIVE'e, havuz ACTIVE'e döner. Havuz zaten açıksa 409.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Havuzlar (Pools)"
+                ],
+                "summary": "Havuzu Yeniden Aç (Havuz Yöneticisi)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Havuz UUID",
+                        "name": "poolId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Havuz yeniden açıldı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya havuz yöneticisi değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup veya havuz bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Havuz zaten açık",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/recipients": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca grup yöneticisi. Üye alıcı yapılır ve havuzu kurulur; alıcı dışındaki tüm üyeler varsayılan olarak katkı verir. Yönetici kendini alıcı yapabilir ama yalnızca `manager_user_id` ile başka bir üyeyi havuz yöneticisi seçerek; başka bir alıcı için `manager_user_id` gönderilemez. Yanıttaki havuz çağırana göredir: yönetici kendini alıcı yaptıysa LockedPool.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Havuzlar (Pools)"
+                ],
+                "summary": "Hediye Alacak Kişi Ekle (MULTI, Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Alıcı ve (gerekirse) havuz yöneticisi",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.AddRecipientRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Havuz kuruldu",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/services.RecipientAdded"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Kişi veya yönetici üye değil, yönetici alıcıyla aynı, yönetici gereksiz ya da eksik",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya admin değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Grup türü SINGLE veya kişi zaten alıcı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/recipients/{userId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca grup yöneticisi. Havuz; fikirleri, oyları, katkıları ve bildirimleriyle birlikte silinir. Havuzda fikir varsa `confirm=true` olmadan 409 döner. Anti-Spoiler: çağıran o havuzun alıcısıysa (yönetici kendi havuzu) `confirm=true` olmadan fikir olsun olmasın her zaman 409 döner; böylece havuzda fikir olup olmadığı anlaşılamaz. Bildirim üretmez.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Havuzlar (Pools)"
+                ],
+                "summary": "Hediye Alacak Kişiyi Kaldır (MULTI, Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Alıcının kullanıcı UUID'si",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Fikirli havuzu silmeyi onayla",
+                        "name": "confirm",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Alıcı kaldırıldı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya admin değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı veya kişi alıcı değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Grup türü SINGLE veya onay gerekli",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/recipients/{userId}/manager": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca grup yöneticisi. Grup yöneticisinin kendi havuzu için `manager_user_id` zorunludur (null 400); hesabı silinen yöneticinin yerine yenisini atamak için de kullanılır. Diğer alıcıların havuzunu her zaman grup yöneticisi yönetir; onlar için yalnızca null kabul edilir (değişiklik yapmaz). Yeni yöneticiye `pool_manager_assigned` bildirimi gider.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Havuzlar (Pools)"
+                ],
+                "summary": "Havuz Yöneticisini Değiştir (MULTI, Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Alıcının kullanıcı UUID'si",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Yeni havuz yöneticisi",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.SetManagerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Havuz yöneticisi güncellendi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/services.ManagerChanged"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Yönetici üye değil, alıcıyla aynı, gereksiz ya da eksik",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya admin değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı veya kişi alıcı değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Grup türü SINGLE",
                         "schema": {
                             "$ref": "#/definitions/controllers.Response"
                         }
@@ -3231,6 +4517,22 @@
                 }
             }
         },
+        "controllers.AddRecipientRequest": {
+            "type": "object",
+            "required": [
+                "user_id"
+            ],
+            "properties": {
+                "manager_user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "controllers.ChangePasswordRequest": {
             "type": "object",
             "required": [
@@ -3249,6 +4551,18 @@
                     "maxLength": 100,
                     "minLength": 6,
                     "example": "YeniSifre456!"
+                }
+            }
+        },
+        "controllers.ContributionRequest": {
+            "type": "object",
+            "required": [
+                "contributing"
+            ],
+            "properties": {
+                "contributing": {
+                    "type": "boolean",
+                    "example": false
                 }
             }
         },
@@ -3281,7 +4595,6 @@
         "controllers.CreateGroupRequest": {
             "type": "object",
             "required": [
-                "target_person_name",
                 "title"
             ],
             "properties": {
@@ -3294,6 +4607,14 @@
                     "type": "string",
                     "format": "date",
                     "example": "2026-12-31"
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "SINGLE",
+                        "MULTI"
+                    ],
+                    "example": "SINGLE"
                 },
                 "target_email": {
                     "type": "string",
@@ -3503,6 +4824,15 @@
                 }
             }
         },
+        "controllers.SetManagerRequest": {
+            "type": "object",
+            "properties": {
+                "manager_user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "controllers.UpdateBudgetRequest": {
             "type": "object",
             "required": [
@@ -3709,6 +5039,11 @@
                     "description": "Bütçeyi aşıyor mu uyarısı",
                     "type": "boolean"
                 },
+                "pool_id": {
+                    "description": "PoolID fikrin ait olduğu havuzdur (yalnızca MULTI gruplarda). SINGLE grubun fikirlerinde NULL.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "product_url": {
                     "description": "Sadece MANUAL eklemelerde dolu",
                     "type": "string"
@@ -3771,6 +5106,14 @@
                 },
                 "id": {
                     "type": "string"
+                },
+                "mode": {
+                    "description": "Mode grup türüdür (SINGLE | MULTI); kurulurken seçilir, değişmez. Eski satırlar SINGLE'dır.\nMULTI grupta hedef, bütçe, ilgi alanı ve tarih alanları boştur; bunlar havuzlardadır.",
+                    "type": "string",
+                    "enum": [
+                        "SINGLE",
+                        "MULTI"
+                    ]
                 },
                 "status": {
                     "description": "ACTIVE: oylama sürüyor. COMPLETED: admin kazananı seçti; fikir ve oy işlemleri kapalı.",
@@ -3839,6 +5182,23 @@
                 }
             }
         },
+        "repository.Contributor": {
+            "type": "object",
+            "properties": {
+                "contributing": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Zeynep Kaya"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "repository.IdeaWithScore": {
             "type": "object",
             "properties": {
@@ -3883,6 +5243,11 @@
                     "description": "Kullanıcının oyu: 1, -1 veya 0",
                     "type": "integer"
                 },
+                "pool_id": {
+                    "description": "PoolID fikrin ait olduğu havuzdur (yalnızca MULTI gruplarda). SINGLE grubun fikirlerinde NULL.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "product_url": {
                     "description": "Sadece MANUAL eklemelerde dolu",
                     "type": "string"
@@ -3926,6 +5291,11 @@
                 "params": {
                     "type": "object"
                 },
+                "pool_id": {
+                    "description": "PoolID olay MULTI gruptaki bir havuza aitse doludur.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "read_at": {
                     "type": "string"
                 },
@@ -3945,6 +5315,26 @@
                 "name": {
                     "type": "string",
                     "example": "Ahmet Yılmaz"
+                }
+            }
+        },
+        "services.ContributionResult": {
+            "type": "object",
+            "properties": {
+                "contributing": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "contributor_count": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "no_contributors": {
+                    "type": "boolean"
+                },
+                "per_person_budget": {
+                    "type": "string",
+                    "example": "1500"
                 }
             }
         },
@@ -3974,6 +5364,13 @@
                 },
                 "per_person_budget": {
                     "type": "number"
+                },
+                "pools": {
+                    "description": "Pools yalnızca MULTI gruplarda vardır (SINGLE'da alan yer almaz): kurulma sırasıyla havuz\nkartları. Çağıranın kendi havuzu LockedPool ({id, recipient, is_mine, locked}), diğerleri OpenPool.",
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
                 },
                 "target_account": {
                     "description": "Hedef kişinin bağlı hesabı (yalnızca id + ad). Hedef bağlı değilse yer almaz. Bu yanıtı\nyalnızca üyeler alır; hedef kişinin kendisi Anti-Spoiler ile 403 alır.",
@@ -4036,10 +5433,31 @@
                     "type": "integer",
                     "example": 4
                 },
+                "mode": {
+                    "description": "Mode grup türüdür (SINGLE | MULTI); kurulurken seçilir, değişmez. Eski satırlar SINGLE'dır.\nMULTI grupta hedef, bütçe, ilgi alanı ve tarih alanları boştur; bunlar havuzlardadır.",
+                    "type": "string",
+                    "enum": [
+                        "SINGLE",
+                        "MULTI"
+                    ]
+                },
+                "next_event_date": {
+                    "description": "NextEventDate yalnızca MULTI gruplarda: çağıranın alıcısı olmadığı açık havuzların en yakın yaklaşan (bugün veya sonrası, UTC+3) tarihi; yaklaşan yoksa en erken geçmiş tarih.",
+                    "type": "string",
+                    "format": "date",
+                    "example": "2026-12-31"
+                },
                 "pending_votes": {
-                    "description": "Çağıran kullanıcıya özel: açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler.",
+                    "description": "Çağıran kullanıcıya özel: açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler.\nMULTI grupta sayaçlar yalnızca çağıranın alıcısı olmadığı havuzlardan hesaplanır.",
                     "type": "integer",
                     "example": 2
+                },
+                "recipients": {
+                    "description": "Recipients yalnızca MULTI gruplarda vardır: hediye alacak kişiler (kurulma sırasıyla; çağıran\nda olabilir). SINGLE'da alan yer almaz.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.AccountSummary"
+                    }
                 },
                 "status": {
                     "description": "ACTIVE: oylama sürüyor. COMPLETED: admin kazananı seçti; fikir ve oy işlemleri kapalı.",
@@ -4117,6 +5535,15 @@
                 }
             }
         },
+        "services.ManagerChanged": {
+            "type": "object",
+            "properties": {
+                "pool_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "services.NotificationList": {
             "type": "object",
             "properties": {
@@ -4129,6 +5556,178 @@
                 "unread_count": {
                     "type": "integer",
                     "example": 3
+                }
+            }
+        },
+        "services.OpenPool": {
+            "type": "object",
+            "properties": {
+                "can_manage": {
+                    "description": "CanManage çağıranın bütçe, tarih, kazanan, veto, ilgi alanı silme ve fikir silme yetkisidir.",
+                    "type": "boolean"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "contributor_count": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "event_date": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2026-12-31"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "idea_count": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "is_mine": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "locked": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "manager": {
+                    "description": "Manager havuzun etkin yöneticisidir; yoksa null (grup yöneticisinin havuzunda yönetici atanmamış).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/services.AccountSummary"
+                        }
+                    ]
+                },
+                "my_contribution": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "no_contributors": {
+                    "type": "boolean"
+                },
+                "pending_votes": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "per_person_budget": {
+                    "description": "PerPersonBudget toplam bütçe / katkı veren sayısıdır; katkı veren yoksa null.",
+                    "type": "string",
+                    "example": "1000"
+                },
+                "recipient": {
+                    "$ref": "#/definitions/services.AccountSummary"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "ACTIVE",
+                        "COMPLETED"
+                    ],
+                    "example": "ACTIVE"
+                },
+                "total_budget": {
+                    "type": "string",
+                    "example": "3000"
+                }
+            }
+        },
+        "services.PoolDetail": {
+            "type": "object",
+            "properties": {
+                "can_manage": {
+                    "description": "CanManage çağıranın bütçe, tarih, kazanan, veto, ilgi alanı silme ve fikir silme yetkisidir.",
+                    "type": "boolean"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "contributor_count": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "contributors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.Contributor"
+                    }
+                },
+                "event_date": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2026-12-31"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "idea_count": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "interests": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "is_mine": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "locked": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "manager": {
+                    "description": "Manager havuzun etkin yöneticisidir; yoksa null (grup yöneticisinin havuzunda yönetici atanmamış).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/services.AccountSummary"
+                        }
+                    ]
+                },
+                "my_contribution": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "no_contributors": {
+                    "type": "boolean"
+                },
+                "pending_votes": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "per_person_budget": {
+                    "description": "PerPersonBudget toplam bütçe / katkı veren sayısıdır; katkı veren yoksa null.",
+                    "type": "string",
+                    "example": "1000"
+                },
+                "recipient": {
+                    "$ref": "#/definitions/services.AccountSummary"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "ACTIVE",
+                        "COMPLETED"
+                    ],
+                    "example": "ACTIVE"
+                },
+                "total_budget": {
+                    "type": "string",
+                    "example": "3000"
+                }
+            }
+        },
+        "services.RecipientAdded": {
+            "type": "object",
+            "properties": {
+                "pool": {
+                    "type": "object"
                 }
             }
         }

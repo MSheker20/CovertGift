@@ -34,10 +34,11 @@ export function GroupThumb({
   group,
   size = 'md',
 }: {
-  group: { id: string; cover_version?: string; target_person_name: string }
+  // MULTI grupta hedef kişi yoktur (boş ad); avatar grup adından üretilir.
+  group: { id: string; cover_version?: string; target_person_name: string; title?: string; mode?: string }
   size?: 'sm' | 'md'
 }) {
   const { url } = useGroupCover(group.id, group.cover_version)
-  if (!url) return <Avatar name={group.target_person_name} size={size} />
+  if (!url) return <Avatar name={group.mode === 'MULTI' ? (group.title ?? '') : group.target_person_name} size={size} />
   return <img src={url} alt="" draggable={false} data-cover={group.cover_version} className={cn('shrink-0 object-cover', THUMB[size])} />
 }

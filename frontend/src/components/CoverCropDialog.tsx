@@ -32,11 +32,13 @@ type Props = {
   // Çağıranın yükleme durumu ve hatası.
   pending?: boolean
   error?: string | null
+  // Başlığın altında kalın gösterilen kısa not (ör. fotoğrafı kimlerin göreceği).
+  hint?: string
 }
 
 // Kapak fotoğrafı seçme ve 4:3 kırpma. Bağımlılıksız: çerçeve sabit, görsel sürüklenir ve
 // yakınlaştırılır (fare, dokunma, tekerlek, iki parmak, klavye, kaydırıcı); çıktı canvas ile üretilir.
-export function CoverCropDialog({ open, onOpenChange, onCropped, confirmLabel, pending = false, error = null }: Props) {
+export function CoverCropDialog({ open, onOpenChange, onCropped, confirmLabel, pending = false, error = null, hint }: Props) {
   const { t } = useTranslation()
   // Görsel hazırlanırken ya da yüklenirken diyalog kapatılamaz.
   const [busy, setBusy] = useState(false)
@@ -47,6 +49,7 @@ export function CoverCropDialog({ open, onOpenChange, onCropped, confirmLabel, p
         <DialogHeader>
           <DialogTitle>{t('cover.dialogTitle')}</DialogTitle>
           <DialogDescription>{t('cover.dialogBody')}</DialogDescription>
+          {hint && <p className="text-sm font-medium text-ink">{hint}</p>}
         </DialogHeader>
         {/* İçerik yalnızca diyalog açıkken bağlıdır; her açılışta seçim sıfırdan başlar. */}
         <CropFlow

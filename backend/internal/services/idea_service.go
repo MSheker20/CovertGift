@@ -11,6 +11,7 @@ import (
 	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 // Hediye ve oylama hata tanımları
@@ -23,20 +24,27 @@ var (
 	ErrNoAIIdeasGenerated = errors.New("yapay zeka kriterlere uygun yeni bir hediye önerisi üretemedi")
 )
 
-// IdeaService hediye havuzu ve oylama iş mantığı arayüzüdür
+// IdeaService hediye havuzu ve oylama iş mantığı arayüzüdür. Liste, ekleme ve AI önerisi bir
+// kapsamda (SINGLE grup ya da MULTI gruptaki havuz) çalışır; /ideas/:id/* işlemleri kapsamı
+// fikrin kendisinden tek bir yardımcıyla (resolveIdea) çözer.
 type IdeaService interface {
-	AddManualIdea(groupID, userID uuid.UUID, title, description, searchQuery, productURL, imageURL string, price decimal.Decimal) (*models.GiftIdea, error)
-	GetGroupIdeas(groupID, currentUserID uuid.UUID) ([]repository.IdeaWithScore, error)
+	AddManualIdea(scope repository.IdeaScope, userID uuid.UUID, title, description, searchQuery, productURL, imageURL string, price decimal.Decimal) (*models.GiftIdea, error)
+	GetGroupIdeas(scope repository.IdeaScope, currentUserID uuid.UUID) ([]repository.IdeaWithScore, error)
 	VoteIdea(ideaID, currentUserID uuid.UUID, voteType int8) error
 	UnvoteIdea(ideaID, currentUserID uuid.UUID) error
 	DeleteIdea(ideaID, currentUserID uuid.UUID) error
 	RejectIdea(ideaID, currentUserID uuid.UUID) error
-	GenerateAIIdeas(ctx context.Context, groupID, currentUserID uuid.UUID) ([]models.GiftIdea, error)
+	GenerateAIIdeas(ctx context.Context, scope repository.IdeaScope, currentUserID uuid.UUID) ([]models.GiftIdea, error)
+	// GuardIdea yalnızca Anti-Spoiler'ı denetler: fikrin grubunun hedef kişisi ya da havuzunun
+	// alıcısı için ErrAntiSpoilerTriggered döner, diğer her durumda nil (gövde doğrulamasından
+	// önce çalışan middleware için).
+	GuardIdea(ideaID, userID uuid.UUID) error
 }
 
 type ideaService struct {
 	ideaRepo     repository.IdeaRepository
 	groupRepo    repository.GroupRepository
+	poolRepo     repository.PoolRepository
 	geminiClient GiftIdeaGenerator
 }
 
@@ -44,41 +52,97 @@ type GiftIdeaGenerator interface {
 	GenerateGiftIdeas(context.Context, string) ([]gemini.AIIdeaSuggestion, error)
 }
 
-// NewIdeaService yeni bir IdeaService örneği oluşturur
-func NewIdeaService(ideaRepo repository.IdeaRepository, groupRepo repository.GroupRepository, geminiClient GiftIdeaGenerator) IdeaService {
+// NewIdeaService yeni bir IdeaService örneği oluşturur. poolRepo nil olabilir; o zaman havuz
+// kapsamları ErrPoolNotFound döner.
+func NewIdeaService(ideaRepo repository.IdeaRepository, groupRepo repository.GroupRepository, poolRepo repository.PoolRepository, geminiClient GiftIdeaGenerator) IdeaService {
 	return &ideaService{
 		ideaRepo:     ideaRepo,
 		groupRepo:    groupRepo,
+		poolRepo:     poolRepo,
 		geminiClient: geminiClient,
 	}
 }
 
-// AddManualIdea gruba kullanıcı tarafından manuel bir hediye önerisi ekler
-func (s *ideaService) AddManualIdea(groupID, userID uuid.UUID, title, description, searchQuery, productURL, imageURL string, price decimal.Decimal) (*models.GiftIdea, error) {
-	// 1. Grubu getir
-	group, err := s.groupRepo.GetGroupByID(groupID)
+// loadScope kapsamın grubunu (ve havuzunu) getirir. Anti-Spoiler üyelikten önce denetlenir:
+// grubun hedef kişisi ya da havuzun alıcısı ErrAntiSpoilerTriggered alır. Havuzsuz kapsam MULTI
+// grupta kullanılamaz (ErrWrongGroupMode).
+func (s *ideaService) loadScope(scope repository.IdeaScope, userID uuid.UUID) (giftScope, error) {
+	group, err := s.groupRepo.GetGroupByID(scope.GroupID)
 	if err != nil {
-		return nil, err
+		return giftScope{}, err
 	}
 	if group == nil {
-		return nil, ErrGroupNotFound
+		return giftScope{}, ErrGroupNotFound
 	}
-
-	// 2. Anti-Spoiler: Hedef kişi hediye önerisi ekleyemez
 	if group.TargetUserID != nil && *group.TargetUserID == userID {
-		return nil, ErrAntiSpoilerTriggered
+		return giftScope{}, ErrAntiSpoilerTriggered
 	}
-	if group.Status == models.GroupStatusCompleted {
-		return nil, ErrGroupCompleted
+	if scope.PoolID == nil {
+		if group.IsMulti() {
+			return giftScope{}, ErrWrongGroupMode
+		}
+		return giftScope{Group: group}, nil
 	}
+	if s.poolRepo == nil {
+		return giftScope{}, ErrPoolNotFound
+	}
+	pool, err := s.poolRepo.GetPool(group.ID, *scope.PoolID)
+	if err != nil {
+		return giftScope{}, err
+	}
+	if pool == nil {
+		return giftScope{}, ErrPoolNotFound
+	}
+	if pool.RecipientUserID == userID {
+		return giftScope{}, ErrAntiSpoilerTriggered
+	}
+	return giftScope{Group: group, Pool: pool}, nil
+}
 
-	// 3. Üyelik kontrolü: Sadece grup üyeleri öneri yapabilir
+func (s *ideaService) requireMember(groupID, userID uuid.UUID) (*models.GroupMember, error) {
 	member, err := s.groupRepo.GetMember(groupID, userID)
 	if err != nil {
 		return nil, err
 	}
 	if member == nil {
 		return nil, ErrNotGroupMember
+	}
+	return member, nil
+}
+
+// createIdeas fikirleri kapsam satırı FOR SHARE kilitliyken ekler; durum kilit altında yeniden
+// denetlenir (eşzamanlı kazanan seçimiyle yarış). Kapsam bu arada silindiyse ErrPoolNotFound /
+// ErrGroupNotFound döner.
+func (s *ideaService) createIdeas(sc giftScope, ideas []models.GiftIdea) error {
+	err := s.ideaRepo.CreateIdeas(sc.IdeaScope(), ideas, func(status string) error {
+		if status == models.GroupStatusCompleted {
+			return sc.CompletedErr()
+		}
+		return nil
+	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		if sc.IsPool() {
+			return ErrPoolNotFound
+		}
+		return ErrGroupNotFound
+	}
+	return err
+}
+
+// AddManualIdea kapsama kullanıcı tarafından manuel bir hediye önerisi ekler
+func (s *ideaService) AddManualIdea(scope repository.IdeaScope, userID uuid.UUID, title, description, searchQuery, productURL, imageURL string, price decimal.Decimal) (*models.GiftIdea, error) {
+	// 1-2. Kapsamı getir; Anti-Spoiler: hedef kişi / havuzun alıcısı öneri ekleyemez
+	sc, err := s.loadScope(scope, userID)
+	if err != nil {
+		return nil, err
+	}
+	if sc.Completed() {
+		return nil, sc.CompletedErr()
+	}
+
+	// 3. Üyelik kontrolü: Sadece grup üyeleri öneri yapabilir
+	if _, err := s.requireMember(sc.Group.ID, userID); err != nil {
+		return nil, err
 	}
 
 	if !validMoney(price) {
@@ -91,10 +155,12 @@ func (s *ideaService) AddManualIdea(groupID, userID uuid.UUID, title, descriptio
 		cleanQuery = title
 	}
 
-	isOverBudget := group.TotalBudget.GreaterThan(decimal.Zero) && price.GreaterThan(group.TotalBudget)
+	budget := sc.Budget()
+	isOverBudget := budget.GreaterThan(decimal.Zero) && price.GreaterThan(budget)
 
-	idea := &models.GiftIdea{
-		GroupID:        groupID,
+	ideas := []models.GiftIdea{{
+		GroupID:        sc.Group.ID,
+		PoolID:         scope.PoolID,
 		Title:          title,
 		Description:    description,
 		EstimatedPrice: price,
@@ -105,50 +171,126 @@ func (s *ideaService) AddManualIdea(groupID, userID uuid.UUID, title, descriptio
 		ProductURL:     productURL,
 		ImageURL:       imageURL,
 		CreatedBy:      userID,
-	}
+	}}
 
-	if err := s.ideaRepo.CreateIdea(idea); err != nil {
+	if err := s.createIdeas(sc, ideas); err != nil {
 		return nil, err
 	}
 
-	return idea, nil
+	return &ideas[0], nil
 }
 
-// GetGroupIdeas grubun hediye havuzunu skorlarıyla birlikte listeler
-func (s *ideaService) GetGroupIdeas(groupID, currentUserID uuid.UUID) ([]repository.IdeaWithScore, error) {
-	// 1. Grubu getir
-	group, err := s.groupRepo.GetGroupByID(groupID)
+// GetGroupIdeas kapsamın hediye havuzunu skorlarıyla birlikte listeler
+func (s *ideaService) GetGroupIdeas(scope repository.IdeaScope, currentUserID uuid.UUID) ([]repository.IdeaWithScore, error) {
+	// 1-2. Kapsamı getir; Anti-Spoiler: hedef kişi / havuzun alıcısı hediye havuzunu asla göremez
+	sc, err := s.loadScope(scope, currentUserID)
 	if err != nil {
 		return nil, err
-	}
-	if group == nil {
-		return nil, ErrGroupNotFound
-	}
-
-	// 2. Anti-Spoiler: Hedef kişi hediye havuzunu asla göremez
-	if group.TargetUserID != nil && *group.TargetUserID == currentUserID {
-		return nil, ErrAntiSpoilerTriggered
 	}
 
 	// 3. Üyelik kontrolü
-	member, err := s.groupRepo.GetMember(groupID, currentUserID)
-	if err != nil {
+	if _, err := s.requireMember(sc.Group.ID, currentUserID); err != nil {
 		return nil, err
 	}
-	if member == nil {
-		return nil, ErrNotGroupMember
-	}
 
-	ideas, err := s.ideaRepo.GetIdeasWithScores(groupID, currentUserID)
+	ideas, err := s.ideaRepo.GetIdeasWithScores(sc.IdeaScope(), currentUserID)
 	if err != nil {
 		return nil, err
 	}
 	// An idea generation/addition may have started before a concurrent budget update.
 	// Always display warnings using the budget read for this request.
+	budget := sc.Budget()
 	for i := range ideas {
-		ideas[i].IsOverBudget = group.TotalBudget.GreaterThan(decimal.Zero) && ideas[i].EstimatedPrice.GreaterThan(group.TotalBudget)
+		ideas[i].IsOverBudget = budget.GreaterThan(decimal.Zero) && ideas[i].EstimatedPrice.GreaterThan(budget)
 	}
 	return ideas, nil
+}
+
+// resolvedIdea /ideas/:id/* işlemlerinde doğrulanmış fikir, kapsamı, üyelik ve yönetim yetkisidir.
+type resolvedIdea struct {
+	idea   *models.GiftIdea
+	scope  giftScope
+	member *models.GroupMember
+	// canManage veto ve başkasının fikrini silme yetkisidir: SINGLE grupta admin, havuzda etkin yönetici.
+	canManage bool
+}
+
+// lookupIdea fikri, grubunu ve (varsa) havuzunu getirir; grubun hedef kişisi ya da havuzun
+// alıcısı için ErrAntiSpoilerTriggered döner. Durum ve üyelik denetlenmez.
+func (s *ideaService) lookupIdea(ideaID, userID uuid.UUID) (*models.GiftIdea, giftScope, error) {
+	idea, err := s.ideaRepo.GetIdeaByID(ideaID)
+	if err != nil {
+		return nil, giftScope{}, err
+	}
+	if idea == nil {
+		return nil, giftScope{}, ErrIdeaNotFound
+	}
+	group, err := s.groupRepo.GetGroupByID(idea.GroupID)
+	if err != nil {
+		return nil, giftScope{}, err
+	}
+	if group == nil {
+		return nil, giftScope{}, ErrGroupNotFound
+	}
+	if group.TargetUserID != nil && *group.TargetUserID == userID {
+		return nil, giftScope{}, ErrAntiSpoilerTriggered
+	}
+	sc := giftScope{Group: group}
+	if idea.PoolID != nil {
+		if s.poolRepo == nil {
+			return nil, giftScope{}, ErrIdeaNotFound
+		}
+		pool, err := s.poolRepo.GetPool(group.ID, *idea.PoolID)
+		if err != nil {
+			return nil, giftScope{}, err
+		}
+		if pool == nil {
+			return nil, giftScope{}, ErrIdeaNotFound
+		}
+		if pool.RecipientUserID == userID {
+			return nil, giftScope{}, ErrAntiSpoilerTriggered
+		}
+		sc.Pool = pool
+	}
+	return idea, sc, nil
+}
+
+// resolveIdea /ideas/:id/* uçlarının TEK erişim denetimidir (bu uçlar grup middleware'inden
+// geçmediği için Anti-Spoiler bu katmanda her işlemde denetlenir). Sıra:
+//  1. fikir (yoksa ErrIdeaNotFound)
+//  2. grup ve SINGLE hedef kontrolü (ErrAntiSpoilerTriggered)
+//  3. fikir bir havuzdaysa havuz; çağıran alıcıysa ErrAntiSpoilerTriggered
+//  4. kapsamın durumu (tamamlandıysa ErrGroupCompleted / ErrPoolCompleted)
+//  5. üyelik (ErrNotGroupMember)
+//  6. yönetim yetkisi: SINGLE'da admin, havuzda etkin yönetici
+func (s *ideaService) resolveIdea(ideaID, userID uuid.UUID) (*resolvedIdea, error) {
+	idea, sc, err := s.lookupIdea(ideaID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if sc.Completed() {
+		return nil, sc.CompletedErr()
+	}
+	member, err := s.requireMember(sc.Group.ID, userID)
+	if err != nil {
+		return nil, err
+	}
+	canManage := member.Role == "admin"
+	if sc.IsPool() {
+		adminID, err := s.groupRepo.GetAdminID(sc.Group.ID)
+		if err != nil {
+			return nil, err
+		}
+		canManage = canManagePool(sc.Pool, adminID, userID)
+	}
+	return &resolvedIdea{idea: idea, scope: sc, member: member, canManage: canManage}, nil
+}
+
+func (s *ideaService) GuardIdea(ideaID, userID uuid.UUID) error {
+	if _, _, err := s.lookupIdea(ideaID, userID); errors.Is(err, ErrAntiSpoilerTriggered) {
+		return err
+	}
+	return nil
 }
 
 // VoteIdea bir hediye fikrine oy verir (+1 veya -1) ve gerekirse demokrasi vetosunu işletir
@@ -158,200 +300,94 @@ func (s *ideaService) VoteIdea(ideaID, currentUserID uuid.UUID, voteType int8) e
 		return ErrInvalidVoteType
 	}
 
-	// 2. Hediye fikrini bul
-	idea, err := s.ideaRepo.GetIdeaByID(ideaID)
+	// 2-5. Fikir, kapsam, Anti-Spoiler, durum ve üyelik
+	r, err := s.resolveIdea(ideaID, currentUserID)
 	if err != nil {
 		return err
 	}
-	if idea == nil {
-		return ErrIdeaNotFound
-	}
 
-	// 3. Hediyenin grubunu bul
-	group, err := s.groupRepo.GetGroupByID(idea.GroupID)
-	if err != nil {
-		return err
-	}
-	if group == nil {
-		return ErrGroupNotFound
-	}
-
-	// 4. KRİTİK: Fikir üzerinden Anti-Spoiler Kontrolü!
-	if group.TargetUserID != nil && *group.TargetUserID == currentUserID {
-		return ErrAntiSpoilerTriggered
-	}
-	if group.Status == models.GroupStatusCompleted {
-		return ErrGroupCompleted
-	}
-
-	// 5. Kullanıcı bu grubun üyesi mi?
-	member, err := s.groupRepo.GetMember(idea.GroupID, currentUserID)
-	if err != nil {
-		return err
-	}
-	if member == nil {
-		return ErrNotGroupMember
-	}
-
-	// 6. Oyu kaydet (Upsert)
-	vote := &models.Vote{
+	// 6. Oyu kaydet (Upsert) ve demokrasi vetosu: tek transaction'da, kapsam satırı kilitliyken
+	// durum yeniden denetlenir; eksi oylar seçmenlerin (havuzda alıcı hariç üyeler) yarısını
+	// aşarsa fikir otomatik REJECTED olur.
+	err = s.ideaRepo.CastVote(r.scope.IdeaScope(), &models.Vote{
 		GiftIdeaID: ideaID,
 		UserID:     currentUserID,
 		VoteType:   voteType,
-	}
+	}, r.openGuard())
+	return ideaNotFound(err)
+}
 
-	if err := s.ideaRepo.Vote(vote); err != nil {
-		return err
-	}
-
-	// 7. Demokrasi Vetosu Kontrolü (Downvote verilmişse):
-	// Eğer toplam downvote sayısı gruptaki toplam üye sayısının yarısından fazlaysa otomatik REJECTED yap
-	if voteType == -1 {
-		downvotes, err := s.ideaRepo.GetDownvoteCount(ideaID)
-		if err == nil {
-			memberCount, err := s.groupRepo.GetMemberCount(idea.GroupID)
-			if err == nil && memberCount > 0 {
-				if downvotes > memberCount/2 {
-					_ = s.ideaRepo.UpdateStatus(ideaID, "REJECTED")
-				}
-			}
+// openGuard kilit altında kapsamın hâlâ açık olduğunu denetler.
+func (r *resolvedIdea) openGuard() func(string) error {
+	return func(status string) error {
+		if status == models.GroupStatusCompleted {
+			return r.scope.CompletedErr()
 		}
+		return nil
 	}
-
-	return nil
 }
 
-// /ideas/:id/* uçları grup middleware'inden geçmediği için Anti-Spoiler bu katmanda,
-// her fikir işleminde ayrıca denetlenir.
-// openGroupForIdea fikrin grubunu getirir; istek atan hedefse ErrAntiSpoilerTriggered,
-// grup tamamlandıysa ErrGroupCompleted döner. Anti-Spoiler her zaman önce denetlenir.
-func (s *ideaService) openGroupForIdea(groupID, userID uuid.UUID) (*models.Group, error) {
-	group, err := s.groupRepo.GetGroupByID(groupID)
-	if err != nil {
-		return nil, err
-	}
-	if group == nil {
-		return nil, ErrGroupNotFound
-	}
-	if group.TargetUserID != nil && *group.TargetUserID == userID {
-		return nil, ErrAntiSpoilerTriggered
-	}
-	if group.Status == models.GroupStatusCompleted {
-		return nil, ErrGroupCompleted
-	}
-	return group, nil
-}
-
-// RejectIdea grup yöneticisinin bir hediye fikrini doğrudan veto etmesini sağlar
-func (s *ideaService) RejectIdea(ideaID, currentUserID uuid.UUID) error {
-	// 1. Hediyeyi bul
-	idea, err := s.ideaRepo.GetIdeaByID(ideaID)
-	if err != nil {
-		return err
-	}
-	if idea == nil {
+// ideaNotFound fikir ya da kapsamı bu arada silindiyse kayıt bulunamadı hatasını ErrIdeaNotFound'a çevirir.
+func ideaNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ErrIdeaNotFound
 	}
+	return err
+}
 
-	// 2. KRİTİK: Fikir üzerinden Anti-Spoiler Kontrolü (üyelikten önce); tamamlanan grupta kapalı
-	if _, err := s.openGroupForIdea(idea.GroupID, currentUserID); err != nil {
-		return err
-	}
-
-	// 3. Kullanıcının gruptaki rolünü kontrol et
-	member, err := s.groupRepo.GetMember(idea.GroupID, currentUserID)
+// RejectIdea grup yöneticisinin (havuzda etkin yöneticinin) bir hediye fikrini doğrudan veto etmesini sağlar
+func (s *ideaService) RejectIdea(ideaID, currentUserID uuid.UUID) error {
+	r, err := s.resolveIdea(ideaID, currentUserID)
 	if err != nil {
 		return err
 	}
-	if member == nil {
-		return ErrNotGroupMember
-	}
-
-	// 4. YETKİ KONTROLÜ: Sadece grup admini doğrudan veto edebilir!
-	if member.Role != "admin" {
+	// YETKİ KONTROLÜ: Sadece grup admini (havuzda etkin yönetici) doğrudan veto edebilir!
+	if !r.canManage {
 		return ErrUnauthorizedVeto
 	}
-
-	// 5. Durumu 'REJECTED' olarak güncelle
-	return s.ideaRepo.UpdateStatus(ideaID, "REJECTED")
+	return ideaNotFound(s.ideaRepo.UpdateStatus(r.scope.IdeaScope(), ideaID, "REJECTED", r.openGuard()))
 }
 
-// DeleteIdea hediye fikrini siler (sadece öneren kişi veya grup admini)
+// DeleteIdea hediye fikrini siler (sadece öneren kişi veya grup admini / havuzun etkin yöneticisi)
 func (s *ideaService) DeleteIdea(ideaID, currentUserID uuid.UUID) error {
-	// 1. Hediyeyi bul
-	idea, err := s.ideaRepo.GetIdeaByID(ideaID)
+	r, err := s.resolveIdea(ideaID, currentUserID)
 	if err != nil {
 		return err
 	}
-	if idea == nil {
-		return ErrIdeaNotFound
-	}
-
-	// 2. KRİTİK: Fikir üzerinden Anti-Spoiler Kontrolü (üyelikten önce); tamamlanan grupta kapalı
-	if _, err := s.openGroupForIdea(idea.GroupID, currentUserID); err != nil {
-		return err
-	}
-
-	// 3. Kullanıcının gruptaki rolünü kontrol et
-	member, err := s.groupRepo.GetMember(idea.GroupID, currentUserID)
-	if err != nil {
-		return err
-	}
-	if member == nil {
-		return ErrNotGroupMember
-	}
-
-	// 4. YETKİ KONTROLÜ: Sadece öneren kişi VEYA grup admini silebilir!
-	isCreator := idea.CreatedBy == currentUserID
-	isAdmin := member.Role == "admin"
-
-	if !isCreator && !isAdmin {
+	if r.idea.CreatedBy != currentUserID && !r.canManage {
 		return ErrUnauthorizedDelete
 	}
-
-	return s.ideaRepo.DeleteIdea(ideaID)
+	return ideaNotFound(s.ideaRepo.DeleteIdea(r.scope.IdeaScope(), ideaID, r.openGuard()))
 }
 
-// GenerateAIIdeas Gemini AI kullanarak gruba yeni hediye önerileri üretir ve havuza ekler
-func (s *ideaService) GenerateAIIdeas(ctx context.Context, groupID, currentUserID uuid.UUID) ([]models.GiftIdea, error) {
+// GenerateAIIdeas Gemini AI kullanarak kapsama yeni hediye önerileri üretir ve havuza ekler
+func (s *ideaService) GenerateAIIdeas(ctx context.Context, scope repository.IdeaScope, currentUserID uuid.UUID) ([]models.GiftIdea, error) {
 	if s.geminiClient == nil {
 		return nil, gemini.ErrAPIKeyMissing
 	}
 
-	// 1. Grubu getir
-	group, err := s.groupRepo.GetGroupByID(groupID)
+	// 1-2. Kapsamı getir; Anti-Spoiler: hedef kişi / havuzun alıcısı asla AI önerisi tetikleyemez!
+	sc, err := s.loadScope(scope, currentUserID)
 	if err != nil {
 		return nil, err
 	}
-	if group == nil {
-		return nil, ErrGroupNotFound
-	}
-
-	// 2. Anti-Spoiler: Hedef kişi asla AI önerisi tetikleyemez!
-	if group.TargetUserID != nil && *group.TargetUserID == currentUserID {
-		return nil, ErrAntiSpoilerTriggered
-	}
-	if group.Status == models.GroupStatusCompleted {
-		return nil, ErrGroupCompleted
+	if sc.Completed() {
+		return nil, sc.CompletedErr()
 	}
 
 	// 3. Üyelik kontrolü: Sadece grup üyeleri AI önerisi tetikleyebilir
-	member, err := s.groupRepo.GetMember(groupID, currentUserID)
-	if err != nil {
+	if _, err := s.requireMember(sc.Group.ID, currentUserID); err != nil {
 		return nil, err
-	}
-	if member == nil {
-		return nil, ErrNotGroupMember
 	}
 
 	// 4. State-Based Context: Mevcut ve reddedilmiş hediye başlıklarını DB'den al
-	existingTitles, rejectedTitles, err := s.ideaRepo.GetGroupIdeaTitlesByStatus(groupID)
+	existingTitles, rejectedTitles, err := s.ideaRepo.GetIdeaTitlesByStatus(sc.IdeaScope())
 	if err != nil {
 		return nil, err
 	}
 
 	// 5. Dinamik Prompt İnşası
-	prompt := s.buildAIPrompt(group, existingTitles, rejectedTitles)
+	prompt := s.buildAIPrompt(sc, existingTitles, rejectedTitles)
 
 	// 6. Gemini API Çağrısı (Structured JSON)
 	suggestions, err := s.geminiClient.GenerateGiftIdeas(ctx, prompt)
@@ -364,6 +400,7 @@ func (s *ideaService) GenerateAIIdeas(ctx context.Context, groupID, currentUserI
 	}
 
 	// 7. Sunucu Tarafı Bütçe & Kalite Filtresi
+	budget := sc.Budget()
 	var newIdeas []models.GiftIdea
 	seenTitles := make(map[string]bool)
 	seenQueries := make(map[string]bool)
@@ -392,10 +429,11 @@ func (s *ideaService) GenerateAIIdeas(ctx context.Context, groupID, currentUserI
 		}
 
 		// Bütçe aşımı kontrolü (Gruba karar hakkı tanımak için filtrelemiyoruz, sadece işaretliyoruz)
-		isOverBudget := group.TotalBudget.GreaterThan(decimal.Zero) && item.EstimatedPrice.GreaterThan(group.TotalBudget)
+		isOverBudget := budget.GreaterThan(decimal.Zero) && item.EstimatedPrice.GreaterThan(budget)
 
 		idea := models.GiftIdea{
-			GroupID:             groupID,
+			GroupID:             sc.Group.ID,
+			PoolID:              scope.PoolID,
 			Title:               item.Title,
 			Description:         item.Description,
 			EstimatedPrice:      item.EstimatedPrice,
@@ -417,8 +455,8 @@ func (s *ideaService) GenerateAIIdeas(ctx context.Context, groupID, currentUserI
 		return nil, ErrNoAIIdeasGenerated
 	}
 
-	// 8. Önerileri veritabanına topluca kaydet
-	if err := s.ideaRepo.CreateIdeasBatch(newIdeas); err != nil {
+	// 8. Önerileri, kapsam satırı kilitliyken durumu yeniden denetleyerek topluca kaydet
+	if err := s.createIdeas(sc, newIdeas); err != nil {
 		return nil, err
 	}
 
@@ -426,7 +464,9 @@ func (s *ideaService) GenerateAIIdeas(ctx context.Context, groupID, currentUserI
 }
 
 // buildAIPrompt hedef kişi bilgileri ve state kısıtlarından dinamik prompt üretir
-func (s *ideaService) buildAIPrompt(group *models.Group, existingTitles, rejectedTitles []string) string {
+// Havuz kapsamında alıcının adı, havuzun ilgi alanları ve bütçesi, grubun açıklaması ve
+// havuzun mevcut/reddedilmiş başlıkları kullanılır.
+func (s *ideaService) buildAIPrompt(sc giftScope, existingTitles, rejectedTitles []string) string {
 	var sb strings.Builder
 
 	sb.WriteString("Sen profesyonel, yaratıcı ve zevkli bir hediye danışmanısın. ")
@@ -434,20 +474,20 @@ func (s *ideaService) buildAIPrompt(group *models.Group, existingTitles, rejecte
 	sb.WriteString("Pazar: Türkiye. Para birimi: TRY/TL. Hedef kişinin adı üzerinden yaş, cinsiyet veya kişilik varsayma.\n")
 
 	sb.WriteString("HEDEF KİŞİ BİLGİLERİ:\n")
-	sb.WriteString(fmt.Sprintf("- İsim: %s\n", group.TargetPersonName))
+	sb.WriteString(fmt.Sprintf("- İsim: %s\n", sc.RecipientName()))
 
-	if strings.TrimSpace(group.TargetInterests) != "" {
-		sb.WriteString(fmt.Sprintf("- İlgi Alanları ve Hobileri: %s\n", group.TargetInterests))
+	if interests := sc.InterestsText(); strings.TrimSpace(interests) != "" {
+		sb.WriteString(fmt.Sprintf("- İlgi Alanları ve Hobileri: %s\n", interests))
 	} else {
 		sb.WriteString("- İlgi Alanları: Belirtilmemiş (Genel, kullanışlı ve modern hediyeler öner)\n")
 	}
 
-	if strings.TrimSpace(group.Description) != "" {
-		sb.WriteString(fmt.Sprintf("- Grup/Kutlama Amacı: %s\n", group.Description))
+	if strings.TrimSpace(sc.Group.Description) != "" {
+		sb.WriteString(fmt.Sprintf("- Grup/Kutlama Amacı: %s\n", sc.Group.Description))
 	}
 
-	if group.TotalBudget.GreaterThan(decimal.Zero) {
-		sb.WriteString(fmt.Sprintf("- Toplam Bütçe Sınırı: %s TL\n", group.TotalBudget.StringFixed(2)))
+	if budget := sc.Budget(); budget.GreaterThan(decimal.Zero) {
+		sb.WriteString(fmt.Sprintf("- Toplam Bütçe Sınırı: %s TL\n", budget.StringFixed(2)))
 	}
 
 	sb.WriteString("\nÖNEMLİ KURALLAR VE KISITLAR:\n")
@@ -473,22 +513,9 @@ func (s *ideaService) buildAIPrompt(group *models.Group, existingTitles, rejecte
 // Çoğunluk vetosuyla reddedilmiş bir fikir, oy kaldırılınca kendiliğinden geri açılmaz;
 // REJECTED durumu admin vetosuyla da oluşabildiği için ayırt edilemez.
 func (s *ideaService) UnvoteIdea(ideaID, currentUserID uuid.UUID) error {
-	idea, err := s.ideaRepo.GetIdeaByID(ideaID)
+	r, err := s.resolveIdea(ideaID, currentUserID)
 	if err != nil {
 		return err
 	}
-	if idea == nil {
-		return ErrIdeaNotFound
-	}
-	if _, err := s.openGroupForIdea(idea.GroupID, currentUserID); err != nil {
-		return err
-	}
-	member, err := s.groupRepo.GetMember(idea.GroupID, currentUserID)
-	if err != nil {
-		return err
-	}
-	if member == nil {
-		return ErrNotGroupMember
-	}
-	return s.ideaRepo.RemoveVote(ideaID, currentUserID)
+	return ideaNotFound(s.ideaRepo.RemoveVote(r.scope.IdeaScope(), ideaID, currentUserID, r.openGuard()))
 }

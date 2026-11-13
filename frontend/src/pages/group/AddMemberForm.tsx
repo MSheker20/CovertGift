@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { errorMessage } from '@/lib/errors'
 
 // Her üye e-postayla üye ekleyebilir; hedef kişi ve mevcut üyeler backend'de reddedilir.
-export function AddMemberForm({ groupId }: { groupId: string }) {
+export function AddMemberForm({ groupId, multi = false }: { groupId: string; multi?: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
@@ -61,7 +61,7 @@ export function AddMemberForm({ groupId }: { groupId: string }) {
         </Button>
       </div>
       <p id="m-email-msg" role={error ? 'alert' : undefined} className={`mt-2 text-xs ${error ? 'text-negative' : 'text-muted'}`}>
-        {error ?? t('members.hint')}
+        {error ?? t(multi ? 'members.hintMulti' : 'members.hint')}
       </p>
     </form>
   )

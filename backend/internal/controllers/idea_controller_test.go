@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/MSheker20/CovertGift/backend/internal/models"
+	"github.com/MSheker20/CovertGift/backend/internal/repository"
 	"github.com/MSheker20/CovertGift/backend/internal/services"
 	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
 	"github.com/gin-gonic/gin"
@@ -21,7 +22,7 @@ type failingAIService struct {
 	err error
 }
 
-func (s failingAIService) GenerateAIIdeas(context.Context, uuid.UUID, uuid.UUID) ([]models.GiftIdea, error) {
+func (s failingAIService) GenerateAIIdeas(context.Context, repository.IdeaScope, uuid.UUID) ([]models.GiftIdea, error) {
 	return nil, s.err
 }
 

@@ -3,20 +3,20 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
-import { ideasApi, queryKeys } from '@/api/endpoints'
 import { FormError, FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input, Textarea } from '@/components/ui/input'
 import { errorMessage } from '@/lib/errors'
 import { safeHttpUrl } from '@/lib/marketplace'
+import type { Scope } from './scope'
 
 const MONEY = /^\d{1,8}([.,]\d{1,2})?$/
 const EMPTY = { link: '', title: '', price: '', searchQuery: '', notes: '', productUrl: '', imageUrl: '' }
 
 // Link yapıştır → backend önizlemesi formu doldurur. Önizleme kısmi ya da başarısız olsa da
 // kullanıcı formu elle tamamlayıp ekleyebilir.
-export function AddIdeaDialog({ groupId, trigger }: { groupId: string; trigger: ReactNode }) {
+export function AddIdeaDialog({ scope, trigger }: { scope: Scope; trigger: ReactNode }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
@@ -28,7 +28,7 @@ export function AddIdeaDialog({ groupId, trigger }: { groupId: string; trigger: 
     setForm((f) => ({ ...f, [key]: e.target.value }))
 
   const preview = useMutation({
-    mutationFn: (url: string) => ideasApi.previewLink(groupId, url),
+    mutationFn: (url: string) => scope.previewLink(url),
     onSuccess: (p) => {
       setForm((f) => ({
         ...f,
@@ -45,7 +45,7 @@ export function AddIdeaDialog({ groupId, trigger }: { groupId: string; trigger: 
 
   const create = useMutation({
     mutationFn: () =>
-      ideasApi.create(groupId, {
+      scope.createIdea({
         title: form.title.trim(),
         estimated_price: (form.price.trim() || '0').replace(',', '.'),
         search_query: form.searchQuery.trim() || undefined,
@@ -54,7 +54,7 @@ export function AddIdeaDialog({ groupId, trigger }: { groupId: string; trigger: 
         image_url: form.imageUrl || undefined,
       }),
     onSuccess: (idea) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.ideas(groupId) })
+      void queryClient.invalidateQueries({ queryKey: scope.ideasKey })
       toast.success(t('addIdea.added', { title: idea.title }))
       onOpenChange(false)
     },

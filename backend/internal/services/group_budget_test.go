@@ -62,7 +62,7 @@ func TestUpdateBudgetPermissionsAndMoneyValidation(t *testing.T) {
 				repo.member = &models.GroupMember{Role: tc.role, UserID: id, GroupID: groupID}
 			}
 			budget := decimal.RequireFromString(tc.budget)
-			err := NewGroupService(repo, nil).UpdateBudget(groupID, id, budget)
+			err := NewGroupService(repo, nil, nil).UpdateBudget(groupID, id, budget)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tc.wantErr)
 			}

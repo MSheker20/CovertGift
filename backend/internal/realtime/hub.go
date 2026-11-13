@@ -34,25 +34,43 @@ func NewHub(max int) *Hub {
 // Subscribe anahtara abone olur. Dönen kanal bir değişiklikte sinyal alır; art arda gelen
 // değişiklikler tek sinyalde birleşir (kanal 1 kapasitelidir). İş bitince cancel çağrılmalıdır.
 func (h *Hub) Subscribe(key uuid.UUID) (<-chan struct{}, func(), error) {
+	return h.SubscribeMany([]uuid.UUID{key})
+}
+
+// SubscribeMany tek bir kanalı birden çok anahtara bağlar (ör. MULTI grup sayfası: grup anahtarı
+// ve çağıranın görebildiği havuzlar). Açık bağlantı sınırına bir kez sayılır. Anahtarlardan
+// herhangi birine gelen sinyal aynı kanala düşer. İş bitince cancel çağrılmalıdır.
+func (h *Hub) SubscribeMany(keys []uuid.UUID) (<-chan struct{}, func(), error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.total >= h.max {
 		return nil, nil, ErrTooManySubscribers
 	}
 	ch := make(chan struct{}, 1)
-	if h.subs[key] == nil {
-		h.subs[key] = map[chan struct{}]struct{}{}
+	unique := make([]uuid.UUID, 0, len(keys))
+	seen := map[uuid.UUID]bool{}
+	for _, key := range keys {
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		unique = append(unique, key)
+		if h.subs[key] == nil {
+			h.subs[key] = map[chan struct{}]struct{}{}
+		}
+		h.subs[key][ch] = struct{}{}
 	}
-	h.subs[key][ch] = struct{}{}
 	h.total++
 	var once sync.Once
 	cancel := func() {
 		once.Do(func() {
 			h.mu.Lock()
 			defer h.mu.Unlock()
-			delete(h.subs[key], ch)
-			if len(h.subs[key]) == 0 {
-				delete(h.subs, key)
+			for _, key := range unique {
+				delete(h.subs[key], ch)
+				if len(h.subs[key]) == 0 {
+					delete(h.subs, key)
+				}
 			}
 			h.total--
 		})

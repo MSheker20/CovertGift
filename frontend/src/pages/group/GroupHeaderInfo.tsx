@@ -10,7 +10,17 @@ import { DescriptionDialog, LinkTargetDialog } from './GroupManage'
 // Başlığın altındaki açıklama: en çok 3 satır görünür; taşıyorsa "Devamını gör / Daha az".
 // Düğme yalnızca metin gerçekten taşıyorsa çizilir (ölçülür). Açıklama yoksa yöneticiye
 // "Açıklama ekle" ipucu, üyeye hiçbir şey gösterilir.
-export function GroupDescription({ groupId, text, isAdmin }: { groupId: string; text?: string; isAdmin: boolean }) {
+export function GroupDescription({
+  groupId,
+  text,
+  isAdmin,
+  multi = false,
+}: {
+  groupId: string
+  text?: string
+  isAdmin: boolean
+  multi?: boolean
+}) {
   const { t } = useTranslation()
   const id = useId()
   const ref = useRef<HTMLParagraphElement>(null)
@@ -50,7 +60,7 @@ export function GroupDescription({ groupId, text, isAdmin }: { groupId: string; 
           <Plus className="size-3.5" aria-hidden />
           {t('group.descriptionAdd')}
         </button>
-        <DescriptionDialog groupId={groupId} open={editing} onOpenChange={setEditing} />
+        <DescriptionDialog groupId={groupId} open={editing} onOpenChange={setEditing} multi={multi} />
       </>
     )
   }

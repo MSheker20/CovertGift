@@ -23,6 +23,7 @@ import (
 	"github.com/MSheker20/CovertGift/backend/internal/config"
 	"github.com/MSheker20/CovertGift/backend/internal/realtime"
 	"github.com/MSheker20/CovertGift/backend/internal/services"
+	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
@@ -70,6 +71,13 @@ func testDatabaseURL(t *testing.T) string {
 
 func newTestAPI(t *testing.T) *testAPI {
 	t.Helper()
+	// Tipli nil: üretimde anahtar yokken olduğu gibi istemci ErrAPIKeyMissing döner.
+	return newTestAPIWithAI(t, (*gemini.Client)(nil))
+}
+
+// newTestAPIWithAI router'ı verilen AI üreticisiyle kurar (sahte Gemini ile başarılı AI testi için).
+func newTestAPIWithAI(t *testing.T, generator services.GiftIdeaGenerator) *testAPI {
+	t.Helper()
 	dsn := testDatabaseURL(t)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	if err != nil {
@@ -89,7 +97,7 @@ func newTestAPI(t *testing.T) *testAPI {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{JWTSecret: "integration-test-secret", AppEnv: "test"}
 	userHub, hub := realtime.NewHub(100), realtime.NewHub(100)
-	return &testAPI{t: t, router: newRouter(db, cfg, nil, hub, userHub), db: db, userHub: userHub, hub: hub}
+	return &testAPI{t: t, router: newRouter(db, cfg, generator, hub, userHub), db: db, userHub: userHub, hub: hub}
 }
 
 func (a *testAPI) call(method, path, token string, body any) (int, apiResponse) {
@@ -245,6 +253,15 @@ func TestAntiSpoilerTargetBlockedOnEveryGroupRoute(t *testing.T) {
 		{http.MethodGet, g + "/invite", nil},
 		{http.MethodPost, g + "/invite", map[string]int{"expires_in_days": 7}},
 		{http.MethodDelete, g + "/invite", nil},
+		// MULTI rotaları: SINGLE grubun hedefi de GroupAccess'te (mod denetiminden önce) engellenir.
+		{http.MethodGet, g + "/pools", nil},
+		{http.MethodPost, g + "/recipients", map[string]string{"user_id": uuid.NewString()}},
+		{http.MethodPatch, g + "/recipients/" + uuid.NewString() + "/manager", map[string]any{"manager_user_id": nil}},
+		{http.MethodDelete, g + "/recipients/" + uuid.NewString(), nil},
+		{http.MethodGet, g + "/pools/" + uuid.NewString(), nil},
+		{http.MethodGet, g + "/pools/" + uuid.NewString() + "/ideas", nil},
+		{http.MethodPost, g + "/pools/" + uuid.NewString() + "/ideas", map[string]any{"title": "Spoiler fikri"}},
+		{http.MethodPut, g + "/pools/" + uuid.NewString() + "/contribution", map[string]bool{"contributing": false}},
 	}
 	for _, r := range routes {
 		t.Run(r.method+" "+strings.Replace(strings.Replace(r.path, s.groupID, ":id", 1), s.ideaID, ":idea", 1), func(t *testing.T) {

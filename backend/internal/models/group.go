@@ -13,6 +13,14 @@ const (
 	GroupStatusCompleted = "COMPLETED"
 )
 
+// Grup türleri. Tür grup kurulurken seçilir ve sonradan değişmez.
+//   - SINGLE: tek bir kişi için grup (hedef, bütçe, ilgi alanları, tarih ve fikirler grubun kendisinde).
+//   - MULTI: birden çok kişi için grup; her alıcının kendi havuzu (GiftPool) vardır.
+const (
+	GroupModeSingle = "SINGLE"
+	GroupModeMulti  = "MULTI"
+)
+
 // Group hediye gruplarını temsil eder
 type Group struct {
 	ID               uuid.UUID       `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
@@ -24,6 +32,9 @@ type Group struct {
 	TotalBudget      decimal.Decimal `gorm:"type:numeric(10,2);not null;default:0.00" json:"total_budget"`
 	CreatorID        uuid.UUID       `gorm:"type:uuid;not null;index" json:"creator_id"`
 	CreatedAt        time.Time       `gorm:"not null;default:now()" json:"created_at"`
+	// Mode grup türüdür (SINGLE | MULTI); kurulurken seçilir, değişmez. Eski satırlar SINGLE'dır.
+	// MULTI grupta hedef, bütçe, ilgi alanı ve tarih alanları boştur; bunlar havuzlardadır.
+	Mode string `gorm:"type:varchar(10);not null;default:'SINGLE';check:chk_groups_mode,mode IN ('SINGLE','MULTI')" json:"mode" enums:"SINGLE,MULTI"`
 	// Hediyenin verileceği gün (doğum günü vb.). İsteğe bağlı, tek seferlik.
 	EventDate *Date `gorm:"type:date" json:"event_date,omitempty"`
 	// ACTIVE: oylama sürüyor. COMPLETED: admin kazananı seçti; fikir ve oy işlemleri kapalı.
@@ -42,4 +53,10 @@ type Group struct {
 	// Hedef kişinin hesabı hiçbir JSON yanıtında olduğu gibi yer almaz (e-posta sızmasın).
 	// Grup detayı yalnızca üyelere, en az alanla `target_account` (id + ad) döner.
 	TargetUser *User `gorm:"foreignKey:TargetUserID;constraint:OnDelete:SET NULL" json:"-"`
+}
+
+// IsMulti grubun birden çok kişi için (havuzlu) grup olduğunu söyler. Boş değer (eski
+// bellek içi nesneler) SINGLE sayılır.
+func (g *Group) IsMulti() bool {
+	return g != nil && g.Mode == GroupModeMulti
 }

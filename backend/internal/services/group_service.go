@@ -78,11 +78,17 @@ type GroupDetailResponse struct {
 	// Hedef kişinin bağlı hesabı (yalnızca id + ad). Hedef bağlı değilse yer almaz. Bu yanıtı
 	// yalnızca üyeler alır; hedef kişinin kendisi Anti-Spoiler ile 403 alır.
 	TargetAccount *AccountSummary `json:"target_account,omitempty"`
+	// Pools yalnızca MULTI gruplarda vardır (SINGLE'da alan yer almaz): kurulma sırasıyla havuz
+	// kartları. Çağıranın kendi havuzu LockedPool ({id, recipient, is_mine, locked}), diğerleri OpenPool.
+	Pools *[]PoolView `json:"pools,omitempty" swaggertype:"array,object"`
 }
 
 // GroupService grup iş mantığını tanımlayan arayüzdür
 type GroupService interface {
 	CreateGroup(creatorID uuid.UUID, title, desc, targetPersonName, targetInterests string, targetUserID *uuid.UUID, targetEmail string, totalBudget decimal.Decimal, eventDate *models.Date) (*models.Group, error)
+	// CreateMultiGroup birden çok kişi için (MULTI) grup kurar. Hedef, bütçe, ilgi alanı ve tarih
+	// alanları boştur; alıcılar sonradan POST /groups/:id/recipients ile seçilir.
+	CreateMultiGroup(creatorID uuid.UUID, title, desc string) (*models.Group, error)
 	SelectWinners(groupID, userID uuid.UUID, ideaIDs []uuid.UUID) error
 	ReopenGroup(groupID, userID uuid.UUID) error
 	SetEventDate(groupID, userID uuid.UUID, date *models.Date) error
@@ -104,17 +110,24 @@ type GroupService interface {
 type groupService struct {
 	groupRepo repository.GroupRepository
 	userRepo  repository.UserRepository
+	// pools MULTI grupların havuz kartlarını üretir; poolRepo nil ise MULTI görünümleri kapalıdır.
+	pools *poolService
 	// coverSlots aynı anda işlenen kapak görseli sayısını sınırlar (bellek koruması).
 	coverSlots chan struct{}
 }
 
-// NewGroupService yeni bir GroupService örneği oluşturur
-func NewGroupService(groupRepo repository.GroupRepository, userRepo repository.UserRepository) GroupService {
-	return &groupService{
+// NewGroupService yeni bir GroupService örneği oluşturur. poolRepo MULTI grupların liste ve
+// detay görünümleri için kullanılır (nil olabilir; o zaman yalnızca SINGLE gruplar desteklenir).
+func NewGroupService(groupRepo repository.GroupRepository, userRepo repository.UserRepository, poolRepo repository.PoolRepository) GroupService {
+	svc := &groupService{
 		groupRepo:  groupRepo,
 		userRepo:   userRepo,
 		coverSlots: make(chan struct{}, maxConcurrentCoverJobs),
 	}
+	if poolRepo != nil {
+		svc.pools = &poolService{groupRepo: groupRepo, poolRepo: poolRepo}
+	}
+	return svc
 }
 
 // CreateGroup yeni grup oluşturur ve oluşturan kişiyi admin üye yapar.
@@ -159,6 +172,7 @@ func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPerso
 		TotalBudget:      totalBudget,
 		EventDate:        eventDate,
 		Status:           models.GroupStatusActive,
+		Mode:             models.GroupModeSingle,
 		CreatorID:        creatorID,
 	}
 
@@ -166,6 +180,25 @@ func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPerso
 		return nil, err
 	}
 
+	return group, nil
+}
+
+func (s *groupService) CreateMultiGroup(creatorID uuid.UUID, title, desc string) (*models.Group, error) {
+	desc, err := normalizeDescription(desc)
+	if err != nil {
+		return nil, err
+	}
+	group := &models.Group{
+		Title:       title,
+		Description: desc,
+		TotalBudget: decimal.Zero,
+		Status:      models.GroupStatusActive,
+		Mode:        models.GroupModeMulti,
+		CreatorID:   creatorID,
+	}
+	if err := s.groupRepo.CreateGroupWithAdmin(group, creatorID); err != nil {
+		return nil, err
+	}
 	return group, nil
 }
 
@@ -177,7 +210,13 @@ type GroupListItem struct {
 	// Reddedilmemiş fikir sayısı.
 	IdeaCount int64 `json:"idea_count" example:"6"`
 	// Çağıran kullanıcıya özel: açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler.
+	// MULTI grupta sayaçlar yalnızca çağıranın alıcısı olmadığı havuzlardan hesaplanır.
 	PendingVotes int64 `json:"pending_votes" example:"2"`
+	// Recipients yalnızca MULTI gruplarda vardır: hediye alacak kişiler (kurulma sırasıyla; çağıran
+	// da olabilir). SINGLE'da alan yer almaz.
+	Recipients *[]AccountSummary `json:"recipients,omitempty"`
+	// NextEventDate yalnızca MULTI gruplarda: çağıranın alıcısı olmadığı açık havuzların en yakın yaklaşan (bugün veya sonrası, UTC+3) tarihi; yaklaşan yoksa en erken geçmiş tarih.
+	NextEventDate *models.Date `json:"next_event_date,omitempty" swaggertype:"string" format:"date" example:"2026-12-31"`
 }
 
 // GetUserGroups kullanıcının üye olduğu grupları sayaçlarıyla listeler (hedef olduğu gruplar filtrelenir).
@@ -197,12 +236,50 @@ func (s *groupService) GetUserGroups(userID uuid.UUID) ([]GroupListItem, error) 
 		return nil, err
 	}
 
+	poolsByGroup, err := s.multiPools(groups)
+	if err != nil {
+		return nil, err
+	}
+
+	today := turkeyToday(time.Now())
 	items := make([]GroupListItem, len(groups))
 	for i, g := range groups {
 		st := stats[g.ID]
 		items[i] = GroupListItem{Group: g, MemberCount: st.MemberCount, IdeaCount: st.IdeaCount, PendingVotes: st.PendingVotes}
+		if g.IsMulti() {
+			pools := poolsByGroup[g.ID]
+			recipients := make([]AccountSummary, 0, len(pools))
+			for _, p := range pools {
+				recipients = append(recipients, AccountSummary{ID: p.RecipientUserID, Name: p.Recipient.Name})
+			}
+			items[i].Recipients = &recipients
+			items[i].Status, items[i].CompletedAt = viewerStatus(pools, userID)
+			items[i].NextEventDate = nextEventDate(pools, userID, today)
+		}
 	}
 	return items, nil
+}
+
+// multiPools MULTI grupların havuzlarını tek sorguda getirir (grup kimliğine göre).
+func (s *groupService) multiPools(groups []models.Group) (map[uuid.UUID][]models.GiftPool, error) {
+	out := map[uuid.UUID][]models.GiftPool{}
+	var ids []uuid.UUID
+	for _, g := range groups {
+		if g.IsMulti() {
+			ids = append(ids, g.ID)
+		}
+	}
+	if len(ids) == 0 || s.pools == nil {
+		return out, nil
+	}
+	pools, err := s.pools.poolRepo.PoolsOfGroups(ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range pools {
+		out[p.GroupID] = append(out[p.GroupID], p)
+	}
+	return out, nil
 }
 
 // GetGroupDetail Anti-Spoiler kontrolünü yapar ve kişi başı bütçeyi anlık hesaplar
@@ -241,6 +318,10 @@ func (s *groupService) GetGroupDetail(groupID, userID uuid.UUID) (*GroupDetailRe
 		return nil, err
 	}
 
+	if group.IsMulti() {
+		return s.multiGroupDetail(group, member, memberCount, members, userID)
+	}
+
 	// 5. Dinamik Kişi Başı Bütçe Hesabı (0'a bölme korumalı)
 	perPersonBudget := decimal.Zero
 	if memberCount > 0 {
@@ -255,6 +336,34 @@ func (s *groupService) GetGroupDetail(groupID, userID uuid.UUID) (*GroupDetailRe
 		MyRole:          member.Role,
 		Interests:       models.ParseInterests(group.TargetInterests),
 		TargetAccount:   targetAccount(group),
+	}, nil
+}
+
+// multiGroupDetail MULTI grubun detayıdır. Grup düzeyindeki bütçe, kişi başı tutar ve ilgi
+// alanları boştur (bunlar havuzlardadır); durum çağırana göre hesaplanır ve havuz kartları eklenir.
+// Üye listesinde yönetici rozeti yoktur; havuz yöneticisi yalnızca açık kartlarda görünür.
+func (s *groupService) multiGroupDetail(group *models.Group, member *models.GroupMember, memberCount int64, members []models.GroupMember, userID uuid.UUID) (*GroupDetailResponse, error) {
+	if s.pools == nil {
+		return nil, ErrWrongGroupMode
+	}
+	pools, err := s.pools.poolRepo.ListPools(group.ID)
+	if err != nil {
+		return nil, err
+	}
+	views, err := s.pools.poolViewsWithMembers(group.ID, userID, pools, members)
+	if err != nil {
+		return nil, err
+	}
+	viewed := *group
+	viewed.Status, viewed.CompletedAt = viewerStatus(pools, userID)
+	return &GroupDetailResponse{
+		Group:           &viewed,
+		MemberCount:     memberCount,
+		PerPersonBudget: decimal.Zero,
+		Members:         members,
+		MyRole:          member.Role,
+		Interests:       []string{},
+		Pools:           &views,
 	}, nil
 }
 
@@ -384,18 +493,11 @@ func (s *groupService) AddInterest(groupID, userID uuid.UUID, interest string) (
 	if err := s.checkInterestAccess(groupID, userID, false); err != nil {
 		return nil, err
 	}
-	interest = strings.TrimSpace(interest)
-	if interest == "" || utf8.RuneCountInString(interest) > 100 || strings.ContainsAny(interest, ",;\r\n") {
-		return nil, ErrInvalidInterest
+	interest, err := normalizeInterest(interest)
+	if err != nil {
+		return nil, err
 	}
-	return s.groupRepo.MutateInterests(groupID, func(items []string) ([]string, error) {
-		for _, item := range items {
-			if strings.EqualFold(item, interest) {
-				return nil, ErrDuplicateInterest
-			}
-		}
-		return append(items, interest), nil
-	})
+	return s.groupRepo.MutateInterests(groupID, appendInterest(interest))
 }
 
 // DeleteInterest removes one existing item, and is restricted to group admins.
@@ -407,14 +509,7 @@ func (s *groupService) DeleteInterest(groupID, userID uuid.UUID, interest string
 	if interest == "" {
 		return nil, ErrInvalidInterest
 	}
-	return s.groupRepo.MutateInterests(groupID, func(items []string) ([]string, error) {
-		for i, item := range items {
-			if item == interest {
-				return append(items[:i], items[i+1:]...), nil
-			}
-		}
-		return nil, ErrInterestNotFound
-	})
+	return s.groupRepo.MutateInterests(groupID, removeInterest(interest))
 }
 
 // UpdateBudget is restricted to admins and validates the database's money range.
@@ -587,14 +682,7 @@ const MaxWinners = 20
 // SelectWinners admin'in seçtiği bir ya da daha fazla aktif fikri kazanan yapar ve grubu
 // tamamlar. Tamamlanan grupta fikir ekleme, AI önerisi, oy, veto ve fikir silme kapanır.
 func (s *groupService) SelectWinners(groupID, userID uuid.UUID, ideaIDs []uuid.UUID) error {
-	ids := make([]uuid.UUID, 0, len(ideaIDs))
-	seen := map[uuid.UUID]bool{}
-	for _, id := range ideaIDs {
-		if id != uuid.Nil && !seen[id] {
-			seen[id] = true
-			ids = append(ids, id)
-		}
-	}
+	ids := uniqueIDs(ideaIDs)
 	if len(ids) == 0 || len(ids) > MaxWinners {
 		return ErrInvalidWinners
 	}

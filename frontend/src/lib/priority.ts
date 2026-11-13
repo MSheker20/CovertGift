@@ -1,5 +1,5 @@
 import type { GroupListItem } from '@/api/types'
-import { daysUntil } from './eventDate'
+import { daysUntil, effectiveEventDate } from './eventDate'
 
 // Ana ekrandaki "Senden bekleyenler" listesi. Her açık grup en fazla bir görev üretir;
 // gruptaki en yüksek öncelikli durum seçilir. Kurallar:
@@ -25,7 +25,11 @@ export const PRIORITY_ORDER: Record<PriorityLevel, number> = { urgent: 0, high: 
 
 export function taskForGroup(group: GroupListItem, meId: string | undefined, now: Date = new Date()): PriorityTask | null {
   if (group.status === 'COMPLETED') return null
-  const days = group.event_date ? daysUntil(group.event_date, now) : null
+  const date = effectiveEventDate(group)
+  const days = date ? daysUntil(date, now) : null
+  // MULTI'de kazananı havuz yöneticisi seçer (admin olmayabilir) ve tarih havuz başınadır; bu
+  // yüzden admin'e özel "kazananı seç" ve "tarih ekle" görevleri yalnızca SINGLE gruplarda üretilir.
+  const single = group.mode !== 'MULTI'
   // Yönetici: grubu kuran kişi (listede rol yok; kurucu her zaman admin).
   const isAdmin = meId !== undefined && group.creator_id === meId
   const pending = group.pending_votes > 0
@@ -34,9 +38,9 @@ export function taskForGroup(group: GroupListItem, meId: string | undefined, now
   if (days !== null && days < 0) return task('urgent', 'overdue')
   if (days !== null && days <= 3 && pending) return task('urgent', 'votes')
   if (days !== null && days <= 7 && pending) return task('high', 'votes')
-  if (days !== null && days <= 7 && isAdmin) return task('high', 'pickWinner')
+  if (single && days !== null && days <= 7 && isAdmin) return task('high', 'pickWinner')
   if (pending) return task('normal', 'votes')
-  if (days === null && isAdmin) return task('low', 'addDate')
+  if (single && days === null && isAdmin) return task('low', 'addDate')
   return null
 }
 
@@ -63,8 +67,9 @@ export function prioritizedTasks(
 export function nextSurprise<T extends GroupListItem>(groups: T[], now: Date = new Date()): { group: T; days: number } | null {
   let best: { group: T; days: number } | null = null
   for (const g of groups) {
-    if (g.status === 'COMPLETED' || !g.event_date) continue
-    const days = daysUntil(g.event_date, now)
+    const date = effectiveEventDate(g)
+    if (g.status === 'COMPLETED' || !date) continue
+    const days = daysUntil(date, now)
     if (days === null || days < 0) continue
     if (!best || days < best.days) best = { group: g, days }
   }

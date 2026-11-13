@@ -17,7 +17,7 @@ const DAY_OPTIONS: InviteDays[] = [1, 7, 30]
 
 // Yalnızca admin için (çağıran denetler; API de ayrıca 403 döner). Sunucu ham token'ı yalnızca
 // oluşturma yanıtında verir; bu yüzden token yalnızca bu bileşenin belleğinde tutulur.
-export function InviteLink({ groupId, targetLinked }: { groupId: string; targetLinked: boolean }) {
+export function InviteLink({ groupId, targetLinked, multi = false }: { groupId: string; targetLinked: boolean; multi?: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const legendId = useId()
@@ -103,7 +103,7 @@ export function InviteLink({ groupId, targetLinked }: { groupId: string; targetL
         <Link2 className="size-4" aria-hidden="true" />
         {t('invite.section')}
       </h3>
-      <p className="mt-1 text-xs text-muted">{t('invite.lead')}</p>
+      <p className="mt-1 text-xs text-muted">{t(multi ? 'invite.leadMulti' : 'invite.lead')}</p>
       {!targetLinked && (
         <p className="mt-3 flex items-start gap-2 rounded-[12px] bg-pill-warn-bg px-3 py-2 text-xs text-pill-warn-ink">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />

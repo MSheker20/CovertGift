@@ -2,7 +2,6 @@ package repository
 
 import (
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/MSheker20/CovertGift/backend/internal/models"
@@ -28,6 +27,8 @@ type GroupRepository interface {
 	GetMember(groupID, userID uuid.UUID) (*models.GroupMember, error)
 	GetMemberCount(groupID uuid.UUID) (int64, error)
 	GetMembers(groupID uuid.UUID) ([]models.GroupMember, error)
+	// GetAdminID grubun yöneticisinin (role = admin) kimliğidir; yoksa uuid.Nil.
+	GetAdminID(groupID uuid.UUID) (uuid.UUID, error)
 	AddMember(member *models.GroupMember) error
 	MutateInterests(groupID uuid.UUID, change func([]string) ([]string, error)) ([]string, error)
 	UpdateBudget(groupID uuid.UUID, budget decimal.Decimal) error
@@ -111,6 +112,10 @@ type GroupListStats struct {
 // oylarını tek sorguda hesaplar (grup başına sorgu yok).
 // IdeaCount reddedilmemiş fikirleri sayar. PendingVotes yalnızca açık gruplarda, ACTIVE
 // durumdaki, kullanıcının eklemediği ve henüz oy vermediği fikirleri sayar.
+//
+// MULTI gruplarda (Anti-Spoiler) sayaçlar yalnızca kullanıcının alıcısı OLMADIĞI havuzlardan
+// hesaplanır; PendingVotes açık (ACTIVE) havuzlara bakar. Kullanıcının kendi havuzundaki hiçbir
+// değişiklik bu sayılara yansımaz.
 func (r *groupRepository) GetGroupListStats(userID uuid.UUID, groupIDs []uuid.UUID) (map[uuid.UUID]GroupListStats, error) {
 	out := make(map[uuid.UUID]GroupListStats, len(groupIDs))
 	if len(groupIDs) == 0 {
@@ -121,15 +126,27 @@ func (r *groupRepository) GetGroupListStats(userID uuid.UUID, groupIDs []uuid.UU
 	err := r.db.Raw(`
 		SELECT g.id AS group_id,
 			(SELECT COUNT(*) FROM group_members gm WHERE gm.group_id = g.id) AS member_count,
-			(SELECT COUNT(*) FROM gift_ideas gi WHERE gi.group_id = g.id AND gi.status <> ?) AS idea_count,
-			CASE WHEN g.status = ? THEN (
+			CASE WHEN g.mode = ? THEN (
+				SELECT COUNT(*) FROM gift_ideas gi JOIN gift_pools gp ON gp.id = gi.pool_id
+				WHERE gi.group_id = g.id AND gi.status <> ? AND gp.recipient_user_id <> ?
+			) ELSE (
+				SELECT COUNT(*) FROM gift_ideas gi WHERE gi.group_id = g.id AND gi.pool_id IS NULL AND gi.status <> ?
+			) END AS idea_count,
+			CASE WHEN g.mode = ? THEN (
+				SELECT COUNT(*) FROM gift_ideas gi JOIN gift_pools gp ON gp.id = gi.pool_id
+				WHERE gi.group_id = g.id AND gp.recipient_user_id <> ? AND gp.status = ?
+					AND gi.status = ? AND gi.created_by <> ?
+					AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.gift_idea_id = gi.id AND v.user_id = ?)
+			) WHEN g.status = ? THEN (
 				SELECT COUNT(*) FROM gift_ideas gi
-				WHERE gi.group_id = g.id AND gi.status = ? AND gi.created_by <> ?
+				WHERE gi.group_id = g.id AND gi.pool_id IS NULL AND gi.status = ? AND gi.created_by <> ?
 					AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.gift_idea_id = gi.id AND v.user_id = ?)
 			) ELSE 0 END AS pending_votes
 		FROM groups g
 		WHERE g.id IN ?`,
-		"REJECTED", models.GroupStatusActive, "ACTIVE", userID, userID, groupIDs,
+		models.GroupModeMulti, "REJECTED", userID, "REJECTED",
+		models.GroupModeMulti, userID, models.GroupStatusActive, "ACTIVE", userID, userID,
+		models.GroupStatusActive, "ACTIVE", userID, userID, groupIDs,
 	).Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -181,12 +198,24 @@ func (r *groupRepository) GetMembers(groupID uuid.UUID) ([]models.GroupMember, e
 	return members, err
 }
 
+// GetAdminID grubun yöneticisinin kimliğini döner; yönetici yoksa uuid.Nil.
+func (r *groupRepository) GetAdminID(groupID uuid.UUID) (uuid.UUID, error) {
+	var ids []uuid.UUID
+	err := r.db.Model(&models.GroupMember{}).Where("group_id = ? AND role = ?", groupID, "admin").
+		Order("joined_at").Limit(1).Pluck("user_id", &ids).Error
+	if err != nil || len(ids) == 0 {
+		return uuid.Nil, err
+	}
+	return ids[0], nil
+}
+
 // AddMember gruba yeni bir üye kaydı ekler. Grup satırı kilitlenir; böylece eşzamanlı
-// hedef bağlama ile yarışan hedef kişi üye olarak eklenemez.
+// hedef bağlama ile yarışan hedef kişi üye olarak eklenemez ve eşzamanlı havuz kurma ile katkı
+// satırları tutarlı kalır.
 func (r *groupRepository) AddMember(member *models.GroupMember) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var group models.Group
-		if err := tx.Select("id", "target_user_id").Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.Select("id", "target_user_id").Clauses(clause.Locking{Strength: lockNoKeyUpdate}).
 			First(&group, "id = ?", member.GroupID).Error; err != nil {
 			return err
 		}
@@ -201,50 +230,22 @@ func (r *groupRepository) AddMember(member *models.GroupMember) error {
 		if existing > 0 {
 			return ErrMemberExists
 		}
-		return tx.Create(member).Error
+		if err := tx.Create(member).Error; err != nil {
+			return err
+		}
+		// MULTI grup: yeni üye, alıcısı kendisi olmayan her havuza varsayılan olarak katkı verir.
+		return AddContributionsForMember(tx, member.GroupID, member.UserID)
 	})
 }
 
 // MutateInterests locks the row so concurrent additions cannot overwrite each other.
 func (r *groupRepository) MutateInterests(groupID uuid.UUID, change func([]string) ([]string, error)) ([]string, error) {
-	var interests []string
-	err := r.db.Transaction(func(tx *gorm.DB) error {
-		var group models.Group
-		if err := tx.Select("id", "target_interests").Clauses(clause.Locking{Strength: "UPDATE"}).
-			First(&group, "id = ?", groupID).Error; err != nil {
-			return err
-		}
-		updated, err := change(models.ParseInterests(group.TargetInterests))
-		if err != nil {
-			return err
-		}
-		if err := tx.Model(&models.Group{}).Where("id = ?", groupID).
-			Update("target_interests", strings.Join(updated, "\n")).Error; err != nil {
-			return err
-		}
-		interests = updated
-		return nil
-	})
-	return interests, err
+	return mutateScopeInterests(r.db, GroupScope(groupID), change)
 }
 
 // UpdateBudget keeps the group's budget and existing gift warnings consistent.
 func (r *groupRepository) UpdateBudget(groupID uuid.UUID, budget decimal.Decimal) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		result := tx.Model(&models.Group{}).Where("id = ?", groupID).Update("total_budget", budget)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return gorm.ErrRecordNotFound
-		}
-		var overBudget interface{} = false
-		if budget.GreaterThan(decimal.Zero) {
-			overBudget = gorm.Expr("estimated_price > ?", budget)
-		}
-		return tx.Model(&models.GiftIdea{}).Where("group_id = ?", groupID).
-			Update("is_over_budget", overBudget).Error
-	})
+	return updateScopeBudget(r.db, GroupScope(groupID), budget)
 }
 
 // SetTargetUser locks the group row so the guard sees the current target and membership.
@@ -252,7 +253,7 @@ func (r *groupRepository) UpdateBudget(groupID uuid.UUID, budget decimal.Decimal
 func (r *groupRepository) SetTargetUser(groupID, targetID uuid.UUID, guard func(current *uuid.UUID, isMember bool) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var group models.Group
-		if err := tx.Select("id", "target_user_id").Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.Select("id", "target_user_id").Clauses(clause.Locking{Strength: lockNoKeyUpdate}).
 			First(&group, "id = ?", groupID).Error; err != nil {
 			return err
 		}
@@ -273,9 +274,23 @@ func (r *groupRepository) SetTargetUser(groupID, targetID uuid.UUID, guard func(
 	})
 }
 
-// DeleteGroup grubu ve ona bağlı tüm fikirleri, oyları ve üyelikleri atomik bir transaction ile siler
+// DeleteGroup grubu ve ona bağlı tüm fikirleri, oyları ve üyelikleri atomik bir transaction ile siler.
+// Kilit sırası diğer tüm işlemlerle aynıdır: önce grup satırı (FOR UPDATE; satır silineceği için),
+// sonra grubun havuzları (FOR UPDATE), sonra diğer her şey. Fikir ekleme, oy, veto ve kazanan
+// seçimi de önce grup satırını (KEY SHARE / SHARE) aldığı için bu işlemle kilitlenme (deadlock) olmaz.
 func (r *groupRepository) DeleteGroup(groupID uuid.UUID) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		var locked []uuid.UUID
+		if err := tx.Raw("SELECT id FROM groups WHERE id = ? FOR UPDATE", groupID).Scan(&locked).Error; err != nil {
+			return err
+		}
+		if len(locked) == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		var pools []uuid.UUID
+		if err := tx.Raw("SELECT id FROM gift_pools WHERE group_id = ? ORDER BY id FOR UPDATE", groupID).Scan(&pools).Error; err != nil {
+			return err
+		}
 		// 1. Gruba ait hediye fikirlerinin ID'lerini topla
 		var ideaIDs []uuid.UUID
 		if err := tx.Model(&models.GiftIdea{}).Where("group_id = ?", groupID).Pluck("id", &ideaIDs).Error; err != nil {
@@ -313,14 +328,7 @@ func (r *groupRepository) DeleteGroup(groupID uuid.UUID) error {
 
 // SetEventDate grubun hediye tarihini ayarlar; nil tarihi kaldırır.
 func (r *groupRepository) SetEventDate(groupID uuid.UUID, date *models.Date) error {
-	result := r.db.Model(&models.Group{}).Where("id = ?", groupID).Update("event_date", date)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return setScopeEventDate(r.db, GroupScope(groupID), date)
 }
 
 // CompleteGroup kazanan fikirleri SELECTED, grubu COMPLETED yapar. Grup satırı kilitlenir;
@@ -329,23 +337,17 @@ func (r *groupRepository) SetEventDate(groupID uuid.UUID, date *models.Date) err
 func (r *groupRepository) CompleteGroup(groupID uuid.UUID, ideaIDs []uuid.UUID, guard func(group *models.Group, ideas []models.GiftIdea) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var group models.Group
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&group, "id = ?", groupID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: lockNoKeyUpdate}).First(&group, "id = ?", groupID).Error; err != nil {
 			return err
 		}
-		var ideas []models.GiftIdea
-		if err := tx.Where("id IN ? AND group_id = ?", ideaIDs, groupID).Find(&ideas).Error; err != nil {
+		ideas, err := scopeIdeasByIDs(tx, GroupScope(groupID), ideaIDs)
+		if err != nil {
 			return err
 		}
 		if err := guard(&group, ideas); err != nil {
 			return err
 		}
-		if err := tx.Model(&models.GiftIdea{}).Where("id IN ?", ideaIDs).Update("status", "SELECTED").Error; err != nil {
-			return err
-		}
-		return tx.Model(&models.Group{}).Where("id = ?", groupID).Updates(map[string]any{
-			"status":       models.GroupStatusCompleted,
-			"completed_at": time.Now(),
-		}).Error
+		return completeScope(tx, GroupScope(groupID), ideaIDs)
 	})
 }
 
@@ -353,20 +355,13 @@ func (r *groupRepository) CompleteGroup(groupID uuid.UUID, ideaIDs []uuid.UUID, 
 func (r *groupRepository) ReopenGroup(groupID uuid.UUID, guard func(group *models.Group) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var group models.Group
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&group, "id = ?", groupID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: lockNoKeyUpdate}).First(&group, "id = ?", groupID).Error; err != nil {
 			return err
 		}
 		if err := guard(&group); err != nil {
 			return err
 		}
-		if err := tx.Model(&models.GiftIdea{}).Where("group_id = ? AND status = ?", groupID, "SELECTED").
-			Update("status", "ACTIVE").Error; err != nil {
-			return err
-		}
-		return tx.Model(&models.Group{}).Where("id = ?", groupID).Updates(map[string]any{
-			"status":       models.GroupStatusActive,
-			"completed_at": nil,
-		}).Error
+		return reopenScope(tx, GroupScope(groupID))
 	})
 }
 
@@ -389,7 +384,7 @@ func (r *groupRepository) GetCover(groupID uuid.UUID) (*models.GroupCover, error
 // böylece politika değişikliğiyle yarışan bir yükleme eski izinle geçemez.
 func lockGroupForCover(tx *gorm.DB, groupID uuid.UUID, guard func(group *models.Group) error) error {
 	var group models.Group
-	if err := tx.Select("id", "cover_admin_only", "cover_version").Clauses(clause.Locking{Strength: "UPDATE"}).
+	if err := tx.Select("id", "cover_admin_only", "cover_version").Clauses(clause.Locking{Strength: lockNoKeyUpdate}).
 		First(&group, "id = ?", groupID).Error; err != nil {
 		return err
 	}

@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 export const MAX_WINNERS = 20
 
 type Props = {
+  // Metinler grup ve havuz için farklıdır ("grup tamamlanır" / "havuz tamamlanır").
+  scopeKind?: 'group' | 'pool'
   open: boolean
   onOpenChange: (open: boolean) => void
   // Seçilebilir (aktif) fikirler, havuzdaki sırasıyla.
@@ -24,7 +26,7 @@ type Props = {
 
 // Bir ya da daha fazla kazanan seçimi. Seçilenlerin toplamı bütçeyle birlikte gösterilir;
 // bütçe aşılırsa uyarılır ama seçim engellenmez.
-export function WinnersDialog({ open, onOpenChange, ideas, initialId, budget, pending, onConfirm }: Props) {
+export function WinnersDialog({ scopeKind = 'group', open, onOpenChange, ideas, initialId, budget, pending, onConfirm }: Props) {
   const { t } = useTranslation()
   // Çağıran taraf pencereyi her açılışta yeniden bağlar (key), böylece seçim baştan kurulur.
   const [selected, setSelected] = useState<string[]>(initialId ? [initialId] : [])
@@ -48,7 +50,7 @@ export function WinnersDialog({ open, onOpenChange, ideas, initialId, budget, pe
       <DialogContent closeLabel={t('common.close')} className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle className="text-[19px]">{t('pool.winnersTitle')}</DialogTitle>
-          <DialogDescription className="text-[15px] leading-6">{t('pool.winnersBody')}</DialogDescription>
+          <DialogDescription className="text-[15px] leading-6">{t(scopeKind === 'pool' ? 'pools.winnersBody' : 'pool.winnersBody')}</DialogDescription>
         </DialogHeader>
 
         <ul className="-mx-1 flex max-h-[45dvh] flex-col gap-1 overflow-y-auto px-1" aria-label={t('pool.winnersTitle')}>

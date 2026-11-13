@@ -82,7 +82,7 @@ func TestInterestPermissionsAndMutation(t *testing.T) {
 			if tc.role != "" {
 				repo.member = &models.GroupMember{Role: tc.role, UserID: id, GroupID: groupID}
 			}
-			svc := NewGroupService(repo, nil)
+			svc := NewGroupService(repo, nil, nil)
 			var items []string
 			var err error
 			if tc.operation == "delete" {

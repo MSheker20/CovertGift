@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { CalendarDays, ChevronLeft, Trophy } from 'lucide-react'
 
@@ -8,18 +8,18 @@ import { ApiError } from '@/api/client'
 import { groupsApi, liveInterval, queryKeys } from '@/api/endpoints'
 import { useGroupEvents } from '@/api/useGroupEvents'
 import { useAuth } from '@/auth/AuthProvider'
-import { Avatar } from '@/components/Avatar'
 import { GroupCoverImage } from '@/components/GroupCover'
-import { Bar, BlockError, Panel } from '@/components/Panel'
+import { Bar, BlockError } from '@/components/Panel'
 import { SurpriseScreen } from '@/components/SurpriseScreen'
 import { errorMessage, isAntiSpoiler } from '@/lib/errors'
 import { countdownLabel, daysUntil, formatEventDate } from '@/lib/eventDate'
 import { formatMoney } from '@/lib/format'
-import { AddMemberForm } from './group/AddMemberForm'
-import { InviteLink } from './group/InviteLink'
 import { GiftPool } from './group/GiftPool'
 import { GroupDescription, TargetStatus } from './group/GroupHeaderInfo'
 import { BudgetTile, GroupMenu, InterestsTile } from './group/GroupManage'
+import { MembersPanel } from './group/Members'
+import { LockedPoolCard, NoPoolsCard, PoolSection, PoolTabs } from './group/MultiPools'
+import { groupScope, PANEL_ID, tabId } from './group/scope'
 
 // Grup ekranı: bütçe ve ilgi alanları (yerinde düzenleme), hediye havuzu (oylama, AI, manuel ekleme) ve üyeler.
 export function GroupPage() {
@@ -41,10 +41,27 @@ export function GroupPage() {
   useEffect(() => {
     liveRef.current = live
   }, [live])
+  const [searchParams, setSearchParams] = useSearchParams()
+  const scope = useMemo(() => groupScope(id), [id])
 
   if (detail.isError && isAntiSpoiler(detail.error)) return <SurpriseScreen />
 
   const d = detail.data
+  const multi = d?.group.mode === 'MULTI'
+  const pools = d?.pools ?? []
+  // Seçili havuz ?pool= adresinden gelir (bildirim bağlantıları buraya iner). Geçersizse (kaldırılmış
+  // ya da yazım hatası) ilk açık havuz, o da yoksa ilk havuz seçilir; adres yeniden yazılmaz.
+  const requested = searchParams.get('pool')
+  const selected = pools.find((p) => p.id === requested) ?? pools.find((p) => !p.locked) ?? pools[0]
+  const selectPool = (poolId: string) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('pool', poolId)
+        return next
+      },
+      { replace: true },
+    )
   const completed = d?.group.status === 'COMPLETED'
   const eventDate = d?.group.event_date
   const days = eventDate ? daysUntil(eventDate) : null
@@ -90,7 +107,12 @@ export function GroupPage() {
                   <p className="mt-2 text-[15px] text-muted">
                     {d ? (
                       <>
-                        {t('group.forPerson', { name: d.group.target_person_name })} ·{' '}
+                        {multi
+                          ? pools.length > 0
+                            ? t('pools.forCount', { count: pools.length })
+                            : t('pools.forNone')
+                          : t('group.forPerson', { name: d.group.target_person_name })}{' '}
+                        ·{' '}
                         {t('group.members', { count: d.member_count })}
                         {eventDate && (
                           <>
@@ -127,74 +149,87 @@ export function GroupPage() {
                     isAdmin={d.my_role === 'admin'}
                     coverVersion={d.group.cover_version}
                     coverAdminOnly={!!d.group.cover_admin_only}
+                    mode={d.group.mode}
                   />
                 )}
               </div>
               {d && (
                 <div className="mt-3 flex flex-col gap-3">
-                  <GroupDescription groupId={id} text={d.group.description} isAdmin={d.my_role === 'admin'} />
-                  <TargetStatus
-                    groupId={id}
-                    targetName={d.group.target_person_name}
-                    linked={!!d.group.target_user_id}
-                    account={d.target_account}
-                    isAdmin={d.my_role === 'admin'}
-                  />
+                  <GroupDescription groupId={id} text={d.group.description} isAdmin={d.my_role === 'admin'} multi={multi} />
+                  {!multi && (
+                    <TargetStatus
+                      groupId={id}
+                      targetName={d.group.target_person_name}
+                      linked={!!d.group.target_user_id}
+                      account={d.target_account}
+                      isAdmin={d.my_role === 'admin'}
+                    />
+                  )}
                 </div>
               )}
             </div>
           </header>
 
-          <dl className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-12">
-            <BudgetTile groupId={id} total={d?.group.total_budget} isAdmin={d?.my_role === 'admin'} />
-            {/* Kişi başı tutar ekranın cevabı: hardal alan yalnızca burada. */}
-            <div className="rounded-[22px] bg-field p-4 text-on-field md:col-span-4 md:p-5">
-              <dt className="text-sm font-medium text-on-field-muted">{t('group.perPerson')}</dt>
-              <dd className="font-display num mt-2 text-[22px] leading-8 font-semibold md:text-[32px] md:leading-10">
-                {d ? formatMoney(d.per_person_budget) : <Bar className="h-8 w-24" />}
-              </dd>
-              {d && <dd className="mt-1 text-xs text-on-field-muted">{t('group.perPersonCaption', { count: d.member_count })}</dd>}
-            </div>
-            <InterestsTile groupId={id} interests={d?.interests} isAdmin={d?.my_role === 'admin'} />
-          </dl>
-
-          <div className="mt-4 grid grid-cols-1 items-start gap-4 md:grid-cols-12">
-            <div className="md:col-span-8">
-              {d ? (
-                <GiftPool
-                  groupId={id}
-                  meId={user?.id}
-                  isAdmin={d.my_role === 'admin'}
-                  completed={completed}
-                  totalBudget={d.group.total_budget}
-                  live={live}
-                  datePassed={days !== null && days < 0}
-                />
-              ) : (
-                <Bar className="h-64 rounded-[22px]" />
+          {multi && d ? (
+            <>
+              {pools.length > 0 && selected && (
+                <PoolTabs pools={pools} selectedId={selected.id} onSelect={selectPool} meId={user?.id} />
               )}
-            </div>
-            <Panel title={t('group.membersPanel')} count={d?.member_count} className="md:col-span-4">
-              <ul className="flex flex-col gap-1">
-                {(d?.members ?? []).map((m) => (
-                  <li key={m.id} className="flex min-h-11 items-center gap-3">
-                    <Avatar name={m.user?.name ?? '?'} seed={m.user_id} size="sm" />
-                    <span className="min-w-0 flex-1 truncate text-sm">
-                      {m.user?.name ?? '—'}
-                      {m.user_id === user?.id && <span className="text-muted"> ({t('group.you')})</span>}
-                    </span>
-                    {m.role === 'admin' && (
-                      <span className="rounded-full bg-soft px-2 py-0.5 text-xs font-medium whitespace-nowrap text-on-soft">
-                        {t('home.admin')}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              {d && <AddMemberForm groupId={id} />}
-              {d?.my_role === 'admin' && <InviteLink key={id} groupId={id} targetLinked={d.target_account !== undefined} />}
-            </Panel>
-          </div>
+              <div role={selected ? 'tabpanel' : undefined} tabIndex={selected ? 0 : undefined} id={PANEL_ID} aria-labelledby={selected ? tabId(selected.id) : undefined}>
+                {selected && !selected.locked ? (
+                  <PoolSection
+                    key={selected.id}
+                    groupId={id}
+                    pool={selected}
+                    meId={user?.id}
+                    live={live}
+                    aside={<MembersPanel groupId={id} d={d} meId={user?.id} onPoolCreated={selectPool} />}
+                  />
+                ) : (
+                  <div className="mt-6 grid grid-cols-1 items-start gap-4 md:grid-cols-12">
+                    <div className="md:col-span-8">
+                      {selected ? <LockedPoolCard /> : <NoPoolsCard isAdmin={d.my_role === 'admin'} />}
+                    </div>
+                    <MembersPanel groupId={id} d={d} meId={user?.id} onPoolCreated={selectPool} />
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <dl className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-12">
+                <BudgetTile scope={scope} total={d?.group.total_budget} canManage={d?.my_role === 'admin'} />
+                {/* Kişi başı tutar ekranın cevabı: hardal alan yalnızca burada. */}
+                <div className="rounded-[22px] bg-field p-4 text-on-field md:col-span-4 md:p-5">
+                  <dt className="text-sm font-medium text-on-field-muted">{t('group.perPerson')}</dt>
+                  <dd className="font-display num mt-2 text-[22px] leading-8 font-semibold md:text-[32px] md:leading-10">
+                    {d ? formatMoney(d.per_person_budget) : <Bar className="h-8 w-24" />}
+                  </dd>
+                  {d && <dd className="mt-1 text-xs text-on-field-muted">{t('group.perPersonCaption', { count: d.member_count })}</dd>}
+                </div>
+                <InterestsTile scope={scope} interests={d?.interests} canManage={d?.my_role === 'admin'} />
+              </dl>
+
+              <div className="mt-4 grid grid-cols-1 items-start gap-4 md:grid-cols-12">
+                <div className="md:col-span-8">
+                  {d ? (
+                    <GiftPool
+                      scope={scope}
+                      meId={user?.id}
+                      canManage={d.my_role === 'admin'}
+                      completed={completed}
+                      totalBudget={d.group.total_budget}
+                      live={live}
+                      datePassed={days !== null && days < 0}
+                    />
+                  ) : (
+                    <Bar className="h-64 rounded-[22px]" />
+                  )}
+                </div>
+                <MembersPanel groupId={id} d={d} meId={user?.id} />
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
