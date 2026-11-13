@@ -1,7 +1,7 @@
 # 🛠️ CovertGift — Faz 0 Kurulum Rehberi
 
-> **Güncel AI modu (2026-10-21):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
-> `GEMINI_MODEL=gemini-3.8-flash` ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
+> **Güncel AI modu (2026-11-10'dan beri):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
+> `GEMINI_MODEL=gemini-3.6-flash` (yedek `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite`) ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
 > Model kimlikleri uygulama kodunda sabit değildir. `GEMINI_MODEL` anahtar varsa zorunludur.
 > `GEMINI_FALLBACK_MODEL` boşsa otomatik model geçişi yapılmaz; doluysa yalnızca 503'te denenir.
 > `GEMINI_RESEARCH_MODEL` yalnızca Search açıkken kullanılır; boşsa ana model kullanılır.
@@ -199,8 +199,11 @@ PORT=8080
 DATABASE_URL=postgres://covertgift:covertgift_dev@localhost:5432/covertgift?sslmode=disable
 JWT_SECRET=buraya-uzun-rastgele-bir-deger-yaz
 GEMINI_API_KEY=
-GEMINI_RESEARCH_MODEL=gemini-3.8-flash
-GEMINI_MODEL=gemini-3.8-flash
+GEMINI_MODEL=gemini-3.6-flash
+GEMINI_SEARCH_ENABLED=false
+GEMINI_RESEARCH_MODEL=
+GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
+GEMINI_THINKING_LEVEL=low
 ALLOW_DB_RESET=false
 ```
 
@@ -215,7 +218,8 @@ openssl rand -hex 32     # çıkan değeri .env içindeki JWT_SECRET'e yapışt�
 | `DATABASE_URL` | Adım 2'deki compose ayarlarıyla **birebir** aynı kullanıcı/şifre/DB |
 | `JWT_SECRET` | Token imzalama anahtarı — sızarsa herkes sahte token üretebilir |
 | `GEMINI_API_KEY` | Google AI Studio'dan alınacak (Faz 6) |
-| `GEMINI_MODEL` | Öneri modeli (ör. `gemini-3.8-flash`); anahtar varsa zorunlu, kodda varsayılan yok |
+| `GEMINI_MODEL` | Öneri modeli (ör. `gemini-3.6-flash`); anahtar varsa zorunlu, kodda varsayılan yok |
+| `GEMINI_FALLBACK_MODEL` | Yedek model (ör. `gemini-3.5-flash-lite`); yalnızca birincil model 503 verirse denenir, boşsa geçiş yapılmaz |
 | `GEMINI_RESEARCH_MODEL` | Yalnızca Search açıkken; boşsa `GEMINI_MODEL` kullanılır |
 | `LOG_FORMAT` / `LOG_LEVEL` | `json` ya da `text` (boşsa production'da json) / `debug`, `info`, `warn`, `error` |
 | `APP_ENV` | Varsayılan `development`; `production` geliştirme veritabanı sıfırlama ucunu kapatır |

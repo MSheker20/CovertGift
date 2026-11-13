@@ -2,7 +2,7 @@
 
 > Referans: [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md)
 > İlerledikçe kutucukları `[x]` olarak işaretle. Her fazın sonunda **✅ Kabul Kriterleri** sağlanmadan sonraki faza geçme.
-> Son doğrulama: **2026-10-22** — Go testleri, Vitest 37/37 ve build geçti; Playwright 6/6 (2026-10-21, gerçek API). Azure'da API ve React frontend `ff8bb3c` canlı ve doğrulandı; 2026-10-22 tasarım güncellemesi henüz dağıtılmadı.
+> Son doğrulama: **2026-11-13** — Vitest 151/151 (14 dosya). Go testleri, entegrasyon testleri ve Playwright son olarak #20/#21 geliştirmesinde geçti (Playwright: 8 test × masaüstü/telefon = 16 senaryo; bu doküman güncellemesinde yeniden çalıştırılmadı). Azure'da API ve React frontend `f883801` canlı; dağıtım sonrası salt-okunur kontroller geçti ([docs/AZURE.md](docs/AZURE.md)).
 
 ```mermaid
 flowchart LR
@@ -111,7 +111,7 @@ flowchart LR
 ---
 
 ## Faz 6 — Gemini AI Önerileri 🤖
-- [x] `pkg/gemini` istemcisi (`google.golang.org/genai`, araştırma: `GEMINI_RESEARCH_MODEL=gemini-3.8-flash`; seçim: `GEMINI_MODEL=gemini-3.5-flash-lite`)
+- [x] `pkg/gemini` istemcisi (`google.golang.org/genai`, araştırma: `GEMINI_RESEARCH_MODEL=gemini-3.8-flash`; seçim: `GEMINI_MODEL=gemini-3.5-flash-lite`). Güncel (2026-11-10'dan beri, Search kapalı): `GEMINI_MODEL=gemini-3.6-flash`, yedek `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite`.
 - [x] İki aşamalı üretim: Google Search ile Türkiye mağazalarında ürün/TL fiyatı araştırması → `response_schema` ile `[{ title, description, estimated_price, search_query, evidence_ids }]` seçimi. Model URL üretmez; `ai_sources` yalnızca grounding metadata'sından gelir.
 - [x] State-based prompt: `target_interests` + bütçe + mevcut başlıklar + reddedilen/veto edilen başlıklar (Kural 4)
 - [x] `POST /api/v1/groups/:id/ideas/generate-ai` → en fazla 5 kaynaklı öneri, `source_type = AI`, batch insert. Yeterli geçerli ürün yoksa 3'ten az sonuç dönebilir.
@@ -173,7 +173,7 @@ flowchart LR
   - Durum: npm bağımlılıkları temiz (`npm audit` 0); yerel PostgreSQL 17.11 güncel; Azure PostgreSQL Microsoft tarafından yamalanıyor.
 - [x] Backend Anti-Spoiler entegrasyon testleri (2026-11-09): gerçek router + geçici `test-db` ile 18 korumalı uç, grup listesi, üye olmayan, hedefi üye ekleme ve sonradan bağlama senaryoları (`backend/cmd/api/antispoiler_integration_test.go`). Diğer akışlar için entegrasyon testleri henüz yok.
 - [x] Gemini kota/istek sınırı hatasını HTTP 429 olarak döndür; istemci ve controller testleriyle doğrula
-- [ ] Kalan AI hata yanıtlarını ayrıştır: kaynaksız araştırma şu an 500 döner; 422 eşlemesi ve geçici servis hataları için 503 yanıtı ekle — **Ertelendi (2026-11-09):** AI bölümü ileride yeniden tasarlanacak; bu madde o çalışmayla birlikte ele alınacak.
+- [ ] Kalan AI hata yanıtlarını ayrıştır: kaynaksız araştırma şu an 500 döner; 422 eşlemesi ve geçici servis hataları için 503 yanıtı ekle — **Ertelendi (2026-11-09):** AI bölümü ileride yeniden tasarlanacak; bu madde o çalışmayla birlikte ele alınacak. (2026-11-10: modelin kalıcı aşırı yükü artık 503 + "servis yoğun" mesajı döner; maddenin geri kalanı açık.)
 - [x] CORS ayarları, istek boyutu limitleri, input validasyonu (2026-11-09): tüm isteklerde 1 MiB gövde limiti (aşılırsa 413); oluşturmada bütçe ve manuel fikirde fiyat doğrulaması (0–99.999.999,99, iki ondalık); metin alanlarına sütun boyutlarıyla uyumlu `max`, `product_url`/`image_url` için `http_url`, oy için `oneof=1 -1`. CORS bilinçli olarak yok (aynı origin); kullanılmayan `CORS_ORIGIN` kaldırıldı.
 - [x] Hata loglama (2026-11-09): `log/slog` (production'da JSON), istek başına tek satır (`request_id`, yöntem, yol, durum, süre; sorgu, gövde ve Authorization loglanmaz), `X-Request-ID` başlığı, panik kurtarma. 500 yanıtları iç hatayı artık istemciye göstermez, loga yazar.
 - [x] Seed script (2026-11-09): `go run ./cmd/seed` — 4 demo kullanıcı, hedefi bağlı grup, 3 fikir, oylar. Tek transaction, yalnızca ekler, idempotent, production'da reddeder.
@@ -199,3 +199,20 @@ flowchart LR
 - [x] **Hediye "kazanan" seçimi ve grubu kapatma (2026-10-21; 2026-11-09'da yapıldı: `POST/DELETE /groups/:id/winner`, grup `COMPLETED`, yeniden açılabilir):** Modelde `SELECTED` durumu hazır. Admin en çok oyu alan (ya da seçtiği) fikri kazanan yapar; grup "tamamlandı" görünümüne geçer, oylama ve AI önerisi kapanır. Frontend'de kazanan kartı öne çıkar, ana sayfada grup "Tamamlandı" etiketiyle görünür. Backend: seçme ucu (yalnızca admin, Anti-Spoiler korumalı) ve grup durumu.
 - [ ] Önizleme sonuçlarını önbellekleme (aynı URL için 24 saat)
 - [x] **Gerçek zamanlı oy güncellemeleri (WebSocket / SSE) (2026-10-21 detaylandı; 2026-11-09'da yapıldı: `GET /groups/:id/events` SSE akışı; bağlantı yoksa 10 sn'lik yenileme yedek. Hub bellek içi, tek API kopyası için):** Başkasının oyu ve yeni fikirler sayfa yenilenmeden görünsün. İlk adım frontend'de grup sayfası açıkken belirli aralıklarla yeniden çekme (TanStack Query `refetchInterval`, sekme arka plandayken durur); kalıcı çözüm SSE. Hedef kişiye hiçbir olay gitmemeli.
+
+---
+
+## 📦 Backlog 2026-11 (tamamlananlar)
+Ayrıntılar [docs/DEVLOG.md](docs/DEVLOG.md) içinde; hepsi 2026-11-13'te Azure'a `f883801` ile dağıtıldı.
+- [x] **Birden çok kazanan (2026-11-09, #13):** `POST /groups/:id/winner` `{ idea_ids }` (1–20); seçim penceresi toplamı bütçeyle karşılaştırır.
+- [x] **Ana ekran yeniden tasarımı (2026-11-10, #15):** "Sıradaki sürpriz", "Senden bekleyenler", "Gruplarım", "Geçmiş sürprizler"; `GET /groups` sayaçları (`member_count`, `idea_count`, `pending_votes`).
+- [x] **Profil sayfası (2026-11-10, #15):** `PATCH /me` (ad + e-posta; e-posta değişince yeni token), `PUT /me/password`, hesap silme.
+- [x] **AI model geçişi (2026-11-10, #17):** `gemini-3.6-flash`, yedek `gemini-3.5-flash-lite`; aşırı yükte 503.
+- [x] **Bildirim sistemi (2026-11-12, #18):** `notifications` tablosu, `GET /notifications`, okundu/tümünü okundu, kullanıcı bazlı SSE (`/notifications/stream`), üst bar zili, 3 gün / 1 gün kala ve süre doldu hatırlatmaları. Hedef kişiye bildirim üretilmez, sonradan bağlanınca silinir.
+- [x] **Grup kapak fotoğrafı (2026-11-13, #19, #21):** `GET/PUT/DELETE /groups/:id/cover`, `PATCH /groups/:id/cover-policy`; `pkg/imageproc`, kapaklar `group_covers` (bytea). Büyük fotoğrafı tarayıcı küçültür; sunucu en çok 2 MiB, 2000 px, 4 MP kabul eder.
+- [x] **Grup açıklaması ve hedef hesap durumu (2026-11-13, #20):** `PATCH /groups/:id/description` (yalnızca admin, ≤ 1000 karakter); başlıkta "{ad} hesabı bağlı / Hesap bağlı değil". Grup detayının hedef kişinin tam kullanıcı nesnesini (e-posta dahil) üyelere döndürmesi düzeltildi; yalnızca `target_account: { id, name }` döner.
+
+**Bilinen sınırlar (açık):**
+- [ ] Eski bildirimler silinmiyor (liste en yeni 50'yi gösterir); tablo büyürse temizlik işi.
+- [ ] API birden çok replica'ya çıkarsa grup/bildirim SSE'si için PostgreSQL LISTEN/NOTIFY gerekir (şimdilik en fazla 1 replica).
+- [ ] Go 1.27.3 standart kütüphanesinde GO-2026-6859 (`net/http` MaxBytesReader; 1.27.4'te düzeltilmiş) raporlanıyor; Go sürümü yükseltilmedi.

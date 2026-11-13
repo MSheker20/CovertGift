@@ -1,7 +1,7 @@
 # PROJE TEKNİK ŞARTNAMESİ: CovertGift
 
-> **Güncel AI modu (2026-10-21):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
-> `GEMINI_MODEL=gemini-3.8-flash` ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
+> **Güncel AI modu (2026-11-10'dan beri):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
+> `GEMINI_MODEL=gemini-3.6-flash` (yedek `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite`) ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
 > Model kimlikleri uygulama kodunda sabit değildir. `GEMINI_MODEL` anahtar varsa zorunludur.
 > `GEMINI_FALLBACK_MODEL` boşsa otomatik model geçişi yapılmaz; doluysa yalnızca 503'te denenir.
 > `GEMINI_RESEARCH_MODEL` yalnızca Search açıkken kullanılır; boşsa ana model kullanılır.
@@ -131,7 +131,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
    - Veritabanından grubun güncel ilgi alanları, toplam bütçesi, mevcut ve `REJECTED` durumundaki ürün başlıkları çekilir. Tek bir negatif oy, çoğunluk vetosu eşiğine ulaşmadıkça fikri reddedilmiş yapmaz.
    - Bu bağlam araştırma ve JSON seçimi aşamalarında kullanılır. Hedef 3–5 farklı öneridir; doğrulamadan geçen daha az ürün varsa sonuç sayısı azalır.
 
-   **Türkiye ürün araştırması (2026-10-16):** AI üretimi iki aşamalıdır: Google Search grounding ile izinli Türkiye mağazalarındaki somut ürünler ve TL fiyatları araştırılır; yalnızca API kaynaklarıyla desteklenen araştırma parçaları yapılandırılmış önerilere dönüştürülür. Seçim aşamasında `evidence_ids` ile kaynak eşleştirilir; ürün adı, arama metni ve fiyatın destekleyen araştırmada geçmesi doğrulanır. Kaynaksız, eksik, fiyatı geçersiz ve tekrar eden kayıtlar elenir; gerekirse 3'ten az öneri döner. Arama sonuçları anlık stok garantisi değildir. `ai_sources` alanı Google'ın döndürdüğü kaynak başlığı ve adresini taşır; `product_url` AI için boş kalır. `ai_search_suggestions` Google'ın arama önerisi HTML'idir; mevcut geçici panel bunu henüz göstermez. Kalıcı frontend'de izole gösterim planlanır. Kaynak bulunamaması şu an controller'ın genel hata yolundan 500 döner; servis filtresinden sonra hiç öneri kalmaması 422, API anahtarı eksikliği 503, Gemini kota/istek sınırı 429 döner. Diğer Gemini hataları genel 500 yolundan döner.
+   **Türkiye ürün araştırması (2026-10-16):** AI üretimi iki aşamalıdır: Google Search grounding ile izinli Türkiye mağazalarındaki somut ürünler ve TL fiyatları araştırılır; yalnızca API kaynaklarıyla desteklenen araştırma parçaları yapılandırılmış önerilere dönüştürülür. Seçim aşamasında `evidence_ids` ile kaynak eşleştirilir; ürün adı, arama metni ve fiyatın destekleyen araştırmada geçmesi doğrulanır. Kaynaksız, eksik, fiyatı geçersiz ve tekrar eden kayıtlar elenir; gerekirse 3'ten az öneri döner. Arama sonuçları anlık stok garantisi değildir. `ai_sources` alanı Google'ın döndürdüğü kaynak başlığı ve adresini taşır; `product_url` AI için boş kalır. `ai_search_suggestions` Google'ın arama önerisi HTML'idir; mevcut geçici panel bunu henüz göstermez. Kalıcı frontend'de izole gösterim planlanır. Kaynak bulunamaması şu an controller'ın genel hata yolundan 500 döner; servis filtresinden sonra hiç öneri kalmaması 422, API anahtarı eksikliği 503, Gemini kota/istek sınırı 429, modelin kalıcı aşırı yükü (yedek model de 503 verirse) 503 + "servis yoğun" mesajı döner. Diğer Gemini hataları genel 500 yolundan döner.
 
 5. **Ürün Linki Önizleme (Link Preview / Manuel Öneri Zenginleştirme):**
    - Kullanıcı manuel öneri eklerken bir ürün linki yapıştırabilir (Örn: Trendyol paylaşım linki `https://ty.gl/...`). Backend sayfayı çekip başlık, açıklama, görsel ve fiyatı otomatik doldurur.
@@ -180,10 +180,12 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `POST /api/v1/auth/register` -> İstek: `{ name, email, password }` -> `201 Created`
 - `POST /api/v1/auth/login` -> İstek: `{ email, password }` -> `200 OK` + `{ token, user }`
 - `GET /api/v1/me` -> Giriş yapan kullanıcının kendi profilini döner (Bearer token ile)
+- `PATCH /api/v1/me` -> `{ name, email }` ile adı ve e-postayı günceller; e-posta başka kullanıcıdaysa (büyük/küçük harf duyarsız) 409. Yanıt `{ user, token? }`: token yalnızca e-posta değiştiğinde döner (JWT `email` claim'i taşır)
+- `PUT /api/v1/me/password` -> `{ current_password, new_password }`; yanlış mevcut şifre veya eskisiyle aynı yeni şifre 400 (401 değil). Açık oturumlar geçerli kalır
 - `DELETE /api/v1/me` -> Giriş yapan kullanıcının kendi hesabını, oluşturduğu grupları, fikirleri ve oylarını siler (Cascade & atomik temizlik)
 
 ### Grup İşlemleri
-- `GET /api/v1/groups` -> Kullanıcının üye olduğu grupları listeler (hedef kişi olduğu gruplar filtrelenir). Her grupta varsa `cover_version` ve `cover_admin_only` bulunur; kapak baytları yanıtta yer almaz.
+- `GET /api/v1/groups` -> Kullanıcının üye olduğu grupları listeler (hedef kişi olduğu gruplar filtrelenir). Her grupta `member_count`, `idea_count` (reddedilmemiş fikirler) ve çağırana özel `pending_votes` (açık grupta, kendisinin eklemediği ve oy vermediği aktif fikirler) bulunur. Her grupta varsa `cover_version` ve `cover_admin_only` bulunur; kapak baytları yanıtta yer almaz.
 - `POST /api/v1/groups` -> Yeni grup açar (oluşturan kişi `admin` üye yapılır). İsteğe bağlı `target_email` ile hedef kişi seçilir: sunucu kayıtlı kullanıcıyı büyük/küçük harf duyarsız bulur ve `target_user_id` alanını doldurur. Kayıtlı değilse 404 döner ve grup kurulmaz; kişi kendini seçerse 400 döner. Ayrı kullanıcı arama ucu yoktur. Eski `target_user_id` (UUID) alanı geriye dönük uyumluluk için kabul edilir; iki alan birlikte gönderilirse 400 döner. `target_person_name` her durumda kullanıcının yazdığı isim olarak kalır.
 - `GET /api/v1/groups/:id` -> Grup detayları, üye sayısı, kişi başı bütçe (Anti-Spoiler korumalı). `group.cover_version` (varsa), `group.cover_admin_only` ve `group.description` (varsa) dahildir. Hedef bağlıysa `target_account: { id, name }` (yalnızca üyeler alır; e-posta yok, İş Kuralı 8).
 - `POST /api/v1/groups/:id/members` -> Gruba e-posta ile üye ekler
@@ -234,10 +236,12 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
     ├── internal/
     │   ├── config/
     │   ├── controllers/
+    │   ├── logging/           # log/slog kurulumu
     │   ├── middleware/
     │   ├── models/
+    │   ├── realtime/          # bellek içi SSE hub'ı (grup ve kullanıcı akışları)
     │   ├── repository/
-    │   └── services/
+    │   └── services/          # iş kuralları, bildirimler, hatırlatma zamanlayıcısı
     ├── pkg/gemini/
     ├── pkg/linkpreview/       # Ürün linki önizleme (OG / JSON-LD scraper)
     ├── pkg/imageproc/         # Kapak görseli işleme (tür doğrulama, EXIF yönü, 4:3 kırpma, küçültme, JPEG)
