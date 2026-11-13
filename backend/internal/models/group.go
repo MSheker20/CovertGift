@@ -38,6 +38,8 @@ type Group struct {
 	CoverAdminOnly bool `gorm:"not null;default:false" json:"cover_admin_only"`
 
 	// İlişkiler (Foreign Key)
-	Creator    *User `gorm:"foreignKey:CreatorID;constraint:OnDelete:RESTRICT" json:"creator,omitempty"`
-	TargetUser *User `gorm:"foreignKey:TargetUserID;constraint:OnDelete:SET NULL" json:"target_user,omitempty"`
+	Creator *User `gorm:"foreignKey:CreatorID;constraint:OnDelete:RESTRICT" json:"creator,omitempty"`
+	// Hedef kişinin hesabı hiçbir JSON yanıtında olduğu gibi yer almaz (e-posta sızmasın).
+	// Grup detayı yalnızca üyelere, en az alanla `target_account` (id + ad) döner.
+	TargetUser *User `gorm:"foreignKey:TargetUserID;constraint:OnDelete:SET NULL" json:"-"`
 }

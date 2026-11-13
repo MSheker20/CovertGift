@@ -43,7 +43,29 @@ var (
 	ErrUnauthorizedCoverChange    = errors.New("bu grupta kapak fotoğrafını sadece grup yöneticisi (admin) değiştirebilir")
 	ErrUnauthorizedCoverPolicy    = errors.New("kapak fotoğrafı iznini sadece grup yöneticisi (admin) değiştirebilir")
 	ErrCoverNotFound              = errors.New("bu grubun kapak fotoğrafı yok")
+	ErrUnauthorizedDescription    = errors.New("grup açıklamasını sadece grup yöneticisi (admin) değiştirebilir")
+	ErrInvalidDescription         = errors.New("grup açıklaması en fazla 1000 karakter olabilir")
 )
+
+// MaxGroupDescription grup açıklamasının (baştaki/sondaki boşluklar atıldıktan sonra) en
+// fazla karakter (rune) sayısıdır. Oluşturma ve düzenleme aynı sınırı kullanır.
+const MaxGroupDescription = 1000
+
+// normalizeDescription açıklamayı kırpar ve uzunluğunu denetler. Boş sonuç açıklamayı siler.
+func normalizeDescription(desc string) (string, error) {
+	desc = strings.TrimSpace(desc)
+	if utf8.RuneCountInString(desc) > MaxGroupDescription {
+		return "", ErrInvalidDescription
+	}
+	return desc, nil
+}
+
+// AccountSummary bir kullanıcı hesabının yalnızca kimliği ve adıdır. E-posta, şifre özeti
+// veya avatar taşımaz; hedef kişinin hesabını üyelere göstermek için kullanılır.
+type AccountSummary struct {
+	ID   uuid.UUID `json:"id" format:"uuid"`
+	Name string    `json:"name" example:"Ahmet Yılmaz"`
+}
 
 // GroupDetailResponse grup detay uç noktasının döneceği zenginleştirilmiş veri yapısıdır
 type GroupDetailResponse struct {
@@ -53,6 +75,9 @@ type GroupDetailResponse struct {
 	Members         []models.GroupMember `json:"members,omitempty"`
 	MyRole          string               `json:"my_role"`
 	Interests       []string             `json:"interests"`
+	// Hedef kişinin bağlı hesabı (yalnızca id + ad). Hedef bağlı değilse yer almaz. Bu yanıtı
+	// yalnızca üyeler alır; hedef kişinin kendisi Anti-Spoiler ile 403 alır.
+	TargetAccount *AccountSummary `json:"target_account,omitempty"`
 }
 
 // GroupService grup iş mantığını tanımlayan arayüzdür
@@ -73,6 +98,7 @@ type GroupService interface {
 	DeleteCover(groupID, userID uuid.UUID) error
 	GetCover(groupID, userID uuid.UUID) (*models.GroupCover, error)
 	SetCoverAdminOnly(groupID, userID uuid.UUID, adminOnly bool) error
+	UpdateDescription(groupID, userID uuid.UUID, description string) (*models.Group, error)
 }
 
 type groupService struct {
@@ -99,6 +125,10 @@ func (s *groupService) CreateGroup(creatorID uuid.UUID, title, desc, targetPerso
 	}
 	if eventDate != nil && !validEventDate(*eventDate, time.Now()) {
 		return nil, ErrInvalidEventDate
+	}
+	desc, err := normalizeDescription(desc)
+	if err != nil {
+		return nil, err
 	}
 	targetEmail = strings.TrimSpace(targetEmail)
 	if targetEmail != "" {
@@ -224,7 +254,40 @@ func (s *groupService) GetGroupDetail(groupID, userID uuid.UUID) (*GroupDetailRe
 		Members:         members,
 		MyRole:          member.Role,
 		Interests:       models.ParseInterests(group.TargetInterests),
+		TargetAccount:   targetAccount(group),
 	}, nil
+}
+
+// targetAccount bağlı hedef hesabın yalnızca kimliğini ve adını döndürür. Hesap yüklenmediyse
+// (ör. silinmiş) nil döner; istemci target_person_name'e düşer.
+func targetAccount(group *models.Group) *AccountSummary {
+	if group.TargetUserID == nil || group.TargetUser == nil {
+		return nil
+	}
+	return &AccountSummary{ID: group.TargetUser.ID, Name: group.TargetUser.Name}
+}
+
+// UpdateDescription grup açıklamasını değiştirir (yalnızca admin). Metin kırpılır; boş
+// değer açıklamayı siler. Güncel grubu döndürür.
+func (s *groupService) UpdateDescription(groupID, userID uuid.UUID, description string) (*models.Group, error) {
+	if _, err := s.requireAdmin(groupID, userID, ErrUnauthorizedDescription); err != nil {
+		return nil, err
+	}
+	desc, err := normalizeDescription(description)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.groupRepo.SetDescription(groupID, desc); err != nil {
+		return nil, err
+	}
+	group, err := s.groupRepo.GetGroupByID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	if group == nil {
+		return nil, ErrGroupNotFound
+	}
+	return group, nil
 }
 
 // AddMemberByEmail gruba e-posta adresiyle yeni üye ekler

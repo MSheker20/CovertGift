@@ -905,6 +905,95 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/groups/{id}/description": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca admin. Metin baştan ve sondan kırpılır; kırpıldıktan sonra en fazla 1000 karakter. Boş ya da yalnızca boşluktan oluşan değer açıklamayı siler. Bildirim üretmez; grup akışına ` + "`" + `changed` + "`" + ` olayı gider. Hedef kişi Anti-Spoiler ile 403 alır.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Grup İşlemleri (Groups)"
+                ],
+                "summary": "Grup Açıklamasını Güncelle (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Yeni açıklama",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateDescriptionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Güncel grup",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.Group"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz grup kimliği, eksik alan veya 1000 karakterden uzun açıklama",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya admin değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/groups/{id}/event-date": {
             "patch": {
                 "security": [
@@ -2828,7 +2917,7 @@ const docTemplate = `{
             "properties": {
                 "description": {
                     "type": "string",
-                    "maxLength": 2000,
+                    "maxLength": 1000,
                     "example": "Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu"
                 },
                 "event_date": {
@@ -3048,6 +3137,19 @@ const docTemplate = `{
                 "cover_admin_only": {
                     "type": "boolean",
                     "example": true
+                }
+            }
+        },
+        "controllers.UpdateDescriptionRequest": {
+            "type": "object",
+            "required": [
+                "description"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "example": "Kampı seven Ahmet için ortak hediye. Fikirleri hafta sonuna kadar ekleyelim."
                 }
             }
         },
@@ -3294,9 +3396,6 @@ const docTemplate = `{
                 "target_person_name": {
                     "type": "string"
                 },
-                "target_user": {
-                    "$ref": "#/definitions/models.User"
-                },
                 "target_user_id": {
                     "description": "Anti-Spoiler için kritik alan (NULL olabilir)",
                     "type": "string"
@@ -3449,6 +3548,19 @@ const docTemplate = `{
                 }
             }
         },
+        "services.AccountSummary": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Ahmet Yılmaz"
+                }
+            }
+        },
         "services.GroupDetailResponse": {
             "type": "object",
             "properties": {
@@ -3475,6 +3587,14 @@ const docTemplate = `{
                 },
                 "per_person_budget": {
                     "type": "number"
+                },
+                "target_account": {
+                    "description": "Hedef kişinin bağlı hesabı (yalnızca id + ad). Hedef bağlı değilse yer almaz. Bu yanıtı\nyalnızca üyeler alır; hedef kişinin kendisi Anti-Spoiler ile 403 alır.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/services.AccountSummary"
+                        }
+                    ]
                 }
             }
         },
@@ -3544,9 +3664,6 @@ const docTemplate = `{
                 },
                 "target_person_name": {
                     "type": "string"
-                },
-                "target_user": {
-                    "$ref": "#/definitions/models.User"
                 },
                 "target_user_id": {
                     "description": "Anti-Spoiler için kritik alan (NULL olabilir)",

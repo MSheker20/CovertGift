@@ -21,10 +21,11 @@ func NewGroupController(groupService services.GroupService) *GroupController {
 	return &GroupController{groupService: groupService}
 }
 
-// CreateGroupRequest yeni grup açma isteği için DTO
+// CreateGroupRequest yeni grup açma isteği için DTO. Açıklama kırpıldıktan sonra en fazla
+// 1000 karakterdir; servis denetler (düzenleme ucuyla aynı kural).
 type CreateGroupRequest struct {
 	Title            string          `json:"title" binding:"required,min=2,max=150" example:"Ahmet'in 30. Yaş Sürprizi"`
-	Description      string          `json:"description" binding:"max=2000" example:"Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu"`
+	Description      string          `json:"description" maxLength:"1000" example:"Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu"`
 	TargetPersonName string          `json:"target_person_name" binding:"required,min=2,max=100" example:"Ahmet"`
 	TargetInterests  string          `json:"target_interests" binding:"max=2000" example:"Kamp, 3. nesil kahve demleme, trekking, outdoor"`
 	TargetUserID     *uuid.UUID      `json:"target_user_id,omitempty" format:"uuid" example:"b49770ed-7518-40e6-839d-5810f79bbd86"`
@@ -59,6 +60,12 @@ type SelectWinnerRequest struct {
 // UpdateEventDateRequest hediye tarihini taşır; null tarihi kaldırır
 type UpdateEventDateRequest struct {
 	EventDate *models.Date `json:"event_date" swaggertype:"string" format:"date" example:"2026-12-31"`
+}
+
+// UpdateDescriptionRequest grup açıklamasını taşır. Metin kırpılır; boş ya da yalnızca boşluk
+// açıklamayı siler. Kırpıldıktan sonra en fazla 1000 karakter.
+type UpdateDescriptionRequest struct {
+	Description *string `json:"description" binding:"required" maxLength:"1000" example:"Kampı seven Ahmet için ortak hediye. Fikirleri hafta sonuna kadar ekleyelim."`
 }
 
 type UpdateBudgetRequest struct {
@@ -105,7 +112,7 @@ func (ctl *GroupController) CreateGroup(c *gin.Context) {
 	)
 	if err != nil {
 		switch {
-		case errors.Is(err, services.ErrSelfTarget), errors.Is(err, services.ErrTargetInputConflict), errors.Is(err, services.ErrInvalidBudget), errors.Is(err, services.ErrInvalidEventDate):
+		case errors.Is(err, services.ErrSelfTarget), errors.Is(err, services.ErrTargetInputConflict), errors.Is(err, services.ErrInvalidBudget), errors.Is(err, services.ErrInvalidEventDate), errors.Is(err, services.ErrInvalidDescription):
 			RespondErr(c, http.StatusBadRequest, err.Error())
 			return
 		case errors.Is(err, services.ErrTargetUserNotFound):
@@ -404,6 +411,55 @@ func (ctl *GroupController) UpdateBudget(c *gin.Context) {
 		})
 	}
 	RespondOK(c, MessageData{Message: "Bütçe güncellendi"})
+}
+
+// UpdateDescription grup açıklamasını değiştirir veya siler
+// @Summary      Grup Açıklamasını Güncelle (Admin)
+// @Description  Yalnızca admin. Metin baştan ve sondan kırpılır; kırpıldıktan sonra en fazla 1000 karakter. Boş ya da yalnızca boşluktan oluşan değer açıklamayı siler. Bildirim üretmez; grup akışına `changed` olayı gider. Hedef kişi Anti-Spoiler ile 403 alır.
+// @Tags         Grup İşlemleri (Groups)
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Grup UUID" Format(uuid)
+// @Param        request body UpdateDescriptionRequest true "Yeni açıklama"
+// @Success      200 {object} Response{data=models.Group} "Güncel grup"
+// @Failure      400 {object} Response "Geçersiz grup kimliği, eksik alan veya 1000 karakterden uzun açıklama"
+// @Failure      401 {object} Response "Oturum açılmamış"
+// @Failure      403 {object} Response "Anti-Spoiler, üye değil veya admin değil"
+// @Failure      404 {object} Response "Grup bulunamadı"
+// @Failure      500 {object} Response "Sunucu hatası"
+// @Router       /api/v1/groups/{id}/description [patch]
+func (ctl *GroupController) UpdateDescription(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+		return
+	}
+	var req UpdateDescriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz istek: description metin alanı zorunludur (silmek için boş metin gönderin)")
+		return
+	}
+	userID, ok := getUserID(c)
+	if !ok {
+		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
+		return
+	}
+	group, err := ctl.groupService.UpdateDescription(groupID, userID, *req.Description)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrAntiSpoilerTriggered), errors.Is(err, services.ErrNotGroupMember), errors.Is(err, services.ErrUnauthorizedDescription):
+			RespondErr(c, http.StatusForbidden, err.Error())
+		case errors.Is(err, services.ErrGroupNotFound):
+			RespondErr(c, http.StatusNotFound, err.Error())
+		case errors.Is(err, services.ErrInvalidDescription):
+			RespondErr(c, http.StatusBadRequest, err.Error())
+		default:
+			RespondInternal(c, "Grup açıklaması güncellenirken bir hata oluştu", err)
+		}
+		return
+	}
+	RespondOK(c, group)
 }
 
 // LinkTarget mevcut gruba hedef kişiyi e-postayla bağlar

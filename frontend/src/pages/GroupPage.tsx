@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarDays, ChevronLeft, ShieldCheck, Trophy } from 'lucide-react'
+import { CalendarDays, ChevronLeft, Trophy } from 'lucide-react'
 
 import { ApiError } from '@/api/client'
 import { groupsApi, liveInterval, queryKeys } from '@/api/endpoints'
@@ -18,6 +18,7 @@ import { countdownLabel, daysUntil, formatEventDate } from '@/lib/eventDate'
 import { formatMoney } from '@/lib/format'
 import { AddMemberForm } from './group/AddMemberForm'
 import { GiftPool } from './group/GiftPool'
+import { GroupDescription, TargetStatus } from './group/GroupHeaderInfo'
 import { BudgetTile, GroupMenu, InterestsTile } from './group/GroupManage'
 
 // Grup ekranı: bütçe ve ilgi alanları (yerinde düzenleme), hediye havuzu (oylama, AI, manuel ekleme) ve üyeler.
@@ -79,62 +80,68 @@ export function GroupPage() {
               alt={d ? t('cover.alt', { title: d.group.title }) : ''}
               className="aspect-[4/3] w-40 rounded-[16px] sm:w-44 lg:w-52"
             />
-            <div className="flex min-w-0 flex-1 items-start gap-3">
-            <div className="min-w-0 flex-1">
-              <h1 className="font-display text-[26px] leading-[1.12] font-semibold md:text-[40px]">
-                {d ? d.group.title : <Bar className="h-10 w-72" />}
-              </h1>
-              <p className="mt-2 text-[15px] text-muted">
-                {d ? (
-                  <>
-                    {t('group.forPerson', { name: d.group.target_person_name })}
-                    {d.group.target_user_id && (
-                      <span
-                        title={t('group.targetLinkedHint')}
-                        className="ml-1.5 inline-flex h-6 items-center gap-1 rounded-full bg-soft px-2 align-[1px] text-xs font-medium text-on-soft"
-                      >
-                        <ShieldCheck className="size-3.5" aria-hidden />
-                        {t('group.targetLinked')}
-                      </span>
-                    )}{' '}
-                    ·{' '}
-                    {t('group.members', { count: d.member_count })}
-                    {eventDate && (
+            {/* Metin sütunu: başlık + bilgi satırı (yanında menü), altında açıklama ve hesap durumu. */}
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <h1 className="font-display text-[26px] leading-[1.12] font-semibold break-words md:text-[40px]">
+                    {d ? d.group.title : <Bar className="h-10 w-72" />}
+                  </h1>
+                  <p className="mt-2 text-[15px] text-muted">
+                    {d ? (
                       <>
-                        {' '}
-                        ·{' '}
-                        <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                          <CalendarDays className="size-3.5" aria-hidden />
-                          {formatEventDate(eventDate)}
-                          {!completed && <span className="text-ink">({countdownLabel(eventDate)})</span>}
-                        </span>
+                        {t('group.forPerson', { name: d.group.target_person_name })} ·{' '}
+                        {t('group.members', { count: d.member_count })}
+                        {eventDate && (
+                          <>
+                            {' '}
+                            ·{' '}
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                              <CalendarDays className="size-3.5" aria-hidden />
+                              {formatEventDate(eventDate)}
+                              {!completed && <span className="text-ink">({countdownLabel(eventDate)})</span>}
+                            </span>
+                          </>
+                        )}
+                        {completed && (
+                          <span className="ml-1.5 inline-flex h-6 items-center gap-1 rounded-full bg-primary px-2 align-[1px] text-xs font-medium text-on-primary">
+                            <Trophy className="size-3.5" aria-hidden />
+                            {t('group.completed')}
+                          </span>
+                        )}
                       </>
+                    ) : (
+                      <Bar className="mt-1 h-4 w-48" />
                     )}
-                    {completed && (
-                      <span className="ml-1.5 inline-flex h-6 items-center gap-1 rounded-full bg-primary px-2 align-[1px] text-xs font-medium text-on-primary">
-                        <Trophy className="size-3.5" aria-hidden />
-                        {t('group.completed')}
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <Bar className="mt-1 h-4 w-48" />
+                  </p>
+                </div>
+                {d && (
+                  <GroupMenu
+                    groupId={id}
+                    title={d.group.title}
+                    targetName={d.group.target_person_name}
+                    targetLinked={!!d.group.target_user_id}
+                    description={d.group.description}
+                    eventDate={eventDate}
+                    completed={completed}
+                    isAdmin={d.my_role === 'admin'}
+                    coverVersion={d.group.cover_version}
+                    coverAdminOnly={!!d.group.cover_admin_only}
+                  />
                 )}
-              </p>
-            </div>
-            {d && (
-              <GroupMenu
-                groupId={id}
-                title={d.group.title}
-                targetName={d.group.target_person_name}
-                targetLinked={!!d.group.target_user_id}
-                eventDate={eventDate}
-                completed={completed}
-                isAdmin={d.my_role === 'admin'}
-                coverVersion={d.group.cover_version}
-                coverAdminOnly={!!d.group.cover_admin_only}
-              />
-            )}
+              </div>
+              {d && (
+                <div className="mt-3 flex flex-col gap-3">
+                  <GroupDescription groupId={id} text={d.group.description} isAdmin={d.my_role === 'admin'} />
+                  <TargetStatus
+                    groupId={id}
+                    targetName={d.group.target_person_name}
+                    linked={!!d.group.target_user_id}
+                    account={d.target_account}
+                    isAdmin={d.my_role === 'admin'}
+                  />
+                </div>
+              )}
             </div>
           </header>
 

@@ -62,7 +62,12 @@ export type GroupDetail = {
   members?: GroupMember[]
   my_role: 'admin' | 'member'
   interests: string[]
+  // Bağlı hedef hesabın yalnızca kimliği ve adı (e-posta yok). Hedef bağlı değilse ya da hesap
+  // yüklenemediyse gelmez; arayüz o zaman target_person_name'i kullanır. Grup listesinde yoktur.
+  target_account?: AccountSummary
 }
+
+export type AccountSummary = { id: string; name: string }
 
 export type LoginResponse = { token: string; user: User }
 
