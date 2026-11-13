@@ -46,3 +46,41 @@ func TestBodyLimit(t *testing.T) {
 		t.Fatalf("uzunluğu bildirilmeyen büyük gövde okunabildi: HTTP %d", res.Code)
 	}
 }
+
+func TestBodyLimitWithRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(BodyLimitWithRoutes(16, map[string]RouteLimit{
+		"PUT /groups/:id/cover": {MaxBytes: 64, Message: "görsel çok büyük"},
+	}))
+	echo := func(c *gin.Context) {
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.String(http.StatusBadRequest, "read failed")
+			return
+		}
+		c.String(http.StatusOK, "%d", len(body))
+	}
+	router.PUT("/groups/:id/cover", echo)
+	router.POST("/groups/:id/cover", echo)
+	router.PUT("/groups/:id/other", echo)
+
+	send := func(method, path string, size int) *httptest.ResponseRecorder {
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, httptest.NewRequest(method, path, strings.NewReader(strings.Repeat("x", size))))
+		return res
+	}
+
+	if res := send(http.MethodPut, "/groups/42/cover", 64); res.Code != http.StatusOK || res.Body.String() != "64" {
+		t.Fatalf("özel sınırdaki gövde: HTTP %d %q", res.Code, res.Body)
+	}
+	if res := send(http.MethodPut, "/groups/42/cover", 65); res.Code != http.StatusRequestEntityTooLarge || !strings.Contains(res.Body.String(), "görsel çok büyük") {
+		t.Fatalf("özel sınırı aşan gövde: HTTP %d %q", res.Code, res.Body)
+	}
+	// Aynı yolun başka metodu ve başka rotalar varsayılan sınırda kalır.
+	for _, r := range [][2]string{{http.MethodPost, "/groups/42/cover"}, {http.MethodPut, "/groups/42/other"}, {http.MethodPut, "/yok"}} {
+		if res := send(r[0], r[1], 17); res.Code != http.StatusRequestEntityTooLarge || !strings.Contains(res.Body.String(), "İstek gövdesi çok büyük") {
+			t.Fatalf("%s %s: HTTP %d %q", r[0], r[1], res.Code, res.Body)
+		}
+	}
+}

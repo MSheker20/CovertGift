@@ -9,6 +9,7 @@ import { groupsApi, liveInterval, queryKeys } from '@/api/endpoints'
 import { useGroupEvents } from '@/api/useGroupEvents'
 import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
+import { GroupCoverImage } from '@/components/GroupCover'
 import { LogoMark } from '@/components/Logo'
 import { Bar, BlockError, Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
@@ -70,7 +71,15 @@ export function GroupPage() {
         </div>
       ) : (
         <>
-          <header className="mt-4 flex items-start gap-3">
+          {/* Başlık: (varsa) kapak kutusu + başlık bilgileri + menü. Fotoğraf yoksa düzen aynen eski hali. */}
+          <header className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+            <GroupCoverImage
+              groupId={id}
+              version={d?.group.cover_version}
+              alt={d ? t('cover.alt', { title: d.group.title }) : ''}
+              className="aspect-[4/3] w-40 rounded-[16px] sm:w-44 lg:w-52"
+            />
+            <div className="flex min-w-0 flex-1 items-start gap-3">
             <div className="min-w-0 flex-1">
               <h1 className="font-display text-[26px] leading-[1.12] font-semibold md:text-[40px]">
                 {d ? d.group.title : <Bar className="h-10 w-72" />}
@@ -113,7 +122,7 @@ export function GroupPage() {
                 )}
               </p>
             </div>
-            {d?.my_role === 'admin' && (
+            {d && (
               <GroupMenu
                 groupId={id}
                 title={d.group.title}
@@ -121,8 +130,12 @@ export function GroupPage() {
                 targetLinked={!!d.group.target_user_id}
                 eventDate={eventDate}
                 completed={completed}
+                isAdmin={d.my_role === 'admin'}
+                coverVersion={d.group.cover_version}
+                coverAdminOnly={!!d.group.cover_admin_only}
               />
             )}
+            </div>
           </header>
 
           <dl className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-12">

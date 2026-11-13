@@ -32,6 +32,10 @@ type GroupRepository interface {
 	SetEventDate(groupID uuid.UUID, date *models.Date) error
 	CompleteGroup(groupID uuid.UUID, ideaIDs []uuid.UUID, guard func(group *models.Group, ideas []models.GiftIdea) error) error
 	ReopenGroup(groupID uuid.UUID, guard func(group *models.Group) error) error
+	GetCover(groupID uuid.UUID) (*models.GroupCover, error)
+	SaveCover(cover *models.GroupCover, guard func(group *models.Group) error) error
+	DeleteCover(groupID uuid.UUID, guard func(group *models.Group) error) error
+	SetCoverAdminOnly(groupID uuid.UUID, adminOnly bool) error
 }
 
 type groupRepository struct {
@@ -351,4 +355,73 @@ func (r *groupRepository) ReopenGroup(groupID uuid.UUID, guard func(group *model
 			"completed_at": nil,
 		}).Error
 	})
+}
+
+// GetCover grubun kapak fotoğrafını baytlarıyla getirir; yoksa nil döner. Baytları okuyan
+// tek sorgudur.
+func (r *groupRepository) GetCover(groupID uuid.UUID) (*models.GroupCover, error) {
+	// Kapağın olmaması olağan bir durumdur; First yerine Find kullanılır ki "record not found"
+	// hata olarak loglanmasın.
+	var covers []models.GroupCover
+	if err := r.db.Where("group_id = ?", groupID).Limit(1).Find(&covers).Error; err != nil {
+		return nil, err
+	}
+	if len(covers) == 0 {
+		return nil, nil
+	}
+	return &covers[0], nil
+}
+
+// lockGroupForCover grup satırını kilitler ve guard'a güncel kapak politikasını verir;
+// böylece politika değişikliğiyle yarışan bir yükleme eski izinle geçemez.
+func lockGroupForCover(tx *gorm.DB, groupID uuid.UUID, guard func(group *models.Group) error) error {
+	var group models.Group
+	if err := tx.Select("id", "cover_admin_only", "cover_version").Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&group, "id = ?", groupID).Error; err != nil {
+		return err
+	}
+	return guard(&group)
+}
+
+// SaveCover kapağı ekler ya da değiştirir ve groups.cover_version'ı aynı transaction'da
+// günceller.
+func (r *groupRepository) SaveCover(cover *models.GroupCover, guard func(group *models.Group) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := lockGroupForCover(tx, cover.GroupID, guard); err != nil {
+			return err
+		}
+		cover.UpdatedAt = time.Now()
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "group_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"data", "content_type", "etag", "width", "height", "updated_at", "updated_by"}),
+		}).Omit("Group", "Updater").Create(cover).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.Group{}).Where("id = ?", cover.GroupID).Update("cover_version", cover.ETag).Error
+	})
+}
+
+// DeleteCover kapağı siler ve groups.cover_version'ı boşaltır. Kapak yoksa hata vermez.
+func (r *groupRepository) DeleteCover(groupID uuid.UUID, guard func(group *models.Group) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := lockGroupForCover(tx, groupID, guard); err != nil {
+			return err
+		}
+		if err := tx.Where("group_id = ?", groupID).Delete(&models.GroupCover{}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.Group{}).Where("id = ?", groupID).Update("cover_version", "").Error
+	})
+}
+
+// SetCoverAdminOnly kapak fotoğrafını kimin değiştirebileceğini ayarlar.
+func (r *groupRepository) SetCoverAdminOnly(groupID uuid.UUID, adminOnly bool) error {
+	result := r.db.Model(&models.Group{}).Where("id = ?", groupID).Update("cover_admin_only", adminOnly)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }

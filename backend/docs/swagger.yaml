@@ -54,6 +54,24 @@ definitions:
     - current_password
     - new_password
     type: object
+  controllers.CoverPolicyResponse:
+    properties:
+      cover_admin_only:
+        example: true
+        type: boolean
+    type: object
+  controllers.CoverResponse:
+    properties:
+      cover_version:
+        example: 3f2a9c0d1e4b5a6978879695a4b3c2d1
+        type: string
+      height:
+        example: 1200
+        type: integer
+      width:
+        example: 1600
+        type: integer
+    type: object
   controllers.CreateGroupRequest:
     properties:
       description:
@@ -212,6 +230,14 @@ definitions:
     required:
     - total_budget
     type: object
+  controllers.UpdateCoverPolicyRequest:
+    properties:
+      cover_admin_only:
+        example: true
+        type: boolean
+    required:
+    - cover_admin_only
+    type: object
   controllers.UpdateEventDateRequest:
     properties:
       event_date:
@@ -346,6 +372,17 @@ definitions:
   models.Group:
     properties:
       completed_at:
+        type: string
+      cover_admin_only:
+        description: |-
+          true ise kapak fotoğrafını yalnızca yönetici ekler/değiştirir/kaldırır; false (varsayılan)
+          iken tüm üyeler yapabilir.
+        type: boolean
+      cover_version:
+        description: |-
+          Kapak fotoğrafının sürümü (group_covers.etag kopyası); fotoğraf yoksa boştur. Görselin
+          baytları ayrı tabloda durur ve grup sorgularıyla hiç çekilmez; kapak değişirken aynı
+          transaction'da güncellenir. İstemci bunu önbellek anahtarı olarak kullanır.
         type: string
       created_at:
         type: string
@@ -500,6 +537,17 @@ definitions:
   services.GroupListItem:
     properties:
       completed_at:
+        type: string
+      cover_admin_only:
+        description: |-
+          true ise kapak fotoğrafını yalnızca yönetici ekler/değiştirir/kaldırır; false (varsayılan)
+          iken tüm üyeler yapabilir.
+        type: boolean
+      cover_version:
+        description: |-
+          Kapak fotoğrafının sürümü (group_covers.etag kopyası); fotoğraf yoksa boştur. Görselin
+          baytları ayrı tabloda durur ve grup sorgularıyla hiç çekilmez; kapak değişirken aynı
+          transaction'da güncellenir. İstemci bunu önbellek anahtarı olarak kullanır.
         type: string
       created_at:
         type: string
@@ -935,6 +983,223 @@ paths:
       summary: Grup Bütçesini Güncelle (Admin)
       tags:
       - Hediye Grupları (Groups)
+  /api/v1/groups/{id}/cover:
+    delete:
+      description: 'Kapağı siler; kapak yoksa da 200 döner (idempotent). Yetki yüklemeyle
+        aynıdır: varsayılan olarak tüm üyeler, `cover_admin_only` açıksa yalnızca
+        admin. Hedef kişi 403 alır (Anti-Spoiler).'
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Kapak kaldırıldı
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler, üye değil veya kapak yalnızca admin'e açık
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Kapak Fotoğrafını Kaldır
+      tags:
+      - Grup İşlemleri (Groups)
+    get:
+      description: 'Kapağın baytlarını `image/jpeg` olarak döner (JSON değil). `ETag`
+        grubun `cover_version` değeridir; `If-None-Match` eşleşirse 304 döner. `Cache-Control:
+        private, max-age=0, must-revalidate`: tarayıcı kopyayı saklar ama her kullanımda
+        sunucuya sorar, böylece yetki her seferinde yeniden denetlenir. Hedef kişi
+        ve üye olmayan 403 alır; kapak yoksa 404.'
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Önceki yanıtın ETag değeri
+        in: header
+        name: If-None-Match
+        type: string
+      produces:
+      - image/jpeg
+      - application/json
+      responses:
+        "200":
+          description: Kapak görseli (JPEG)
+          schema:
+            type: file
+        "304":
+          description: Değişmedi
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler veya gruba üye değilsiniz
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup veya kapak fotoğrafı bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Kapak Fotoğrafını Getir (Anti-Spoiler Korumalı)
+      tags:
+      - Grup İşlemleri (Groups)
+    put:
+      consumes:
+      - multipart/form-data
+      description: multipart/form-data ile `file` alanında JPEG, PNG veya WebP (en
+        fazla 10 MB) alır. Tür, Content-Type başlığına değil dosyanın baytlarına göre
+        doğrulanır; HEIC desteklenmez. Sunucu EXIF yönünü uygular, tüm metadata'yı
+        (konum dahil) atar, ortadan 4:3 kırpar, en çok 1600x1200'e küçültür ve JPEG
+        olarak saklar. Varsayılan olarak tüm üyeler yükleyebilir; `cover_admin_only`
+        açıksa yalnızca admin. Hedef kişi 403 alır (Anti-Spoiler). Bildirim üretmez;
+        grup akışına `changed` olayı gider.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Kapak görseli (JPEG, PNG veya WebP; en fazla 10 MB)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Kapak kaydedildi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.CoverResponse'
+              type: object
+        "400":
+          description: Dosya yok, görsel bozuk, çok küçük veya çözünürlüğü çok yüksek
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler, üye değil veya kapak yalnızca admin'e açık
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "413":
+          description: Dosya 10 MB'tan büyük
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "415":
+          description: Desteklenmeyen görsel türü (ör. HEIC, GIF)
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Kapak Fotoğrafı Yükle / Değiştir
+      tags:
+      - Grup İşlemleri (Groups)
+  /api/v1/groups/{id}/cover-policy:
+    patch:
+      consumes:
+      - application/json
+      description: Yalnızca admin. `cover_admin_only` true ise kapağı yalnızca admin
+        ekler/değiştirir/kaldırır; false (varsayılan) iken tüm üyeler yapabilir. Görüntüleme
+        her üyeye açık kalır.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Kapak izni
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateCoverPolicyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: İzin güncellendi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.CoverPolicyResponse'
+              type: object
+        "400":
+          description: Geçersiz istek
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler, üye değil veya admin değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Kapak Fotoğrafı İznini Ayarla (Admin)
+      tags:
+      - Grup İşlemleri (Groups)
   /api/v1/groups/{id}/event-date:
     patch:
       consumes:

@@ -40,6 +40,9 @@ var (
 	ErrInvalidWinners             = errors.New("en az 1, en fazla 20 farklı öneri seçilmelidir")
 	ErrUnauthorizedEventDate      = errors.New("hediye tarihini sadece grup yöneticisi (admin) değiştirebilir")
 	ErrInvalidEventDate           = errors.New("hediye tarihi bugünden en fazla 1 yıl önce, en fazla 5 yıl sonra olabilir")
+	ErrUnauthorizedCoverChange    = errors.New("bu grupta kapak fotoğrafını sadece grup yöneticisi (admin) değiştirebilir")
+	ErrUnauthorizedCoverPolicy    = errors.New("kapak fotoğrafı iznini sadece grup yöneticisi (admin) değiştirebilir")
+	ErrCoverNotFound              = errors.New("bu grubun kapak fotoğrafı yok")
 )
 
 // GroupDetailResponse grup detay uç noktasının döneceği zenginleştirilmiş veri yapısıdır
@@ -66,18 +69,25 @@ type GroupService interface {
 	UpdateBudget(groupID, userID uuid.UUID, budget decimal.Decimal) error
 	LinkTarget(groupID, userID uuid.UUID, email string) (*models.Group, error)
 	DeleteGroup(groupID, userID uuid.UUID) error
+	SetCover(groupID, userID uuid.UUID, raw []byte) (*models.GroupCover, error)
+	DeleteCover(groupID, userID uuid.UUID) error
+	GetCover(groupID, userID uuid.UUID) (*models.GroupCover, error)
+	SetCoverAdminOnly(groupID, userID uuid.UUID, adminOnly bool) error
 }
 
 type groupService struct {
 	groupRepo repository.GroupRepository
 	userRepo  repository.UserRepository
+	// coverSlots aynı anda işlenen kapak görseli sayısını sınırlar (bellek koruması).
+	coverSlots chan struct{}
 }
 
 // NewGroupService yeni bir GroupService örneği oluşturur
 func NewGroupService(groupRepo repository.GroupRepository, userRepo repository.UserRepository) GroupService {
 	return &groupService{
-		groupRepo: groupRepo,
-		userRepo:  userRepo,
+		groupRepo:  groupRepo,
+		userRepo:   userRepo,
+		coverSlots: make(chan struct{}, maxConcurrentCoverJobs),
 	}
 }
 

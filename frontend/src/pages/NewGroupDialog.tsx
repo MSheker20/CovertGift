@@ -2,11 +2,14 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { ImagePlus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
 import { groupsApi, queryKeys } from '@/api/endpoints'
+import { useObjectUrl } from '@/api/useGroupCover'
 import { useAuth } from '@/auth/AuthProvider'
+import { CoverCropDialog } from '@/components/CoverCropDialog'
 import { FormError, FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -26,14 +29,18 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [localError, setLocalError] = useState<string | null>(null)
+  // İsteğe bağlı kapak: tarayıcıda kırpılmış JPEG; grup kurulduktan sonra yüklenir.
+  const [cover, setCover] = useState<Blob | null>(null)
+  const [pickingCover, setPickingCover] = useState(false)
+  const coverPreview = useObjectUrl(cover)
   const bounds = eventDateBounds()
 
   const set = (key: keyof typeof EMPTY) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }))
 
   const mutation = useMutation({
-    mutationFn: () =>
-      groupsApi.create({
+    mutationFn: async () => {
+      const group = await groupsApi.create({
         title: form.title.trim(),
         target_person_name: form.target.trim(),
         target_email: form.targetEmail.trim() || undefined,
@@ -42,12 +49,25 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
         // Backend virgül ve satır sonu ayrımlı metni listeye ayrıştırır.
         target_interests: form.interests.trim() || undefined,
         event_date: form.eventDate || undefined,
-      }),
-    onSuccess: (group) => {
+      })
+      // Fotoğraf yüklenemese de grup kurulmuştur; hata ayrıca bildirilir, grup geri alınmaz.
+      let coverFailed = false
+      if (cover) {
+        try {
+          await groupsApi.uploadCover(group.id, cover)
+        } catch {
+          coverFailed = true
+        }
+      }
+      return { group, coverFailed }
+    },
+    onSuccess: ({ group, coverFailed }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
       toast.success(t('newGroup.created', { title: group.title }))
+      if (coverFailed) toast.error(t('newGroup.coverFailed'))
       setOpen(false)
       setForm(EMPTY)
+      setCover(null)
       navigate(`/groups/${group.id}`)
     },
   })
@@ -186,10 +206,46 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
               onChange={set('notes')}
             />
           </FormField>
+          <div className="flex flex-col gap-2" role="group" aria-labelledby="g-cover-label">
+            <p id="g-cover-label" className="flex items-center gap-2 text-sm leading-none font-medium">
+              {t('newGroup.cover')}
+              <span className="font-normal text-muted">({t('newGroup.optional')})</span>
+            </p>
+            <div className="flex items-center gap-3">
+              {coverPreview && (
+                <img
+                  src={coverPreview}
+                  alt={t('newGroup.coverPreviewAlt')}
+                  className="aspect-[4/3] w-24 shrink-0 rounded-[12px] object-cover"
+                />
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={() => setPickingCover(true)} disabled={mutation.isPending}>
+                  <ImagePlus />
+                  {cover ? t('cover.change') : t('cover.pick')}
+                </Button>
+                {cover && (
+                  <Button type="button" variant="ghost" onClick={() => setCover(null)} disabled={mutation.isPending}>
+                    {t('cover.remove')}
+                  </Button>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-muted">{t('newGroup.coverHint')}</p>
+          </div>
           <Button type="submit" size="lg" className="mt-1 w-full sm:ml-auto sm:w-auto" disabled={mutation.isPending}>
             {mutation.isPending ? t('common.loading') : t('newGroup.submit')}
           </Button>
         </form>
+        <CoverCropDialog
+          open={pickingCover}
+          onOpenChange={setPickingCover}
+          onCropped={(image) => {
+            setCover(image)
+            setPickingCover(false)
+          }}
+          confirmLabel={t('cover.use')}
+        />
       </DialogContent>
     </Dialog>
   )

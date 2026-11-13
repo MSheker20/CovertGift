@@ -25,7 +25,15 @@ export type Group = {
   // COMPLETED: admin kazananı seçti; fikir ve oy işlemleri kapalı.
   status: GroupStatus
   completed_at?: string
+  // Kapak fotoğrafının sürümü; fotoğraf yoksa alan gelmez. Görselin kendisi JSON'da yoktur,
+  // GET /groups/:id/cover ile alınır; bu değer önbellek anahtarıdır.
+  cover_version?: string
+  // true: kapağı yalnızca yönetici ekler/değiştirir/kaldırır. false: tüm üyeler.
+  cover_admin_only?: boolean
 }
+
+// PUT /groups/:id/cover yanıtı.
+export type CoverUploadResult = { cover_version: string; width: number; height: number }
 
 export type GroupStatus = 'ACTIVE' | 'COMPLETED'
 

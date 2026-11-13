@@ -1,5 +1,6 @@
-import { api } from './client'
+import { api, apiBlob } from './client'
 import type {
+  CoverUploadResult,
   CreateGroupInput,
   CreateIdeaInput,
   Group,
@@ -55,6 +56,23 @@ export const groupsApi = {
   selectWinners: (id: string, ideaIds: string[]) =>
     api<unknown>(`/groups/${id}/winner`, { method: 'POST', body: { idea_ids: ideaIds } }),
   reopen: (id: string) => api<unknown>(`/groups/${id}/winner`, { method: 'DELETE' }),
+  // Kapak fotoğrafı (JPEG). Hedef kişi ve üye olmayan 403, fotoğraf yoksa 404 alır.
+  // Sürüm yalnızca tarayıcı önbelleğini ayırmak içindir; sunucu yok sayar.
+  cover: (id: string, version: string, signal?: AbortSignal) =>
+    apiBlob(`/groups/${id}/cover?v=${encodeURIComponent(version)}`, signal),
+  // Sunucu görseli yeniden işler (4:3, en çok 1600x1200, metadata'sız JPEG).
+  uploadCover: (id: string, image: Blob) => {
+    const form = new FormData()
+    form.append('file', image, 'cover.jpg')
+    return api<CoverUploadResult>(`/groups/${id}/cover`, { method: 'PUT', body: form })
+  },
+  removeCover: (id: string) => api<unknown>(`/groups/${id}/cover`, { method: 'DELETE' }),
+  // Yalnızca yönetici: kapağı yalnızca yöneticinin değiştirebilmesini açar/kapatır.
+  setCoverPolicy: (id: string, adminOnly: boolean) =>
+    api<{ cover_admin_only: boolean }>(`/groups/${id}/cover-policy`, {
+      method: 'PATCH',
+      body: { cover_admin_only: adminOnly },
+    }),
 }
 
 export const ideasApi = {
@@ -84,6 +102,9 @@ export const queryKeys = {
   groups: ['groups'] as const,
   group: (id: string) => ['groups', id] as const,
   ideas: (groupId: string) => ['groups', groupId, 'ideas'] as const,
+  // Bilerek ['groups'] altında değil: grup listesi geçersiz kılındığında görseller yeniden
+  // indirilmez. Sürüm değişince anahtar değişir ve yeni görsel çekilir.
+  cover: (groupId: string, version: string) => ['cover', groupId, version] as const,
 }
 
 // Fikir mutasyonlarının ortak anahtarı: biri sürerken periyodik yenileme durur, böylece

@@ -8,6 +8,7 @@ import { groupsApi, queryKeys } from '@/api/endpoints'
 import type { GroupListItem } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
+import { GroupCoverImage, GroupThumb } from '@/components/GroupCover'
 import { Bar, BlockError, Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { errorMessage } from '@/lib/errors'
@@ -147,43 +148,68 @@ function NextSurpriseCard({
 
   const { group, days } = next
   const soon = days <= 1
+  // Fotoğraf varsa: masaüstünde solda metin, sağda sabit 4:3 kutu; telefonda kartın üstünde
+  // 16:9 şerit. Fotoğraf yoksa kart aynen eski düz kobalt halidir.
+  const hasCover = !!group.cover_version
   return (
     <Link
       to={`/groups/${group.id}`}
       className={cn(
         box,
         'group bg-primary text-on-primary transition-[background-color,transform] hover:bg-primary-hover active:scale-[0.995]',
+        // Masaüstünde fotoğraf kartın sağına 8px içeriden oturur: kart ~232px, fotoğraf ~%40 genişlikte.
+        hasCover && 'gap-4 md:min-h-[232px] md:flex-row md:items-stretch md:gap-6 md:py-2 md:pr-2 md:pl-6',
       )}
     >
-      <p className="flex items-center gap-1.5 text-sm font-medium opacity-80">
-        <CalendarDays className="size-4" aria-hidden />
-        {t('home.next.label')}
-      </p>
-      <div className="mt-auto flex items-end gap-4 pt-5">
-        <div className="min-w-0 flex-1">
-          <p className="font-display line-clamp-2 text-[22px] leading-tight font-semibold break-words md:text-[28px]">
-            {group.title}
-          </p>
-          <p className="mt-2 truncate text-sm opacity-80">
-            {t('home.forPerson', { name: group.target_person_name })} · {formatEventDate(group.event_date!)}
-          </p>
-        </div>
-        <div className="shrink-0 text-right">
-          {soon ? (
-            <p className="font-display text-[28px] leading-none font-semibold md:text-[36px]">
-              {days === 0 ? t('home.next.today') : t('home.next.tomorrow')}
-            </p>
-          ) : (
-            <>
-              <p className="font-display num text-[44px] leading-none font-semibold md:text-[56px]">{days}</p>
-              <p className="mt-1 text-sm opacity-80">{t('home.next.daysLeft', { count: days })}</p>
-            </>
-          )}
-        </div>
-        <ChevronRight
-          className="mb-1 size-5 shrink-0 opacity-80 transition-transform group-hover:translate-x-0.5"
-          aria-hidden
+      {hasCover && (
+        <GroupCoverImage
+          groupId={group.id}
+          version={group.cover_version}
+          alt=""
+          className="aspect-[16/9] w-full rounded-[14px] bg-on-primary/15 md:order-last md:aspect-[4/3] md:w-[40%] md:self-center md:rounded-[16px]"
         />
+      )}
+      {/* Fotoğrafsız kartta sarmalayıcı düzene katılmaz (display: contents): eski yerleşim birebir korunur. */}
+      <div className={hasCover ? 'flex min-w-0 flex-1 flex-col md:py-4' : 'contents'}>
+        <p className="flex items-center gap-1.5 text-sm font-medium opacity-80">
+          <CalendarDays className="size-4" aria-hidden />
+          {t('home.next.label')}
+        </p>
+        <div
+          className={cn(
+            'mt-auto flex items-end gap-4 pt-5',
+            // Orta genişlikte metin sütunu dar: gün sayısı başlığın altına iner.
+            hasCover && 'md:max-lg:flex-col md:max-lg:items-start md:max-lg:gap-3',
+          )}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="font-display line-clamp-2 text-[22px] leading-tight font-semibold break-words md:text-[28px]">
+              {group.title}
+            </p>
+            <p className={cn('mt-2 text-sm opacity-80', hasCover ? 'line-clamp-2' : 'truncate')}>
+              {t('home.forPerson', { name: group.target_person_name })} · {formatEventDate(group.event_date!)}
+            </p>
+          </div>
+          <div className={cn('shrink-0 text-right', hasCover && 'md:max-lg:flex md:max-lg:items-baseline md:max-lg:gap-2 md:max-lg:text-left')}>
+            {soon ? (
+              <p className="font-display text-[28px] leading-none font-semibold md:text-[36px]">
+                {days === 0 ? t('home.next.today') : t('home.next.tomorrow')}
+              </p>
+            ) : (
+              <>
+                <p className="font-display num text-[44px] leading-none font-semibold md:text-[56px]">{days}</p>
+                <p className="mt-1 text-sm opacity-80">{t('home.next.daysLeft', { count: days })}</p>
+              </>
+            )}
+          </div>
+          <ChevronRight
+            className={cn(
+              'mb-1 size-5 shrink-0 opacity-80 transition-transform group-hover:translate-x-0.5',
+              hasCover && 'md:max-lg:hidden',
+            )}
+            aria-hidden
+          />
+        </div>
       </div>
     </Link>
   )
@@ -318,7 +344,7 @@ function GroupList({
               to={`/groups/${g.id}`}
               className="group flex min-h-[63px] items-center gap-3 rounded-[14px] border border-border bg-raised px-3.5 py-3 transition-[border-color,transform] hover:border-accent active:scale-[0.99]"
             >
-              <Avatar name={g.target_person_name} />
+              <GroupThumb group={g} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-medium">{g.title}</p>
                 <p className="mt-0.5 truncate text-xs text-muted">

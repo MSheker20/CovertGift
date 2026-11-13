@@ -50,14 +50,16 @@ export async function api<T>(
   const headers: Record<string, string> = { Accept: 'application/json' }
   const token = tokenStore.get()
   if (token) headers.Authorization = `Bearer ${token}`
-  if (init.body !== undefined) headers['Content-Type'] = 'application/json'
+  // FormData (dosya yükleme) gövdesinde Content-Type'ı sınır değeriyle tarayıcı yazar.
+  const form = init.body instanceof FormData ? init.body : null
+  if (init.body !== undefined && !form) headers['Content-Type'] = 'application/json'
 
   let res: Response
   try {
     res = await fetch(`${BASE_URL}/api/v1${path}`, {
       method: init.method ?? 'GET',
       headers,
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      body: form ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
       signal: init.signal,
     })
   } catch (err) {
@@ -80,6 +82,37 @@ export async function api<T>(
     throw new ApiError(res.status, payload?.error ?? res.statusText)
   }
   return payload.data as T
+}
+
+// Görsel gibi JSON olmayan bir yanıtı Blob olarak alır. <img> Authorization başlığı
+// gönderemediği için korumalı görseller fetch ile okunur; token URL'ye yazılmaz.
+// Hata yanıtları standart JSON zarfıyla gelir.
+export async function apiBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+  const headers: Record<string, string> = {}
+  const token = tokenStore.get()
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  let res: Response
+  try {
+    res = await fetch(`${BASE_URL}/api/v1${path}`, { headers, signal })
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err
+    throw new ApiError(0, 'network')
+  }
+  if (!res.ok) {
+    let message = res.statusText
+    try {
+      message = ((await res.json()) as Envelope<unknown>).error ?? message
+    } catch {
+      // gövde JSON değil; durum metni kalır
+    }
+    if (res.status === 401 && token) {
+      tokenStore.clear()
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    }
+    throw new ApiError(res.status, message)
+  }
+  return res.blob()
 }
 
 // SSE akışı açar. EventSource Authorization başlığı gönderemediği için akış fetch ile
