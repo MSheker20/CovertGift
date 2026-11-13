@@ -118,6 +118,10 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 
 ---
 
+### 10. `GroupInvite` (Davet linkleri)
+- `id` UUID PK; `group_id` (FK groups, CASCADE); `token_hash` VARCHAR(64) benzersiz (ham token'ın SHA-256 hex özeti; ham token saklanmaz); `created_by` (FK users, CASCADE); `expires_at`; `revoked_at` (opsiyonel); `created_at`.
+- Grup başına en fazla bir aktif davet (iptal edilmemiş ve süresi dolmamış). Yenisi oluşturulunca eskisi aynı transaction'da iptal edilir.
+
 ## 4. Temel İş Mantığı ve Mimari Kurallar (Business Logic)
 
 1. **Anti-Spoiler Koruması (Kritik Kural):**
@@ -193,6 +197,12 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 
 ---
 
+10. **Davet linki:**
+   - Yalnızca admin oluşturur, yeniler, iptal eder; geçerlilik 1, 7 veya 30 gün. Ham token 32 rastgele bayt (base64url), yalnızca oluşturma yanıtında bir kez döner.
+   - Linki açan giriş yapmış kullanıcı önizlemeyi görür ve onay beklemeden `member` olur; tamamlanmış gruba da katılınabilir. Katılım `member_joined` bildirimi ve grup akışına `changed` olayı üretir.
+   - **Anti-Spoiler (kritik):** SINGLE grubun hedef kişisi önizleme ve katılmada 403 + sürpriz mesajı alır; yanıt grup verisi taşımaz. Katılma, üye ekleme ve hedef bağlama ile aynı grup satırı kilidinde hedefi ve üyeliği yeniden denetler; hedef hiçbir yarışta üye olamaz. Hedef hesabı bağlı değilken link koruma sağlamaz; arayüz bu durumda uyarı gösterir.
+   - Token loglara yazılmaz: API isteği logu rota şablonunu yazar, nginx davet yollarında `access_log off` kullanır. Geçersiz, süresi dolmuş, iptal edilmiş ve biçimi bozuk token aynı 404'ü alır.
+
 ## 5. REST API Uç Noktaları (REST Contract)
 
 ### Kimlik Doğrulama (Auth)
@@ -234,6 +244,13 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `DELETE /api/v1/ideas/:id/vote` -> Kullanıcının bu fikre verdiği oyu kaldırır; oy yoksa da 200 (idempotent). Çoğunluk vetosuyla reddedilmiş fikir kendiliğinden geri açılmaz. Anti-Spoiler ve üyelik kontrolü zorunludur.
 - `POST /api/v1/ideas/:id/reject` -> Grup admini doğrudan hediye fikrini veto eder (`status = REJECTED`)
 - `DELETE /api/v1/ideas/:id` -> Hediyeyi kaldırır (Sadece öneren kişi veya grup admini silebilir)
+
+### Davet Linki
+- `GET /api/v1/groups/:id/invite` -> Yalnızca admin. `{ active, expires_at?, created_at? }`; token dönmez.
+- `POST /api/v1/groups/:id/invite` -> Yalnızca admin. `{ expires_in_days: 1 | 7 | 30 }` (başka değer 400). `201` + `{ token, expires_at }`; önceki aktif link iptal olur.
+- `DELETE /api/v1/groups/:id/invite` -> Yalnızca admin; aktif linki iptal eder (idempotent 200).
+- `GET /api/v1/invites/:token` -> Giriş yapmış herkes. `{ group_title, inviter_name, member_count, already_member, group_id? }` (`group_id` yalnızca zaten üyeyse). Hedef kişi 403 + sürpriz mesajı; geçersiz token 404.
+- `POST /api/v1/invites/:token/accept` -> Çağıranı `member` yapar; `{ group_id }`. Zaten üyeyse 200 (idempotent, bildirim yok). Hedef kişi 403; geçersiz token 404; hesabı silinmiş oturum 401.
 
 ### Bildirimler
 - `GET /api/v1/notifications` -> `{ items: Notification[], unread_count }`. Giriş yapan kullanıcının en yeni 50 bildirimi (yeniden eskiye); öğe: `{ id, group_id, group_title, type, params, read_at?, created_at }`. `unread_count` tüm okunmamışları sayar. Kullanıcının hedef kişisi olduğu gruplara ait satırlar hiçbir zaman dönmez (Anti-Spoiler).

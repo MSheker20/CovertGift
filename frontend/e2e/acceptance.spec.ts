@@ -151,7 +151,7 @@ test.describe('acceptance flow', () => {
     await email.clear()
     await create.getByRole('button', { name: 'Grubu kur' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Kaan’ın hediyesi' })).toBeVisible()
-    await expect(page.getByText('hesabı bağlı')).toHaveCount(0)
+    await expect(page.getByText(/hesabı bağlı$/)).toHaveCount(0)
     const groupUrl = page.url()
 
     // Kişi kayıt olduktan sonra admin menüden bağlar.

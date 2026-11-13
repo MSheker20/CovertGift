@@ -829,3 +829,11 @@
 - **Yarışlar:** fikir ekleme/AI kaydı kapsam satırı `FOR SHARE` kilitliyken durumu yeniden denetler; oy + çoğunluk vetosu tek transaction'da (kapsam `FOR SHARE`, fikir `FOR UPDATE`), hatalar artık yutulmaz. Alıcı ekleme ile üye ekleme/davetle katılma grup satırı kilidiyle sıralanır; ikisi de katkı satırı yazar.
 - **Testler:** `cmd/api/pools_integration_test.go` (rota tablosu Anti-Spoiler, anlık görüntü değişmezliği, SSE, bildirim/hatırlatma, katılma yolları, katkı, yönetici yetkileri, alıcı kuralları, hesap silme, eşzamanlılık, şema); servis birim testleri; seed'e "Ofis Yılbaşı" MULTI grubu.
 
+## 2026-11-13 — Davet linki ve MULTI frontend
+
+- **Davet linki:** `group_invites` (yalnızca token özeti saklanır), `GET/POST/DELETE /groups/:id/invite` (admin), `GET /invites/:token`, `POST /invites/:token/accept`. Katılma, üye ekleme ve hedef bağlama ile aynı grup satırı kilidini kullanır; hedef kişi önizleme ve katılmada 403 alır. Token API logunda rota şablonuyla, nginx'te `access_log off` ile gizlenir (nginx yalnızca `nginx -t` ile doğrulandı). Frontend: üyeler panelinde "Davet linki" bölümü, `/invite/:token` karşılama sayfası, giriş/kayıt sonrası davete dönüş (`lib/returnPath.ts`, açık yönlendirme korumalı). Hedef hesabı bağlı değilken uyarı gösterilir.
+- **MULTI frontend:** yeni grup penceresinde tip seçimi; grup sayfasında kişi sekmeleri (`?pool=`), kilitli kart, katılımcılar paneli ve ortaklık anahtarı, üyeler panelinde hediye alınacak kişi / sorumlu yönetimi. Mevcut bileşenler `scope` + `canManage` ile parametrelendi (`pages/group/scope.ts`); `PoolRef` tipi kilitli havuz için istek kurmayı derleme hatası yapar. Canlı güncelleme, sürmekte olan değişiklik bitene kadar ertelenir (yutulmaz).
+- **İnceleme sonucu düzeltilenler:** önizleme isteğinin grup akışına olay göndermesi (zamanlama sızıntısı), fikir ekleme ile kişi çıkarma arasındaki kilitlenme (tek kilit sırası: grup → havuz), veto/silme/oy geri almanın kazanan seçimiyle yarışı, `next_event_date`'in yaklaşan tarihi öncelemesi.
+- **Lint:** `react/exhaustive-deps` hata düzeyinde açıldı; ihlal yok.
+- **Doğrulama:** Go birim + entegrasyon testleri, Vitest 218/218, Playwright 18/18 (test veritabanı), tarayıcıda masaüstü ve 375 px kontrolü.
+

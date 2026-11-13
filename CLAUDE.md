@@ -13,6 +13,8 @@ Oturuma başlamadan önce oku:
 
 ## Kritik kurallar
 - **Anti-Spoiler:** `/groups/:id/*` ve `/ideas/:id/*` uçlarında `target_user_id` kontrolü zorunlu. Eşleşirse 403 ve sürpriz mesajı döner.
+- **MULTI gruplar:** Hediye alınan kişi kendi havuzu için yalnızca kilitli kart görür. `/groups/:id/pools/:poolId/*` altındaki her rota `PoolAccess`'ten, `/ideas/:id/*` `IdeaGuard`'dan geçer; havuza özgü değişiklik grup anahtarını değil havuz anahtarını yayınlar. Kilit sırası: `groups` → `gift_pools` → diğerleri.
+- **Davet linki:** Token loglanmaz; hedef kişi `/invites/:token` uçlarında da 403 alır.
 - **Gemini URL üretmez.** Pazar yeri linkleri frontend'de `search_query` üzerinden `encodeURIComponent` ile oluşturulur.
 - **Link önizleme** (`pkg/linkpreview`): domain allowlist, özel IP engeli, 2 MB limit ve en fazla 10 yönlendirme korunmalı.
 - **Canlı güncellemeler (SSE):** `GET /groups/:id/events` olayları veri taşımaz (`event: changed`); istemci korumalı uçlardan yeniden çeker. Yeni bir değişiklik ucu `/groups/:id/*` veya `/ideas/:id/*` altına eklenirse yayın middleware'i otomatik çalışır. Hub bellek içidir; API tek replica.
