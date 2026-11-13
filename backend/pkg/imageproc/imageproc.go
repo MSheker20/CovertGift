@@ -4,6 +4,10 @@
 // çözmeden ÖNCE sınırlanır (decompression bomb), EXIF yönü uygulanır, görsel ortadan 4:3
 // kırpılır, en çok 1600x1200'e küçültülür ve yeniden JPEG kodlanır. Yeniden kodlama tüm
 // metadata'yı (EXIF, konum, renk profili, yorumlar) atar. Yalnızca saf Go; cgo yok.
+//
+// Büyük fotoğrafı küçültmek tarayıcının işidir (arayüz 4:3 kırpıp en çok 1600x1200 JPEG
+// gönderir). Sunucu yalnızca küçük girdi kabul eder (en çok 2 MiB, uzun kenar 2000 piksel,
+// 4 megapiksel); böylece tek bir görselin tepe belleği birkaç on MB'ı geçmez.
 package imageproc
 
 import (
@@ -19,12 +23,13 @@ import (
 )
 
 const (
-	// MaxInputBytes kabul edilen en büyük dosyadır (10 MiB).
-	MaxInputBytes = 10 << 20
-	// MaxDimension tek kenarın, MaxPixels toplam piksel sayısının üst sınırıdır. Sınırlar
-	// başlıktan okunur; aşan görsel hiç çözülmez.
-	MaxDimension = 12000
-	MaxPixels    = 50_000_000
+	// MaxInputBytes kabul edilen en büyük dosyadır (2 MiB). Tarayıcıda küçültülmüş
+	// 1600x1200 JPEG bunun çok altında kalır.
+	MaxInputBytes = 2 << 20
+	// MaxDimension uzun kenarın, MaxPixels toplam piksel sayısının üst sınırıdır. Sınırlar
+	// image.DecodeConfig ile başlıktan okunur; aşan görsel hiç çözülmez.
+	MaxDimension = 2000
+	MaxPixels    = 4_000_000
 	// MinWidth ve MinHeight, 4:3 kırpmanın anlamlı kalması için en küçük kaynak boyutudur
 	// (yön uygulandıktan sonra).
 	MinWidth  = 64
@@ -40,11 +45,11 @@ const (
 
 // Hatalar. Mesajlar kullanıcıya gösterilir.
 var (
-	ErrTooLarge          = errors.New("görsel en fazla 10 MB olabilir")
+	ErrTooLarge          = errors.New("Fotoğraf en fazla 2 MB olabilir. Lütfen tarayıcıda küçültülmüş bir görsel yükleyin.")
 	ErrUnsupportedType   = errors.New("yalnızca JPEG, PNG veya WebP görseller desteklenir")
 	ErrHEICNotSupported  = errors.New("HEIC/HEIF görseller desteklenmiyor; JPEG, PNG veya WebP yükleyin")
 	ErrCorrupt           = errors.New("görsel okunamadı; dosya bozuk olabilir")
-	ErrDimensionsTooBig  = errors.New("görselin çözünürlüğü çok yüksek (en fazla 12000 piksel kenar ve 50 megapiksel)")
+	ErrDimensionsTooBig  = errors.New("Fotoğraf çok büyük. Lütfen tarayıcıda küçültülmüş (en çok 2000 piksel) bir görsel yükleyin.")
 	ErrDimensionsTooTiny = errors.New("görsel çok küçük; en az 64x48 piksel olmalı")
 )
 

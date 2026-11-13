@@ -14,7 +14,8 @@ import (
 const DefaultMaxBodyBytes int64 = 1 << 20
 
 // CoverUploadMaxBodyBytes kapak fotoğrafı yüklemesinin gövde sınırıdır: en büyük dosya
-// (10 MiB) ve multipart zarfı için 64 KiB pay.
+// (imageproc.MaxInputBytes, 2 MiB) ve multipart zarfı için 64 KiB pay. Fotoğrafı tarayıcı
+// küçültür; bundan büyük gövde okunmadan 413 alır.
 const CoverUploadMaxBodyBytes int64 = imageproc.MaxInputBytes + 64<<10
 
 // RouteLimit tek bir rotanın gövde sınırı ve aşıldığında dönen mesajdır.

@@ -11,7 +11,7 @@ import { api, eventStream, fail, group, groupDetail, http, me, ok, server } from
 // jsdom görsel çözmez ve canvas çizmez; kırpma adımının iki tarayıcı işlemi taklit edilir.
 vi.mock('@/lib/coverCrop', async (importOriginal) => ({
   ...(await importOriginal<typeof coverCrop>()),
-  loadImage: vi.fn(),
+  prepareImage: vi.fn(),
   renderCrop: vi.fn(),
 }))
 
@@ -47,7 +47,7 @@ async function pickPhoto(user: ReturnType<typeof userEvent.setup>) {
 
 beforeEach(() => {
   localStorage.setItem('covertgift.token', 'tok')
-  vi.mocked(coverCrop.loadImage).mockResolvedValue({
+  vi.mocked(coverCrop.prepareImage).mockResolvedValue({
     element: document.createElement('img'),
     url: 'blob:test/picked',
     width: 1920,

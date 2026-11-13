@@ -14,11 +14,11 @@ import { api, fail, http, server } from '@/test/server'
 // hesapları (cropRect, clampCrop…) gerçektir.
 vi.mock('@/lib/coverCrop', async (importOriginal) => ({
   ...(await importOriginal<typeof coverCrop>()),
-  loadImage: vi.fn(),
+  prepareImage: vi.fn(),
   renderCrop: vi.fn(),
 }))
 
-const loadImage = vi.mocked(coverCrop.loadImage)
+const prepareImage = vi.mocked(coverCrop.prepareImage)
 const renderCrop = vi.mocked(coverCrop.renderCrop)
 
 const release = vi.fn()
@@ -70,43 +70,71 @@ async function pick(file: File) {
 
 describe('cover crop dialog', () => {
   beforeEach(() => {
-    loadImage.mockReset()
+    prepareImage.mockReset()
     renderCrop.mockReset()
     release.mockReset()
   })
 
-  it('rejects oversized, HEIC and unsupported files before reading them', async () => {
+  it('rejects oversized and unsupported files before reading them', async () => {
     renderWithProviders(<Harness />)
-    await pick(photo('buyuk.jpg', 'image/jpeg', 10 * 1024 * 1024 + 1))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Fotoğraf en fazla 10 MB olabilir.')
-
-    await pick(photo('IMG_0001.HEIC', 'image/heic'))
-    expect(screen.getByRole('alert')).toHaveTextContent('HEIC fotoğraflar desteklenmiyor')
+    await pick(photo('buyuk.jpg', 'image/jpeg', 40 * 1024 * 1024 + 1))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Fotoğraf en fazla 40 MB olabilir.')
 
     await pick(photo('hareketli.gif', 'image/gif'))
     expect(screen.getByRole('alert')).toHaveTextContent('Yalnızca JPEG, PNG veya WebP')
 
-    expect(loadImage).not.toHaveBeenCalled()
+    expect(prepareImage).not.toHaveBeenCalled()
     expect(screen.queryByRole('group', { name: 'Kırpma alanı' })).not.toBeInTheDocument()
   })
 
-  it('reports unreadable and too-small images', async () => {
+  it('accepts a large original photo (over the old 10 MB limit) and shrinks it in the browser', async () => {
+    prepareImage.mockResolvedValue(loaded(3200, 2400))
     renderWithProviders(<Harness />)
-    loadImage.mockRejectedValueOnce(new Error('decode'))
+    const original = photo('IMG_48MP.jpg', 'image/jpeg', 25 * 1024 * 1024)
+    await pick(original)
+    expect(await screen.findByRole('group', { name: 'Kırpma alanı' })).toBeInTheDocument()
+    expect(prepareImage).toHaveBeenCalledWith(original)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('reports unreadable, HEIC, too-small and too-large images', async () => {
+    renderWithProviders(<Harness />)
+    prepareImage.mockRejectedValueOnce(new Error('decode'))
     await pick(photo())
     expect(await screen.findByRole('alert')).toHaveTextContent('Fotoğraf okunamadı')
 
-    loadImage.mockResolvedValueOnce(loaded(40, 30))
+    // Tarayıcı HEIC'i açamadı (ör. Chrome): anlaşılır mesaj.
+    prepareImage.mockRejectedValueOnce(new coverCrop.CoverImageError('heic'))
+    await pick(photo('IMG_0001.HEIC', 'image/heic'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Bu tarayıcı HEIC fotoğrafları açamıyor'))
+
+    prepareImage.mockRejectedValueOnce(new coverCrop.CoverImageError('dimensions'))
+    await pick(photo())
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('çözünürlüğü çok yüksek'))
+
+    prepareImage.mockResolvedValueOnce(loaded(40, 30))
     await pick(photo())
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Fotoğraf çok küçük'))
     expect(release).toHaveBeenCalled()
     expect(screen.queryByRole('group', { name: 'Kırpma alanı' })).not.toBeInTheDocument()
   })
 
+  it('explains when the output cannot be made small enough for the server', async () => {
+    const onCropped = vi.fn()
+    prepareImage.mockResolvedValue(loaded(1920, 1080))
+    renderCrop.mockRejectedValue(new coverCrop.CoverImageError('outputTooLarge'))
+    renderWithProviders(<Harness onCropped={onCropped} />)
+    const user = await pick(photo())
+    await screen.findByRole('group', { name: 'Kırpma alanı' })
+    await user.click(screen.getByRole('button', { name: 'Fotoğrafı kaydet' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Fotoğraf yeterince küçültülemedi')
+    expect(onCropped).not.toHaveBeenCalled()
+  })
+
   it('starts with a centred 4:3 crop and exports exactly the framed area', async () => {
     const onCropped = vi.fn()
     const blob = new Blob(['jpeg'], { type: 'image/jpeg' })
-    loadImage.mockResolvedValue(loaded(1920, 1080))
+    prepareImage.mockResolvedValue(loaded(1920, 1080))
     renderCrop.mockResolvedValue(blob)
     renderWithProviders(<Harness onCropped={onCropped} />)
     const user = await pick(photo())
@@ -122,7 +150,7 @@ describe('cover crop dialog', () => {
   })
 
   it('moves with the arrow keys, zooms with + and − and stays inside the image', async () => {
-    loadImage.mockResolvedValue(loaded(1920, 1080))
+    prepareImage.mockResolvedValue(loaded(1920, 1080))
     renderWithProviders(<Harness />)
     const user = await pick(photo())
     const frame = await screen.findByRole('group', { name: 'Kırpma alanı' })
@@ -151,7 +179,7 @@ describe('cover crop dialog', () => {
   })
 
   it('zooms with the labelled slider', async () => {
-    loadImage.mockResolvedValue(loaded(1920, 1080))
+    prepareImage.mockResolvedValue(loaded(1920, 1080))
     renderWithProviders(<Harness />)
     await pick(photo())
     const slider = await screen.findByRole('slider', { name: 'Yakınlaştırma' })
@@ -165,7 +193,7 @@ describe('cover crop dialog', () => {
   })
 
   it('drags with the pointer and pinches with two fingers', async () => {
-    loadImage.mockResolvedValue(loaded(1920, 1080))
+    prepareImage.mockResolvedValue(loaded(1920, 1080))
     renderWithProviders(<Harness />)
     await pick(photo())
     const frame = await screen.findByRole('group', { name: 'Kırpma alanı' })
@@ -187,7 +215,7 @@ describe('cover crop dialog', () => {
   })
 
   it('shows the upload state and the server error, and blocks closing while uploading', async () => {
-    loadImage.mockResolvedValue(loaded(1920, 1080))
+    prepareImage.mockResolvedValue(loaded(1920, 1080))
     const view = renderWithProviders(<Harness pending />)
     await pick(photo())
     const save = await screen.findByRole('button', { name: 'Yükleniyor…' })
@@ -204,7 +232,7 @@ describe('cover crop dialog', () => {
   })
 
   it('forgets the previous photo when reopened and releases its object URL', async () => {
-    loadImage.mockResolvedValue(loaded(1920, 1080))
+    prepareImage.mockResolvedValue(loaded(1920, 1080))
     renderWithProviders(<Harness />)
     const user = await pick(photo())
     await screen.findByRole('group', { name: 'Kırpma alanı' })

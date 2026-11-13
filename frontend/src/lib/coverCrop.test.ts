@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   COVER_MAX_BYTES,
+  COVER_UPLOAD_MAX_BYTES,
+  COVER_WORK_MAX_EDGE,
   clampCrop,
   cropRect,
   initialCrop,
@@ -9,24 +11,29 @@ import {
   maxZoom,
   outputSize,
   validateCoverFile,
+  workingSize,
 } from './coverCrop'
 
 const file = (name: string, type: string, size = 1000) => ({ name, type, size })
 
 describe('validateCoverFile', () => {
-  it('accepts JPEG, PNG and WebP up to 10 MB', () => {
+  it('accepts large original photos, since the browser shrinks them before upload', () => {
+    expect(COVER_MAX_BYTES).toBe(40 * 1024 * 1024)
+    expect(COVER_UPLOAD_MAX_BYTES).toBe(2 * 1024 * 1024)
     expect(validateCoverFile(file('a.jpg', 'image/jpeg'))).toBeNull()
     expect(validateCoverFile(file('a.png', 'image/png'))).toBeNull()
+    // 48 MP telefon fotoğrafı: eski 10 MB sınırının üstünde, artık seçilebilir.
+    expect(validateCoverFile(file('IMG_48MP.jpg', 'image/jpeg', 18 * 1024 * 1024))).toBeNull()
     expect(validateCoverFile(file('a.webp', 'image/webp', COVER_MAX_BYTES))).toBeNull()
   })
 
-  it('rejects files over 10 MB', () => {
+  it('rejects files over 40 MB', () => {
     expect(validateCoverFile(file('a.jpg', 'image/jpeg', COVER_MAX_BYTES + 1))).toBe('tooLarge')
   })
 
-  it('names HEIC explicitly, by type or by extension', () => {
-    expect(validateCoverFile(file('IMG_1.HEIC', 'image/heic'))).toBe('heic')
-    expect(validateCoverFile(file('IMG_1.heif', ''))).toBe('heic')
+  it('lets HEIC through to the browser decoder (by type or by extension)', () => {
+    expect(validateCoverFile(file('IMG_1.HEIC', 'image/heic'))).toBeNull()
+    expect(validateCoverFile(file('IMG_1.heif', ''))).toBeNull()
   })
 
   it('rejects other types and falls back to the extension when the browser reports no type', () => {
@@ -99,5 +106,18 @@ describe('isTooSmall', () => {
     expect(isTooSmall(63, 500)).toBe(true)
     expect(isTooSmall(500, 47)).toBe(true)
     expect(isTooSmall(64, 48)).toBe(false)
+  })
+})
+
+describe('workingSize', () => {
+  it('keeps photos whose long edge fits the working size', () => {
+    expect(workingSize(1600, 1200)).toBeNull()
+    expect(workingSize(COVER_WORK_MAX_EDGE, 2400)).toBeNull()
+  })
+
+  it('shrinks large photos to the working size, keeping the aspect ratio', () => {
+    expect(workingSize(6000, 4000)).toEqual({ width: 3200, height: 2133 })
+    expect(workingSize(6000, 8000)).toEqual({ width: 2400, height: 3200 })
+    expect(workingSize(8064, 6048)).toEqual({ width: 3200, height: 2400 }) // 48 MP
   })
 })

@@ -355,7 +355,8 @@ func TestCoverVersionETagAndDelete(t *testing.T) {
 		t.Fatalf("kapak yokken liste cover_version içeriyor: %s", list.Data)
 	}
 
-	v1 := s.api.mustUploadCover(s.groupID, s.admin.token, testJPEG(t, 3000, 2000, 1))
+	// Tarayıcının gönderdiği tipik görsel: kırpılmış 1600x1200 JPEG.
+	v1 := s.api.mustUploadCover(s.groupID, s.admin.token, testJPEG(t, 1600, 1200, 1))
 	if got := s.api.coverState(s.groupID, s.member.token).CoverVersion; got != v1 {
 		t.Fatalf("detaydaki sürüm %q, yüklemedeki %q", got, v1)
 	}
@@ -495,6 +496,10 @@ func TestCoverRejectsBadUploads(t *testing.T) {
 	bomb := testPNG(t, 64, 64, 1)
 	binary.BigEndian.PutUint32(bomb[16:20], 20000)
 	binary.BigEndian.PutUint32(bomb[20:24], 20000)
+	// Başlığında 6000x4000 (24 MP, küçültülmemiş telefon fotoğrafı) yazan küçük PNG.
+	bigHeader := testPNG(t, 64, 64, 2)
+	binary.BigEndian.PutUint32(bigHeader[16:20], 6000)
+	binary.BigEndian.PutUint32(bigHeader[20:24], 4000)
 
 	cases := []struct {
 		name, field, filename, contentType string
@@ -511,7 +516,9 @@ func TestCoverRejectsBadUploads(t *testing.T) {
 		{"heic", "file", "a.heic", "image/heic", append([]byte{0, 0, 0, 0x18}, []byte("ftypheic\x00\x00\x00\x00mif1heic")...), http.StatusUnsupportedMediaType},
 		{"boş dosya", "file", "a.jpg", "image/jpeg", nil, http.StatusUnsupportedMediaType},
 		{"yanlış alan adı", "image", "a.jpg", "image/jpeg", valid, http.StatusBadRequest},
-		{"10 MB üstü dosya", "file", "a.jpg", "image/jpeg", append(append([]byte{}, valid...), make([]byte, imageproc.MaxInputBytes)...), http.StatusRequestEntityTooLarge},
+		{"başlığı 6000x4000 diyen küçük png", "file", "a.png", "image/png", bigHeader, http.StatusBadRequest},
+		{"uzun kenarı 2001 piksel jpeg", "file", "a.jpg", "image/jpeg", testJPEG(t, imageproc.MaxDimension+1, 1500, 1), http.StatusBadRequest},
+		{"2 MiB üstü dosya", "file", "a.jpg", "image/jpeg", append(append([]byte{}, valid...), make([]byte, imageproc.MaxInputBytes)...), http.StatusRequestEntityTooLarge},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -525,7 +532,7 @@ func TestCoverRejectsBadUploads(t *testing.T) {
 	t.Run("gövde sınırını aşan istek okunmadan 413", func(t *testing.T) {
 		body, formType := multipartBody(t, "file", "a.jpg", "image/jpeg", make([]byte, middleware.CoverUploadMaxBodyBytes+1))
 		res := s.api.raw(http.MethodPut, g+"/cover", s.admin.token, body, map[string]string{"Content-Type": formType})
-		if res.Code != http.StatusRequestEntityTooLarge || !strings.Contains(res.Body.String(), "10 MB") {
+		if res.Code != http.StatusRequestEntityTooLarge || !strings.Contains(res.Body.String(), "2 MB") {
 			t.Fatalf("HTTP %d %s", res.Code, res.Body)
 		}
 	})
@@ -540,6 +547,27 @@ func TestCoverRejectsBadUploads(t *testing.T) {
 		if res.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("HTTP %d %s", res.Code, res.Body)
 		}
+	})
+	t.Run("yüksek çözünürlük 400 ve tarayıcıda küçültme mesajı", func(t *testing.T) {
+		code, res := s.api.upload(s.groupID, s.admin.token, "file", "a.jpg", "image/jpeg", testJPEG(t, 2400, 1800, 3))
+		if code != http.StatusBadRequest || res.Error != imageproc.ErrDimensionsTooBig.Error() || !strings.Contains(res.Error, "2000 piksel") {
+			t.Fatalf("HTTP %d %+v", code, res)
+		}
+	})
+	t.Run("eski 10 MiB sınırının altındaki 3 MiB gövde artık 413", func(t *testing.T) {
+		body, formType := multipartBody(t, "file", "a.jpg", "image/jpeg", append(append([]byte{}, valid...), make([]byte, 3<<20)...))
+		res := s.api.raw(http.MethodPut, g+"/cover", s.admin.token, body, map[string]string{"Content-Type": formType})
+		if res.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("HTTP %d %s", res.Code, res.Body)
+		}
+	})
+	t.Run("sınırın hemen altındaki dosya kabul edilir", func(t *testing.T) {
+		// JPEG çözücüsü EOI sonrasını yok sayar; dosya tam 2 MiB, gövde zarfıyla sınırın altında.
+		exact := append(append([]byte{}, valid...), make([]byte, imageproc.MaxInputBytes-len(valid))...)
+		if code, res := s.api.upload(s.groupID, s.admin.token, "file", "a.jpg", "image/jpeg", exact); code != http.StatusOK {
+			t.Fatalf("HTTP %d %+v", code, res)
+		}
+		s.api.mustUploadCover(s.groupID, s.admin.token, testJPEG(t, 800, 600, 1)) // eski kapağı geri koy
 	})
 	t.Run("multipart olmayan gövde 400", func(t *testing.T) {
 		if code, _ := s.api.call(http.MethodPut, g+"/cover", s.admin.token, map[string]string{"file": "x"}); code != http.StatusBadRequest {
