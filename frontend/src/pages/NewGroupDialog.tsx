@@ -14,6 +14,7 @@ import { FormError, FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input, Textarea } from '@/components/ui/input'
+import { MAX_GROUP_DESCRIPTION } from '@/lib/description'
 import { errorMessage } from '@/lib/errors'
 import { eventDateBounds } from '@/lib/eventDate'
 
@@ -201,6 +202,7 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
             <Textarea
               id="g-notes"
               rows={2}
+              maxLength={MAX_GROUP_DESCRIPTION}
               placeholder={t('newGroup.notesPlaceholder')}
               value={form.notes}
               onChange={set('notes')}

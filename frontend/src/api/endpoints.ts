@@ -49,6 +49,9 @@ export const groupsApi = {
   linkTarget: (id: string, email: string) =>
     api<Group>(`/groups/${id}/target`, { method: 'PATCH', body: { email } }),
   remove: (id: string) => api<unknown>(`/groups/${id}`, { method: 'DELETE' }),
+  // Yalnızca yönetici. Sunucu metni kırpar; boş değer açıklamayı siler. En çok 1000 karakter.
+  updateDescription: (id: string, description: string) =>
+    api<Group>(`/groups/${id}/description`, { method: 'PATCH', body: { description } }),
   // null tarihi kaldırır.
   updateEventDate: (id: string, eventDate: string | null) =>
     api<unknown>(`/groups/${id}/event-date`, { method: 'PATCH', body: { event_date: eventDate } }),

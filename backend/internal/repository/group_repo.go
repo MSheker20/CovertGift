@@ -36,6 +36,7 @@ type GroupRepository interface {
 	SaveCover(cover *models.GroupCover, guard func(group *models.Group) error) error
 	DeleteCover(groupID uuid.UUID, guard func(group *models.Group) error) error
 	SetCoverAdminOnly(groupID uuid.UUID, adminOnly bool) error
+	SetDescription(groupID uuid.UUID, description string) error
 }
 
 type groupRepository struct {
@@ -412,6 +413,18 @@ func (r *groupRepository) DeleteCover(groupID uuid.UUID, guard func(group *model
 		}
 		return tx.Model(&models.Group{}).Where("id = ?", groupID).Update("cover_version", "").Error
 	})
+}
+
+// SetDescription grubun açıklamasını yazar; boş metin açıklamayı siler.
+func (r *groupRepository) SetDescription(groupID uuid.UUID, description string) error {
+	result := r.db.Model(&models.Group{}).Where("id = ?", groupID).Update("description", description)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // SetCoverAdminOnly kapak fotoğrafını kimin değiştirebileceğini ayarlar.

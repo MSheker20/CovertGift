@@ -641,6 +641,7 @@ func TestEveryMutationRouteHasANotificationDecision(t *testing.T) {
 		"PUT /api/v1/groups/:id/cover":               false, // kapak değişimi bildirim üretmez; grup akışı görünümü yeniler
 		"DELETE /api/v1/groups/:id/cover":            false,
 		"PATCH /api/v1/groups/:id/cover-policy":      false,
+		"PATCH /api/v1/groups/:id/description":       false, // açıklama değişimi bildirim üretmez; grup akışı görünümü yeniler
 	}
 	seen := map[string]bool{}
 	for _, r := range api.router.Routes() {

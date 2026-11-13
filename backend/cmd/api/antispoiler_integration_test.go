@@ -239,6 +239,7 @@ func TestAntiSpoilerTargetBlockedOnEveryGroupRoute(t *testing.T) {
 		{http.MethodPut, g + "/cover", nil},
 		{http.MethodDelete, g + "/cover", nil},
 		{http.MethodPatch, g + "/cover-policy", map[string]bool{"cover_admin_only": true}},
+		{http.MethodPatch, g + "/description", map[string]string{"description": "Hedefin yazdığı açıklama"}},
 	}
 	for _, r := range routes {
 		t.Run(r.method+" "+strings.Replace(strings.Replace(r.path, s.groupID, ":id", 1), s.ideaID, ":idea", 1), func(t *testing.T) {

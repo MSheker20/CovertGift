@@ -116,7 +116,8 @@ describe('link target from the admin menu', () => {
     const user = userEvent.setup()
 
     expect(await screen.findByText('Kaan için sürpriz', { exact: false })).toBeInTheDocument()
-    expect(screen.queryByText('hesabı bağlı')).not.toBeInTheDocument()
+    expect(screen.getByText('Hesap bağlı değil')).toBeInTheDocument()
+    expect(screen.queryByText(/hesabı bağlı$/)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Grup işlemleri' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Hedef kişiyi bağla' }))
     const dialog = await screen.findByRole('dialog')
@@ -126,7 +127,10 @@ describe('link target from the admin menu', () => {
 
     expect(await screen.findByText(/Kaan artık bu grubu göremez/)).toBeInTheDocument()
     expect(sent).toEqual({ email: 'kaan@ornek.com' })
-    expect(await screen.findByText('hesabı bağlı')).toBeInTheDocument()
+    // Sahte yanıtta target_account yok: ad, target_person_name'e düşer.
+    expect(await screen.findByText('Kaan hesabı bağlı')).toBeInTheDocument()
+    expect(screen.queryByText('Hesap bağlı değil')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hesabı bağla' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Grup işlemleri' }))
     expect(await screen.findByRole('menuitem', { name: 'Grubu sil' })).toBeInTheDocument()
@@ -162,5 +166,8 @@ describe('link target from the admin menu', () => {
     renderApp(PATH)
     expect(await screen.findByText('Kaan için sürpriz', { exact: false })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Grup işlemleri' })).not.toBeInTheDocument()
+    // Üye durumu görür ama bağlama eylemi yoktur.
+    expect(screen.getByText('Hesap bağlı değil')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hesabı bağla' })).not.toBeInTheDocument()
   })
 })

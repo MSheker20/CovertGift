@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, ImageOff, ImagePlus, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2, UserCheck, X } from 'lucide-react'
+import { CalendarDays, FileText, ImageOff, ImagePlus, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2, UserCheck, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
@@ -21,7 +21,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
+import { Input, Textarea } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
+import { descriptionLength, MAX_GROUP_DESCRIPTION } from '@/lib/description'
 import { errorMessage } from '@/lib/errors'
 import { eventDateBounds } from '@/lib/eventDate'
 import { formatMoney } from '@/lib/format'
@@ -236,8 +238,113 @@ export function BudgetTile({ groupId, total, isAdmin }: { groupId: string; total
   )
 }
 
+// Grup açıklaması: yalnızca yönetici düzenler. Boş bırakmak açıklamayı kaldırır; sunucu metni kırpar.
+export function DescriptionDialog({
+  groupId,
+  current,
+  open,
+  onOpenChange,
+}: {
+  groupId: string
+  current?: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [value, setValue] = useState(current ?? '')
+  const [error, setError] = useState<string | null>(null)
+  // Pencere dışarıdan (menü ya da başlıktaki ipucu) açılır; her açılışta güncel açıklamayla başlar.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setValue(current ?? '')
+      setError(null)
+    }
+  }
+  const count = descriptionLength(value)
+  const tooLong = count > MAX_GROUP_DESCRIPTION
+
+  const save = useMutation({
+    mutationFn: (text: string) => groupsApi.updateDescription(groupId, text),
+    onSuccess: (_g, text) => {
+      toast.success(t(text.trim() ? 'manage.descriptionSaved' : 'manage.descriptionRemoved'))
+      onOpenChange(false)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
+    },
+    onError: (err) => setError(errorMessage(err)),
+  })
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    if (tooLong) {
+      setError(t('manage.descriptionTooLong', { max: MAX_GROUP_DESCRIPTION }))
+      return
+    }
+    save.mutate(value)
+  }
+
+  const describedBy = ['description-count', error ? 'description-error' : ''].filter(Boolean).join(' ')
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (save.isPending) return
+        onOpenChange(o)
+      }}
+    >
+      <DialogContent closeLabel={t('common.close')} className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle className="text-[19px]">{t('manage.descriptionTitle')}</DialogTitle>
+          <DialogDescription className="text-[15px] leading-6">{t('manage.descriptionBody')}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <FormField id="group-description" label={t('manage.descriptionLabel')}>
+            <Textarea
+              id="group-description"
+              rows={6}
+              autoFocus
+              className="max-h-[50dvh] resize-y"
+              placeholder={t('newGroup.notesPlaceholder')}
+              aria-invalid={error || tooLong ? true : undefined}
+              aria-describedby={describedBy}
+              value={value}
+              onChange={(e) => {
+                setValue(e.target.value)
+                setError(null)
+              }}
+            />
+            <p
+              id="description-count"
+              className={cn('num text-right text-xs', tooLong ? 'font-medium text-negative' : 'text-muted')}
+            >
+              {t('manage.descriptionCount', { count, max: MAX_GROUP_DESCRIPTION })}
+            </p>
+            {error && (
+              <p id="description-error" role="alert" className="text-xs text-negative">
+                {error}
+              </p>
+            )}
+          </FormField>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={save.isPending}>
+              {t('manage.cancel')}
+            </Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? t('common.loading') : t('manage.save')}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // Hedef kişiyi e-postayla bir kez bağlar. Sonrasında Anti-Spoiler o kişiyi gruptan dışlar.
-function LinkTargetDialog({
+// Hem yönetici menüsünden hem de başlıktaki "Hesap bağlı değil" durumundan açılır.
+export function LinkTargetDialog({
   groupId,
   targetName,
   open,
@@ -435,6 +542,7 @@ export function GroupMenu({
   title,
   targetName,
   targetLinked,
+  description,
   eventDate,
   completed,
   isAdmin,
@@ -445,6 +553,7 @@ export function GroupMenu({
   title: string
   targetName: string
   targetLinked: boolean
+  description?: string
   eventDate?: string
   completed: boolean
   isAdmin: boolean
@@ -457,6 +566,7 @@ export function GroupMenu({
   const [confirm, setConfirm] = useState(false)
   const [linking, setLinking] = useState(false)
   const [dating, setDating] = useState(false)
+  const [describing, setDescribing] = useState(false)
   const [reopening, setReopening] = useState(false)
   const [covering, setCovering] = useState(false)
   const [removingCover, setRemovingCover] = useState(false)
@@ -556,6 +666,10 @@ export function GroupMenu({
                 {t('cover.adminOnly')}
               </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setDescribing(true)}>
+                <FileText />
+                {t('manage.editDescription')}
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setDating(true)}>
                 <CalendarDays />
                 {t('manage.eventDate')}
@@ -610,6 +724,7 @@ export function GroupMenu({
       />
       <LinkTargetDialog groupId={groupId} targetName={targetName} open={linking} onOpenChange={setLinking} />
       <EventDateDialog groupId={groupId} current={eventDate} open={dating} onOpenChange={setDating} />
+      <DescriptionDialog groupId={groupId} current={description} open={describing} onOpenChange={setDescribing} />
       <ConfirmDialog
         open={reopening}
         onOpenChange={(o) => !reopen.isPending && setReopening(o)}

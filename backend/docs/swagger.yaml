@@ -76,7 +76,7 @@ definitions:
     properties:
       description:
         example: Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu
-        maxLength: 2000
+        maxLength: 1000
         type: string
       event_date:
         example: "2026-12-31"
@@ -237,6 +237,16 @@ definitions:
         type: boolean
     required:
     - cover_admin_only
+    type: object
+  controllers.UpdateDescriptionRequest:
+    properties:
+      description:
+        example: Kampı seven Ahmet için ortak hediye. Fikirleri hafta sonuna kadar
+          ekleyelim.
+        maxLength: 1000
+        type: string
+    required:
+    - description
     type: object
   controllers.UpdateEventDateRequest:
     properties:
@@ -410,8 +420,6 @@ definitions:
         type: string
       target_person_name:
         type: string
-      target_user:
-        $ref: '#/definitions/models.User'
       target_user_id:
         description: Anti-Spoiler için kritik alan (NULL olabilir)
         type: string
@@ -515,6 +523,15 @@ definitions:
         example: idea_added
         type: string
     type: object
+  services.AccountSummary:
+    properties:
+      id:
+        format: uuid
+        type: string
+      name:
+        example: Ahmet Yılmaz
+        type: string
+    type: object
   services.GroupDetailResponse:
     properties:
       group:
@@ -533,6 +550,12 @@ definitions:
         type: string
       per_person_budget:
         type: number
+      target_account:
+        allOf:
+        - $ref: '#/definitions/services.AccountSummary'
+        description: |-
+          Hedef kişinin bağlı hesabı (yalnızca id + ad). Hedef bağlı değilse yer almaz. Bu yanıtı
+          yalnızca üyeler alır; hedef kişinin kendisi Anti-Spoiler ile 403 alır.
     type: object
   services.GroupListItem:
     properties:
@@ -587,8 +610,6 @@ definitions:
         type: string
       target_person_name:
         type: string
-      target_user:
-        $ref: '#/definitions/models.User'
       target_user_id:
         description: Anti-Spoiler için kritik alan (NULL olabilir)
         type: string
@@ -1198,6 +1219,65 @@ paths:
       security:
       - BearerAuth: []
       summary: Kapak Fotoğrafı İznini Ayarla (Admin)
+      tags:
+      - Grup İşlemleri (Groups)
+  /api/v1/groups/{id}/description:
+    patch:
+      consumes:
+      - application/json
+      description: Yalnızca admin. Metin baştan ve sondan kırpılır; kırpıldıktan sonra
+        en fazla 1000 karakter. Boş ya da yalnızca boşluktan oluşan değer açıklamayı
+        siler. Bildirim üretmez; grup akışına `changed` olayı gider. Hedef kişi Anti-Spoiler
+        ile 403 alır.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Yeni açıklama
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateDescriptionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Güncel grup
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Group'
+              type: object
+        "400":
+          description: Geçersiz grup kimliği, eksik alan veya 1000 karakterden uzun
+            açıklama
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler, üye değil veya admin değil
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Grup Açıklamasını Güncelle (Admin)
       tags:
       - Grup İşlemleri (Groups)
   /api/v1/groups/{id}/event-date:

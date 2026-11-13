@@ -123,6 +123,7 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub
 				groupSpecific.PATCH("/budget", groupController.UpdateBudget)
 				groupSpecific.PATCH("/target", groupController.LinkTarget)
 				groupSpecific.PATCH("/event-date", groupController.UpdateEventDate)
+				groupSpecific.PATCH("/description", groupController.UpdateDescription)
 				groupSpecific.POST("/winner", groupController.SelectWinner)
 				groupSpecific.DELETE("/winner", groupController.ReopenGroup)
 				groupSpecific.GET("/cover", groupController.GetCover)
