@@ -642,13 +642,16 @@ func TestEveryMutationRouteHasANotificationDecision(t *testing.T) {
 		"DELETE /api/v1/groups/:id/cover":            false,
 		"PATCH /api/v1/groups/:id/cover-policy":      false,
 		"PATCH /api/v1/groups/:id/description":       false, // açıklama değişimi bildirim üretmez; grup akışı görünümü yeniler
+		"POST /api/v1/groups/:id/invite":             false, // davet linki oluşturma/yenileme bildirim üretmez
+		"DELETE /api/v1/groups/:id/invite":           false, // davet linkini iptal etmek bildirim üretmez
+		"POST /api/v1/invites/:token/accept":         true,  // yeni üye için diğer üyelere member_joined (alıcı seçimi Dispatch'te)
 	}
 	seen := map[string]bool{}
 	for _, r := range api.router.Routes() {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
 			continue
 		}
-		if !strings.HasPrefix(r.Path, "/api/v1/groups/:id") && !strings.HasPrefix(r.Path, "/api/v1/ideas/:id") {
+		if !strings.HasPrefix(r.Path, "/api/v1/groups/:id") && !strings.HasPrefix(r.Path, "/api/v1/ideas/:id") && !strings.HasPrefix(r.Path, "/api/v1/invites/:token") {
 			continue
 		}
 		key := r.Method + " " + r.Path

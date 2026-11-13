@@ -38,6 +38,20 @@ server {
         client_max_body_size 3m;
     }
 
+    # Davet token'ı yolda taşınır: bu rotalar erişim loguna yazılmaz. Ayarlar genel API
+    # bloğuyla aynı kalmalı (proxy_* ve client_max_body_size location'a özeldir, miras alınmaz).
+    # Genel API bloğundan önce kalmalı (regex sırası).
+    location ~ ^/api/v1/invites/ {
+        access_log off;
+        proxy_pass ${API_TARGET};
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 180s;
+        client_max_body_size 1m;
+    }
+
     location ~ ^/(api/|health$|swagger/|docs$) {
         proxy_pass ${API_TARGET};
         proxy_ssl_server_name on;
@@ -47,6 +61,13 @@ server {
         # Gemini önerisi 1–2 dakika sürebilir.
         proxy_read_timeout 180s;
         client_max_body_size 1m;
+    }
+
+    # Davet sayfası (SPA rotası): token erişim loguna yazılmaz. add_header yalnızca sunucu
+    # düzeyinde olduğu için güvenlik başlıkları burada da korunur. ^~ regex'lerden önce eşleşir.
+    location ^~ /invite/ {
+        access_log off;
+        try_files $uri /index.html;
     }
 
     location /assets/ {

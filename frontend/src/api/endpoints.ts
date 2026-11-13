@@ -8,6 +8,10 @@ import type {
   GroupDetail,
   GroupMember,
   Idea,
+  InviteCreated,
+  InviteDays,
+  InvitePreview,
+  InviteStatus,
   LinkPreview,
   LoginResponse,
   NotificationList,
@@ -99,11 +103,26 @@ export const notificationsApi = {
   markAllRead: () => api<unknown>('/notifications/read-all', { method: 'POST' }),
 }
 
+export const invitesApi = {
+  // Yalnızca yönetici. Token'ı asla döndürmez.
+  status: (groupId: string, signal?: AbortSignal) => api<InviteStatus>(`/groups/${groupId}/invite`, { signal }),
+  // Yeni link oluşturur; varsa öncekini iptal eder. Ham token yalnızca bu yanıtta gelir.
+  create: (groupId: string, days: InviteDays) =>
+    api<InviteCreated>(`/groups/${groupId}/invite`, { method: 'POST', body: { expires_in_days: days } }),
+  revoke: (groupId: string) => api<unknown>(`/groups/${groupId}/invite`, { method: 'DELETE' }),
+  // Giriş yapmış herhangi bir kullanıcı. Geçersiz/süresi dolmuş link 404, hedef kişi 403 alır.
+  preview: (token: string, signal?: AbortSignal) =>
+    api<InvitePreview>(`/invites/${encodeURIComponent(token)}`, { signal }),
+  accept: (token: string) => api<{ group_id: string }>(`/invites/${encodeURIComponent(token)}/accept`, { method: 'POST' }),
+}
+
 export const queryKeys = {
   me: ['me'] as const,
   notifications: ['notifications'] as const,
   groups: ['groups'] as const,
   group: (id: string) => ['groups', id] as const,
+  invite: (groupId: string) => ['groups', groupId, 'invite'] as const,
+  invitePreview: (token: string) => ['invites', token] as const,
   ideas: (groupId: string) => ['groups', groupId, 'ideas'] as const,
   // Bilerek ['groups'] altında değil: grup listesi geçersiz kılındığında görseller yeniden
   // indirilmez. Sürüm değişince anahtar değişir ve yeni görsel çekilir.

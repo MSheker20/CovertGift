@@ -9,6 +9,7 @@ import { FormError, FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { errorMessage } from '@/lib/errors'
+import { returnPath } from '@/lib/returnPath'
 import { AuthLayout } from './AuthLayout'
 
 export function LoginPage() {
@@ -16,7 +17,7 @@ export function LoginPage() {
   const { login, sessionExpired } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const from = (location.state as { from?: string } | null)?.from ?? '/'
+  const from = returnPath(location.state)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
@@ -68,7 +69,7 @@ export function LoginPage() {
       </form>
       <p className="mt-6 text-sm text-muted">
         {t('auth.toRegister')}{' '}
-        <Link to="/register" className="font-medium text-ink underline-offset-4 hover:underline">
+        <Link to="/register" state={location.state} className="font-medium text-ink underline-offset-4 hover:underline">
           {t('auth.toRegisterLink')}
         </Link>
       </p>

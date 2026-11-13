@@ -1648,6 +1648,233 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/groups/{id}/invite": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Grubun aktif davet linki olup olmadığını ve bitiş zamanını döner. Token asla dönmez (yalnızca özeti saklanır). Üye 403, hedef kişi Anti-Spoiler ile 403 alır.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Davet Linki (Invites)"
+                ],
+                "summary": "Davet Linki Durumu (Yalnızca Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Davet durumu",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/services.InviteStatus"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Admin değil veya Anti-Spoiler",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Grup için yeni bir paylaşılabilir davet linki oluşturur; varsa önceki aktif link aynı transaction'da iptal edilir. Geçerlilik 1, 7 veya 30 gün olabilir. Ham token yalnızca bu yanıtta, bir kez döner. Bildirim üretmez.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Davet Linki (Invites)"
+                ],
+                "summary": "Davet Linki Oluştur / Yenile (Yalnızca Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Geçerlilik süresi (gün)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.CreateInviteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Davet oluşturuldu",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/services.InviteCreated"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz süre",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Admin değil veya Anti-Spoiler",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Grubun aktif davet linkini iptal eder. Aktif link yoksa da 200 döner (idempotent). Bildirim üretmez.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Davet Linki (Invites)"
+                ],
+                "summary": "Davet Linkini İptal Et (Yalnızca Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Link iptal edildi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Admin değil veya Anti-Spoiler",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/groups/{id}/members": {
             "post": {
                 "security": [
@@ -2302,6 +2529,146 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/invites/{token}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Davet linkini açan kullanıcıya grup başlığını, davet edenin adını ve üye sayısını gösterir. Bilinmeyen, süresi dolmuş, iptal edilmiş veya biçimi bozuk token için aynı 404 döner. Anti-Spoiler: çağıran grubun hedef kişisiyse 403 + sürpriz mesajı döner ve gruba dair hiçbir veri sızmaz.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Davet Linki (Invites)"
+                ],
+                "summary": "Davet Önizleme",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Davet token'ı",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Davet önizlemesi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/services.InvitePreview"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Davet linki geçersiz veya süresi dolmuş",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/invites/{token}/accept": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Çağıranı davet linkinin grubuna ` + "`" + `member` + "`" + ` olarak ekler (admin onayı yok; tamamlanmış gruba da katılınabilir). Zaten üyeyse 200 döner, yeni satır ve bildirim üretilmez. Yeni üye için diğer üyelere \"yeni üye katıldı\" bildirimi gider ve grup akışına ` + "`" + `changed` + "`" + ` olayı yayınlanır. Anti-Spoiler: çağıran hedef kişiyse (kontrol grup satırı kilitliyken tekrarlanır) 403 + sürpriz mesajı döner. Geçersiz token için 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Davet Linki (Invites)"
+                ],
+                "summary": "Davetle Gruba Katıl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Davet token'ı",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Katılındı (ya da zaten üye)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.AcceptInviteResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Davet linki geçersiz veya süresi dolmuş",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/me": {
             "get": {
                 "security": [
@@ -2810,6 +3177,15 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "controllers.AcceptInviteResponse": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "controllers.AddIdeaRequest": {
             "type": "object",
             "required": [
@@ -2955,6 +3331,23 @@ const docTemplate = `{
                 "total_budget": {
                     "type": "number",
                     "example": 2500
+                }
+            }
+        },
+        "controllers.CreateInviteRequest": {
+            "type": "object",
+            "required": [
+                "expires_in_days"
+            ],
+            "properties": {
+                "expires_in_days": {
+                    "type": "integer",
+                    "enum": [
+                        1,
+                        7,
+                        30
+                    ],
+                    "example": 7
                 }
             }
         },
@@ -3674,6 +4067,59 @@ const docTemplate = `{
                 },
                 "total_budget": {
                     "type": "number"
+                }
+            }
+        },
+        "services.InviteCreated": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string",
+                    "example": "3q2-7wEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                }
+            }
+        },
+        "services.InvitePreview": {
+            "type": "object",
+            "properties": {
+                "already_member": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "group_id": {
+                    "description": "GroupID yalnızca çağıran zaten üyeyse döner; katılınca accept yanıtı kimliği verir.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "group_title": {
+                    "type": "string",
+                    "example": "Ahmet'in 30. Yaş Sürprizi"
+                },
+                "inviter_name": {
+                    "type": "string",
+                    "example": "Zeynep"
+                },
+                "member_count": {
+                    "type": "integer",
+                    "example": 4
+                }
+            }
+        },
+        "services.InviteStatus": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
                 }
             }
         },

@@ -15,6 +15,10 @@ import (
 // ErrMemberIsGroupTarget eklenmek istenen kullanıcı grubun hedef kişisi olduğunda döner.
 var ErrMemberIsGroupTarget = errors.New("member is the group's target")
 
+// ErrMemberExists eklenmek istenen kullanıcı kilit alındıktan sonra zaten üye çıktığında döner
+// (ör. aynı anda davet linkiyle katılmış).
+var ErrMemberExists = errors.New("user is already a member")
+
 // GroupRepository grup ve üyelik veritabanı işlemlerini tanımlayan arayüzdür
 type GroupRepository interface {
 	CreateGroupWithAdmin(group *models.Group, adminUserID uuid.UUID) error
@@ -188,6 +192,14 @@ func (r *groupRepository) AddMember(member *models.GroupMember) error {
 		}
 		if group.TargetUserID != nil && *group.TargetUserID == member.UserID {
 			return ErrMemberIsGroupTarget
+		}
+		var existing int64
+		if err := tx.Model(&models.GroupMember{}).Where("group_id = ? AND user_id = ?", member.GroupID, member.UserID).
+			Count(&existing).Error; err != nil {
+			return err
+		}
+		if existing > 0 {
+			return ErrMemberExists
 		}
 		return tx.Create(member).Error
 	})

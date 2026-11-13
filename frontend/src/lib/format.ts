@@ -19,6 +19,12 @@ export function formatDate(iso: string): string {
   return new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'long', year: 'numeric' }).format(d)
 }
 
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(d)
+}
+
 // "5 dakika önce", "dün", "3 gün önce". Bir haftadan eskiyse tarih gösterilir.
 export function formatRelativeTime(iso: string, now: Date = new Date()): string {
   const d = new Date(iso)

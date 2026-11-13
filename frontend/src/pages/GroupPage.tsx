@@ -10,13 +10,13 @@ import { useGroupEvents } from '@/api/useGroupEvents'
 import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
 import { GroupCoverImage } from '@/components/GroupCover'
-import { LogoMark } from '@/components/Logo'
 import { Bar, BlockError, Panel } from '@/components/Panel'
-import { Button } from '@/components/ui/button'
+import { SurpriseScreen } from '@/components/SurpriseScreen'
 import { errorMessage, isAntiSpoiler } from '@/lib/errors'
 import { countdownLabel, daysUntil, formatEventDate } from '@/lib/eventDate'
 import { formatMoney } from '@/lib/format'
 import { AddMemberForm } from './group/AddMemberForm'
+import { InviteLink } from './group/InviteLink'
 import { GiftPool } from './group/GiftPool'
 import { GroupDescription, TargetStatus } from './group/GroupHeaderInfo'
 import { BudgetTile, GroupMenu, InterestsTile } from './group/GroupManage'
@@ -192,26 +192,11 @@ export function GroupPage() {
                 ))}
               </ul>
               {d && <AddMemberForm groupId={id} />}
+              {d?.my_role === 'admin' && <InviteLink key={id} groupId={id} targetLinked={d.target_account !== undefined} />}
             </Panel>
           </div>
         </>
       )}
-    </div>
-  )
-}
-
-function SurpriseScreen() {
-  const { t } = useTranslation()
-  return (
-    <div className="flex min-h-[calc(100dvh-88px)] items-center justify-center p-4 lg:p-8">
-      <div className="flex w-full max-w-[640px] flex-col items-center rounded-[28px] bg-field px-6 py-14 text-center text-on-field md:py-20">
-        <LogoMark className="size-20 origin-bottom animate-[wiggle_2.4s_ease-in-out_infinite] text-primary" />
-        <h1 className="font-display mt-8 text-[32px] leading-[1.05] font-bold md:text-[48px]">{t('group.surpriseTitle')}</h1>
-        <p className="mt-4 max-w-[420px] text-[16px] leading-6 text-on-field-muted">{t('group.surpriseLead')}</p>
-        <Button asChild size="lg" className="mt-8">
-          <Link to="/">{t('group.surpriseBack')}</Link>
-        </Button>
-      </div>
     </div>
   )
 }

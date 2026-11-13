@@ -1,5 +1,11 @@
 basePath: /
 definitions:
+  controllers.AcceptInviteResponse:
+    properties:
+      group_id:
+        format: uuid
+        type: string
+    type: object
   controllers.AddIdeaRequest:
     properties:
       description:
@@ -110,6 +116,18 @@ definitions:
     required:
     - target_person_name
     - title
+    type: object
+  controllers.CreateInviteRequest:
+    properties:
+      expires_in_days:
+        enum:
+        - 1
+        - 7
+        - 30
+        example: 7
+        type: integer
+    required:
+    - expires_in_days
     type: object
   controllers.InterestListResponse:
     properties:
@@ -617,6 +635,44 @@ definitions:
         type: string
       total_budget:
         type: number
+    type: object
+  services.InviteCreated:
+    properties:
+      expires_at:
+        type: string
+      token:
+        example: 3q2-7wEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        type: string
+    type: object
+  services.InvitePreview:
+    properties:
+      already_member:
+        example: false
+        type: boolean
+      group_id:
+        description: GroupID yalnızca çağıran zaten üyeyse döner; katılınca accept
+          yanıtı kimliği verir.
+        format: uuid
+        type: string
+      group_title:
+        example: Ahmet'in 30. Yaş Sürprizi
+        type: string
+      inviter_name:
+        example: Zeynep
+        type: string
+      member_count:
+        example: 4
+        type: integer
+    type: object
+  services.InviteStatus:
+    properties:
+      active:
+        example: true
+        type: boolean
+      created_at:
+        type: string
+      expires_at:
+        type: string
     type: object
   services.NotificationList:
     properties:
@@ -1706,6 +1762,150 @@ paths:
       summary: İlgi Alanı Ekle
       tags:
       - Hediye Grupları (Groups)
+  /api/v1/groups/{id}/invite:
+    delete:
+      description: Grubun aktif davet linkini iptal eder. Aktif link yoksa da 200
+        döner (idempotent). Bildirim üretmez.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Link iptal edildi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Admin değil veya Anti-Spoiler
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Davet Linkini İptal Et (Yalnızca Admin)
+      tags:
+      - Davet Linki (Invites)
+    get:
+      description: Grubun aktif davet linki olup olmadığını ve bitiş zamanını döner.
+        Token asla dönmez (yalnızca özeti saklanır). Üye 403, hedef kişi Anti-Spoiler
+        ile 403 alır.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Davet durumu
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/services.InviteStatus'
+              type: object
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Admin değil veya Anti-Spoiler
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Davet Linki Durumu (Yalnızca Admin)
+      tags:
+      - Davet Linki (Invites)
+    post:
+      consumes:
+      - application/json
+      description: Grup için yeni bir paylaşılabilir davet linki oluşturur; varsa
+        önceki aktif link aynı transaction'da iptal edilir. Geçerlilik 1, 7 veya 30
+        gün olabilir. Ham token yalnızca bu yanıtta, bir kez döner. Bildirim üretmez.
+      parameters:
+      - description: Grup UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Geçerlilik süresi (gün)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateInviteRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Davet oluşturuldu
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/services.InviteCreated'
+              type: object
+        "400":
+          description: Geçersiz süre
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Admin değil veya Anti-Spoiler
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Grup bulunamadı
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Davet Linki Oluştur / Yenile (Yalnızca Admin)
+      tags:
+      - Davet Linki (Invites)
   /api/v1/groups/{id}/members:
     post:
       consumes:
@@ -2125,6 +2325,98 @@ paths:
       summary: Hediye Fikrine Oy Ver veya Güncelle (+1 Upvote / -1 Downvote)
       tags:
       - Oylama & Veto (Voting & Veto)
+  /api/v1/invites/{token}:
+    get:
+      description: 'Davet linkini açan kullanıcıya grup başlığını, davet edenin adını
+        ve üye sayısını gösterir. Bilinmeyen, süresi dolmuş, iptal edilmiş veya biçimi
+        bozuk token için aynı 404 döner. Anti-Spoiler: çağıran grubun hedef kişisiyse
+        403 + sürpriz mesajı döner ve gruba dair hiçbir veri sızmaz.'
+      parameters:
+      - description: Davet token'ı
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Davet önizlemesi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/services.InvitePreview'
+              type: object
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Davet linki geçersiz veya süresi dolmuş
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Davet Önizleme
+      tags:
+      - Davet Linki (Invites)
+  /api/v1/invites/{token}/accept:
+    post:
+      description: 'Çağıranı davet linkinin grubuna `member` olarak ekler (admin onayı
+        yok; tamamlanmış gruba da katılınabilir). Zaten üyeyse 200 döner, yeni satır
+        ve bildirim üretilmez. Yeni üye için diğer üyelere "yeni üye katıldı" bildirimi
+        gider ve grup akışına `changed` olayı yayınlanır. Anti-Spoiler: çağıran hedef
+        kişiyse (kontrol grup satırı kilitliyken tekrarlanır) 403 + sürpriz mesajı
+        döner. Geçersiz token için 404.'
+      parameters:
+      - description: Davet token'ı
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Katılındı (ya da zaten üye)
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.AcceptInviteResponse'
+              type: object
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "403":
+          description: Anti-Spoiler
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Davet linki geçersiz veya süresi dolmuş
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Davetle Gruba Katıl
+      tags:
+      - Davet Linki (Invites)
   /api/v1/me:
     delete:
       description: Oturum açmış kullanıcı kendi profilini, oluşturduğu grupları, hediye

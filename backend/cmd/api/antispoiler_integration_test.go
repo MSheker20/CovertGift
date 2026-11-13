@@ -46,6 +46,8 @@ type testAPI struct {
 	db     *gorm.DB
 	// userHub bildirim akışlarının hub'ıdır; testler sinyali buradan dinler.
 	userHub *realtime.Hub
+	// hub grup sayfası akışlarının hub'ıdır.
+	hub *realtime.Hub
 }
 
 // testDatabaseURL TEST_DATABASE_URL'yi döndürür; tanımlı değilse testi atlar, veritabanı
@@ -86,8 +88,8 @@ func newTestAPI(t *testing.T) *testAPI {
 	}
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{JWTSecret: "integration-test-secret", AppEnv: "test"}
-	userHub := realtime.NewHub(100)
-	return &testAPI{t: t, router: newRouter(db, cfg, nil, realtime.NewHub(100), userHub), db: db, userHub: userHub}
+	userHub, hub := realtime.NewHub(100), realtime.NewHub(100)
+	return &testAPI{t: t, router: newRouter(db, cfg, nil, hub, userHub), db: db, userHub: userHub, hub: hub}
 }
 
 func (a *testAPI) call(method, path, token string, body any) (int, apiResponse) {
@@ -240,6 +242,9 @@ func TestAntiSpoilerTargetBlockedOnEveryGroupRoute(t *testing.T) {
 		{http.MethodDelete, g + "/cover", nil},
 		{http.MethodPatch, g + "/cover-policy", map[string]bool{"cover_admin_only": true}},
 		{http.MethodPatch, g + "/description", map[string]string{"description": "Hedefin yazdığı açıklama"}},
+		{http.MethodGet, g + "/invite", nil},
+		{http.MethodPost, g + "/invite", map[string]int{"expires_in_days": 7}},
+		{http.MethodDelete, g + "/invite", nil},
 	}
 	for _, r := range routes {
 		t.Run(r.method+" "+strings.Replace(strings.Replace(r.path, s.groupID, ":id", 1), s.ideaID, ":idea", 1), func(t *testing.T) {

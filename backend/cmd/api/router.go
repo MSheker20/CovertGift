@@ -42,15 +42,18 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub
 	groupRepo := repository.NewGroupRepository(db)
 	ideaRepo := repository.NewIdeaRepository(db)
 	notificationRepo := repository.NewNotificationRepository(db)
+	inviteRepo := repository.NewInviteRepository(db)
 
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
 	groupService := services.NewGroupService(groupRepo, userRepo)
 	ideaService := services.NewIdeaService(ideaRepo, groupRepo, geminiClient)
+	inviteService := services.NewInviteService(inviteRepo, groupRepo, userRepo)
 	notificationService := services.NewNotificationService(notificationRepo, groupRepo, userRepo, userHub)
 
 	authController := controllers.NewAuthController(authService)
 	groupController := controllers.NewGroupController(groupService)
 	ideaController := controllers.NewIdeaController(ideaService)
+	inviteController := controllers.NewInviteController(inviteService)
 	eventsController := controllers.NewEventsController(hub, userHub)
 	notificationController := controllers.NewNotificationController(notificationService)
 	devController := controllers.NewDevController(db, cfg.AppEnv, cfg.AllowDBReset)
@@ -131,11 +134,25 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub
 				groupSpecific.DELETE("/cover", groupController.DeleteCover)
 				groupSpecific.PATCH("/cover-policy", groupController.UpdateCoverPolicy)
 
+				// Davet Linki (yalnızca admin; Anti-Spoiler GroupAccess'te)
+				groupSpecific.GET("/invite", inviteController.GetStatus)
+				groupSpecific.POST("/invite", inviteController.Create)
+				groupSpecific.DELETE("/invite", inviteController.Revoke)
+
 				// Hediye Havuzu Rotaları
 				groupSpecific.POST("/ideas", ideaController.AddIdea)
 				groupSpecific.GET("/ideas", ideaController.GetIdeas)
 				groupSpecific.POST("/ideas/preview-link", ideaController.PreviewLink)
 				groupSpecific.POST("/ideas/generate-ai", ideaController.GenerateAI)
+			}
+
+			// Davetle Katılma (grup henüz bilinmediği için /groups/:id altında değildir; bildirim ve
+			// SSE yayını burada açıkça bağlanır, Anti-Spoiler serviste denetlenir)
+			invites := protected.Group("/invites/:token")
+			invites.Use(middleware.PublishRecordedGroupChanges(hub), middleware.Notify(notificationService))
+			{
+				invites.GET("", inviteController.Preview)
+				invites.POST("/accept", inviteController.Accept)
 			}
 
 			// Fikir ve Oylama Rotaları

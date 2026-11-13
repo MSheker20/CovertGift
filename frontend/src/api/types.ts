@@ -177,3 +177,16 @@ export type NotificationList = {
   items: AppNotification[]
   unread_count: number
 }
+
+// Davet linki. Ham token yalnızca oluşturma yanıtında bir kez gelir; durum yanıtında asla yoktur.
+export type InviteDays = 1 | 7 | 30
+export type InviteStatus = { active: boolean; expires_at?: string; created_at?: string }
+export type InviteCreated = { token: string; expires_at: string }
+export type InvitePreview = {
+  // Yalnızca already_member true iken gelir; katılınca accept yanıtı kimliği verir.
+  group_id?: string
+  group_title: string
+  inviter_name: string
+  member_count: number
+  already_member: boolean
+}

@@ -34,6 +34,21 @@ func PublishGroupChanges(hub *realtime.Hub) gin.HandlerFunc {
 	}
 }
 
+// PublishRecordedGroupChanges /groups/:id altında olmayan rotalar (ör. davetle katılma) için:
+// handler controllers.RecordGroupChanged ile değişen grubu bildirdiyse ve istek başarılıysa o
+// grubun abonelerine sinyal gönderir.
+func PublishRecordedGroupChanges(hub *realtime.Hub) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+		if !isMutation(c) || !succeeded(c) {
+			return
+		}
+		if groupID, ok := controllers.RecordedGroupChanged(c); ok {
+			hub.Publish(groupID)
+		}
+	}
+}
+
 // PublishIdeaChanges /ideas/:id/* altında başarılı her değişiklikten sonra fikrin grubuna
 // sinyal gönderir. Grup, işlemden ÖNCE bulunur; böylece silinen fikirde de olay gider.
 func PublishIdeaChanges(hub *realtime.Hub, ideas repository.IdeaRepository) gin.HandlerFunc {

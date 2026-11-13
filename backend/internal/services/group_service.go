@@ -344,6 +344,9 @@ func (s *groupService) AddMemberByEmail(groupID, currentUserID uuid.UUID, email 
 		if errors.Is(err, repository.ErrMemberIsGroupTarget) {
 			return nil, ErrCannotAddTargetAsMember
 		}
+		if errors.Is(err, repository.ErrMemberExists) {
+			return nil, ErrAlreadyGroupMember
+		}
 		return nil, err
 	}
 
@@ -549,7 +552,13 @@ func validEventDate(d models.Date, now time.Time) bool {
 
 // requireAdmin grubu getirir; Anti-Spoiler, üyelik ve admin rolünü denetler.
 func (s *groupService) requireAdmin(groupID, userID uuid.UUID, notAdmin error) (*models.Group, error) {
-	group, err := s.groupRepo.GetGroupByID(groupID)
+	return requireGroupAdmin(s.groupRepo, groupID, userID, notAdmin)
+}
+
+// requireGroupAdmin grubun var olduğunu, çağıranın hedef kişi olmadığını (Anti-Spoiler) ve
+// grubun admini olduğunu denetler. Grup servisi ve davet servisi aynı kuralı paylaşır.
+func requireGroupAdmin(groupRepo repository.GroupRepository, groupID, userID uuid.UUID, notAdmin error) (*models.Group, error) {
+	group, err := groupRepo.GetGroupByID(groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -559,7 +568,7 @@ func (s *groupService) requireAdmin(groupID, userID uuid.UUID, notAdmin error) (
 	if group.TargetUserID != nil && *group.TargetUserID == userID {
 		return nil, ErrAntiSpoilerTriggered
 	}
-	member, err := s.groupRepo.GetMember(groupID, userID)
+	member, err := groupRepo.GetMember(groupID, userID)
 	if err != nil {
 		return nil, err
 	}
