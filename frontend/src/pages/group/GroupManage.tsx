@@ -2,17 +2,25 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2, UserCheck, X } from 'lucide-react'
+import { CalendarDays, ImageOff, ImagePlus, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2, UserCheck, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
 import { groupsApi, queryKeys } from '@/api/endpoints'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { CoverCropDialog } from '@/components/CoverCropDialog'
 import { FormField } from '@/components/FormField'
 import { Bar } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { errorMessage } from '@/lib/errors'
 import { eventDateBounds } from '@/lib/eventDate'
@@ -420,6 +428,8 @@ function EventDateDialog({
 
 // Başlıktaki admin menüsü. Silme geri alınamaz; onay grubun adını anar.
 // Hedef kişi yalnızca bağlı değilse bağlanabilir; bağlantı değiştirilemez.
+// Grup menüsü. Yönetici tüm işlemleri "Grup işlemleri" menüsünde görür. Üye, izin varsa yalnızca
+// kapak fotoğrafı işlemlerini içeren "Kapak fotoğrafı" düğmesini görür; izin yoksa hiçbir şey çizilmez.
 export function GroupMenu({
   groupId,
   title,
@@ -427,6 +437,9 @@ export function GroupMenu({
   targetLinked,
   eventDate,
   completed,
+  isAdmin,
+  coverVersion,
+  coverAdminOnly,
 }: {
   groupId: string
   title: string
@@ -434,6 +447,9 @@ export function GroupMenu({
   targetLinked: boolean
   eventDate?: string
   completed: boolean
+  isAdmin: boolean
+  coverVersion?: string
+  coverAdminOnly: boolean
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -442,6 +458,40 @@ export function GroupMenu({
   const [linking, setLinking] = useState(false)
   const [dating, setDating] = useState(false)
   const [reopening, setReopening] = useState(false)
+  const [covering, setCovering] = useState(false)
+  const [removingCover, setRemovingCover] = useState(false)
+  // Yönetici her zaman; üyeler yalnızca kısıt kapalıyken. Yetki API'de ayrıca denetlenir.
+  const coverEditable = isAdmin || !coverAdminOnly
+
+  const refreshGroups = () => queryClient.invalidateQueries({ queryKey: queryKeys.groups })
+
+  const uploadCover = useMutation({
+    mutationFn: (image: Blob) => groupsApi.uploadCover(groupId, image),
+    onSuccess: () => {
+      toast.success(t('cover.saved'))
+      setCovering(false)
+      void refreshGroups()
+    },
+  })
+
+  const removeCover = useMutation({
+    mutationFn: () => groupsApi.removeCover(groupId),
+    onSuccess: () => {
+      toast.success(t('cover.removed'))
+      setRemovingCover(false)
+      void refreshGroups()
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  })
+
+  const coverPolicy = useMutation({
+    mutationFn: (adminOnly: boolean) => groupsApi.setCoverPolicy(groupId, adminOnly),
+    onSuccess: (res) => {
+      toast.success(t(res.cover_admin_only ? 'cover.adminOnlyOn' : 'cover.adminOnlyOff'))
+      void refreshGroups()
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  })
 
   const reopen = useMutation({
     mutationFn: () => groupsApi.reopen(groupId),
@@ -465,37 +515,89 @@ export function GroupMenu({
     onError: (err) => toast.error(errorMessage(err)),
   })
 
+  if (!isAdmin && !coverEditable) return null
+
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon" aria-label={t('manage.groupActions')}>
-            <MoreHorizontal />
+          {/* Üyenin menüsünde yalnızca fotoğraf işlemleri vardır; düğme de bunu söyler. */}
+          <Button variant="outline" size="icon" aria-label={isAdmin ? t('manage.groupActions') : t('cover.actions')}>
+            {isAdmin ? <MoreHorizontal /> : <ImagePlus />}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => setDating(true)}>
-            <CalendarDays />
-            {t('manage.eventDate')}
-          </DropdownMenuItem>
-          {completed && (
-            <DropdownMenuItem onSelect={() => setReopening(true)}>
-              <RotateCcw />
-              {t('manage.reopen')}
+        <DropdownMenuContent align="end" className="w-[min(288px,calc(100vw-24px))]">
+          {coverEditable && (
+            <DropdownMenuItem
+              onSelect={() => {
+                uploadCover.reset()
+                setCovering(true)
+              }}
+            >
+              <ImagePlus />
+              {coverVersion ? t('cover.change') : t('cover.add')}
             </DropdownMenuItem>
           )}
-          {!targetLinked && (
-            <DropdownMenuItem onSelect={() => setLinking(true)}>
-              <UserCheck />
-              {t('manage.linkTarget')}
+          {coverEditable && coverVersion && (
+            <DropdownMenuItem onSelect={() => setRemovingCover(true)}>
+              <ImageOff />
+              {t('cover.remove')}
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem variant="destructive" onSelect={() => setConfirm(true)}>
-            <Trash2 />
-            {t('manage.deleteGroup')}
-          </DropdownMenuItem>
+          {isAdmin && (
+            <>
+              {/* Ayar değişirken menü açık kalır; işaret kutusu yeni durumu gösterir. */}
+              <DropdownMenuCheckboxItem
+                checked={coverAdminOnly}
+                disabled={coverPolicy.isPending}
+                onSelect={(e) => e.preventDefault()}
+                onCheckedChange={(checked) => coverPolicy.mutate(checked === true)}
+              >
+                {t('cover.adminOnly')}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setDating(true)}>
+                <CalendarDays />
+                {t('manage.eventDate')}
+              </DropdownMenuItem>
+              {completed && (
+                <DropdownMenuItem onSelect={() => setReopening(true)}>
+                  <RotateCcw />
+                  {t('manage.reopen')}
+                </DropdownMenuItem>
+              )}
+              {!targetLinked && (
+                <DropdownMenuItem onSelect={() => setLinking(true)}>
+                  <UserCheck />
+                  {t('manage.linkTarget')}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem variant="destructive" onSelect={() => setConfirm(true)}>
+                <Trash2 />
+                {t('manage.deleteGroup')}
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <CoverCropDialog
+        open={covering}
+        onOpenChange={setCovering}
+        onCropped={(image) => uploadCover.mutate(image)}
+        confirmLabel={t('cover.save')}
+        pending={uploadCover.isPending}
+        error={uploadCover.error ? errorMessage(uploadCover.error) : null}
+      />
+      <ConfirmDialog
+        open={removingCover}
+        onOpenChange={(o) => !removeCover.isPending && setRemovingCover(o)}
+        title={t('cover.removeTitle')}
+        body={t('cover.removeBody', { title })}
+        confirmLabel={t('cover.removeConfirm')}
+        cancelLabel={t('manage.cancel')}
+        pending={removeCover.isPending}
+        onConfirm={() => removeCover.mutate()}
+      />
       <ConfirmDialog
         open={confirm}
         onOpenChange={(o) => !remove.isPending && setConfirm(o)}

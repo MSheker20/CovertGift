@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
+import { CheckIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -51,6 +52,34 @@ function DropdownMenuItem({
   )
 }
 
+// Açık/kapalı ayar satırı (menuitemcheckbox). Sağda işaret kutusu; metin gerekirse alt satıra iner.
+function DropdownMenuCheckboxItem({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+  return (
+    <DropdownMenuPrimitive.CheckboxItem
+      data-slot="dropdown-menu-checkbox-item"
+      className={cn(
+        'group/check flex min-h-10 cursor-pointer items-center gap-2.5 rounded-[10px] px-3 py-2 text-sm outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-surface',
+        className,
+      )}
+      {...props}
+    >
+      <span className="min-w-0 flex-1">{children}</span>
+      <span
+        aria-hidden
+        className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-[6px] border border-control text-on-primary group-data-[state=checked]/check:border-primary group-data-[state=checked]/check:bg-primary"
+      >
+        <DropdownMenuPrimitive.ItemIndicator>
+          <CheckIcon className="size-3.5" strokeWidth={3} />
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
+    </DropdownMenuPrimitive.CheckboxItem>
+  )
+}
+
 function DropdownMenuLabel({ className, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Label>) {
   return <DropdownMenuPrimitive.Label data-slot="dropdown-menu-label" className={cn('px-3 py-2 text-xs text-muted', className)} {...props} />
 }
@@ -61,6 +90,7 @@ function DropdownMenuSeparator({ className, ...props }: React.ComponentProps<typ
 
 export {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,

@@ -25,7 +25,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 
 ---
 
-## 3. Veritabanı Modelleri (5 Temel Varlık / Entity + Bildirimler)
+## 3. Veritabanı Modelleri (5 Temel Varlık / Entity + Bildirimler + Grup Kapakları)
 
 ### 1. `User` (Kullanıcılar)
 - `id`: UUID (Primary Key, varsayılan gen_random_uuid())
@@ -48,6 +48,8 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `event_date`: DATE (Opsiyonel) -- Hediyenin verileceği gün (doğum günü vb.), tek seferlik. JSON'da `"YYYY-MM-DD"`. Bugünden en fazla 1 yıl önce, en fazla 5 yıl sonra olabilir ("bugün" UTC+3'e göre). Frontend geri sayım gösterir ve listeyi yaklaşan tarihe göre sıralar.
 - `status`: VARCHAR(20), varsayılan 'ACTIVE' ('ACTIVE', 'COMPLETED') -- Admin kazananı seçince 'COMPLETED' olur; tamamlanan grupta fikir ekleme, AI önerisi, oy verme/geri alma, veto ve fikir silme 409 döner.
 - `completed_at`: TIMESTAMP (Opsiyonel) -- Grubun tamamlandığı an; yeniden açılınca boşalır.
+- `cover_version`: VARCHAR(64), varsayılan '' -- Kapak fotoğrafının sürümü (`group_covers.etag` kopyası); fotoğraf yoksa boştur ve JSON'da yer almaz. Kapak değişirken aynı transaction'da güncellenir. Grup ve liste sorguları kapak baytlarına hiç dokunmaz; istemci bu değeri önbellek anahtarı olarak kullanır.
+- `cover_admin_only`: BOOLEAN, varsayılan false -- true ise kapak fotoğrafını yalnızca admin ekler/değiştirir/kaldırır; false iken tüm üyeler yapabilir.
 
 ### 3. `GroupMember` (Grup Üyelikleri)
 - `id`: UUID (Primary Key)
@@ -92,6 +94,16 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `read_at`: TIMESTAMP, opsiyonel -- NULL ise okunmamış
 - `created_at`: TIMESTAMP, varsayılan now()
 - *Kısıtlama:* UNIQUE(`user_id`, `dedupe_key`) -- her hatırlatma kullanıcı başına bir kez (NULL anahtarlar birbirinden farklı sayılır). İndeks: (`user_id`, `created_at`).
+
+### 7. `GroupCover` (Grup Kapak Fotoğrafları)
+- `group_id`: UUID (Primary Key, Foreign Key -> `groups.id`, ON DELETE CASCADE) -- grup başına en fazla bir kapak
+- `data`: BYTEA, boş geçilemez -- sunucuda işlenmiş JPEG (4:3, en çok 1600x1200, metadata'sız). Yüklenen özgün dosya saklanmaz.
+- `content_type`: VARCHAR(50), boş geçilemez -- daima `image/jpeg`
+- `etag`: VARCHAR(64), boş geçilemez -- içeriğin SHA-256 özetinin ilk 16 baytı (hex); `groups.cover_version` ile aynıdır
+- `width`, `height`: INTEGER, boş geçilemez
+- `updated_at`: TIMESTAMP, varsayılan now()
+- `updated_by`: UUID (Opsiyonel, Foreign Key -> `users.id`, ON DELETE SET NULL) -- kapağı son yükleyen
+- Baytlar hiçbir JSON yanıtında yer almaz; yalnızca `GET /groups/:id/cover` döner.
 
 ---
 
@@ -145,6 +157,15 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
    - **Hatırlatmalar:** API içindeki zamanlayıcı (`services.ReminderScheduler`) başlangıçta bir kez, sonra saatte bir çalışır. Hediye tarihine 3 gün kala ve 1 gün kala tüm üyelere (`event_reminder`; grup tamamlanmış olsa da), tarih geçtiyse ve grup hâlâ `ACTIVE` ise yalnızca yöneticilere bir kez (`winner_overdue`). "Bugün" UTC+3'e göredir. Gün sayısına aralıkla bakılır (2–3 gün → 3 günlük, 0–1 gün → 1 günlük), böylece API kapalıyken kaçan hatırlatma açılınca kalan gün sayısıyla üretilir; `dedupe_key` tarihi içerdiği için tarih değişirse yeni tarih için yeniden hatırlatılır. Saat enjekte edilebilir (`Now`), `context` iptalinde durur.
    - **Teslim:** Kullanıcı bazlı SSE (`GET /notifications/stream`); olay veri taşımaz, istemci `GET /notifications` ucunu yeniden çeker. Kullanıcı hub'ı da bellek içidir (grup hub'ıyla aynı `realtime.Hub` tipi, kullanıcı kimliğiyle anahtarlı); API tek replica kuralı geçerlidir.
 
+7. **Grup Kapak Fotoğrafı:**
+   - **Yetki:** Varsayılan olarak tüm grup üyeleri kapağı ekler, değiştirir ve kaldırır. Admin `cover_admin_only` ile bunu kısıtlar; açıkken yalnızca admin değiştirir, üye 403 alır. Politikayı yalnızca admin değiştirir. Görüntüleme her üyeye açıktır. İzin, kayıt anında grup satırı kilitliyken yeniden denetlenir.
+   - **Anti-Spoiler (kritik):** Hedef kişi kapak uçlarının hiçbirine (görüntüleme dahil) erişemez; `GroupAccess` zinciri 403 + sürpriz mesajı döner. Doğru `ETag`'i bilse bile 304 alamaz. Grup listesinde grup görünmediği için `cover_version` da görünmez.
+   - **Sunucu işleme hattı (`pkg/imageproc`, saf Go):** En fazla 10 MiB JPEG, PNG veya WebP. Tür, `Content-Type` başlığına ve dosya adına değil bayt imzasına göre belirlenir; HEIC/HEIF açık bir mesajla, GIF/SVG ve diğerleri genel mesajla 415 döner. Çözmeden **önce** `image.DecodeConfig` ile boyut okunur: kenar 12000 pikselden ya da toplam 50 megapikselden büyükse görsel hiç çözülmez (decompression bomb). EXIF yönü (JPEG APP1 ve WebP EXIF parçası) uygulanır; görsel ortadan 4:3 kırpılır; uzun kenar en çok 1600 olacak şekilde CatmullRom ile küçültülür (büyütme yapılmaz); şeffaflık beyaz zemine yaylandırılır; JPEG kalite 80 ile yeniden kodlanır. Yeniden kodlama tüm EXIF/konum/ICC/yorum verisini atar. Yön uygulandıktan sonra 64x48'den küçük görsel reddedilir. Aynı anda en fazla 2 görsel işlenir (bellek koruması).
+   - **Hata kodları:** bozuk dosya, çok yüksek çözünürlük, çok küçük görsel, eksik `file` alanı 400; 10 MiB üstü 413; desteklenmeyen tür 415.
+   - **Gövde limiti:** Yalnızca `PUT /groups/:id/cover` 10 MiB + 64 KiB kabul eder; diğer tüm rotalar 1 MiB ile sınırlı kalır (`middleware.BodyLimitWithRoutes`).
+   - **Bildirim ve canlı güncelleme:** Kapak ve politika değişiklikleri bildirim üretmez. `/groups/:id/*` altında oldukları için grup akışına `changed` olayı gider ve açık grup sayfaları yenilenir.
+   - **Önbellek:** `GET /groups/:id/cover` `ETag` (= `cover_version`) ve `Cache-Control: private, max-age=0, must-revalidate` döner. Tarayıcı kopyayı saklar ama her kullanımda doğrular; böylece yetki her istekte yeniden denetlenir, değişmeyen görsel 304 ile gövdesiz (ve baytlar veritabanından okunmadan) döner.
+
 ---
 
 ## 5. REST API Uç Noktaları (REST Contract)
@@ -156,9 +177,9 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `DELETE /api/v1/me` -> Giriş yapan kullanıcının kendi hesabını, oluşturduğu grupları, fikirleri ve oylarını siler (Cascade & atomik temizlik)
 
 ### Grup İşlemleri
-- `GET /api/v1/groups` -> Kullanıcının üye olduğu grupları listeler (hedef kişi olduğu gruplar filtrelenir)
+- `GET /api/v1/groups` -> Kullanıcının üye olduğu grupları listeler (hedef kişi olduğu gruplar filtrelenir). Her grupta varsa `cover_version` ve `cover_admin_only` bulunur; kapak baytları yanıtta yer almaz.
 - `POST /api/v1/groups` -> Yeni grup açar (oluşturan kişi `admin` üye yapılır). İsteğe bağlı `target_email` ile hedef kişi seçilir: sunucu kayıtlı kullanıcıyı büyük/küçük harf duyarsız bulur ve `target_user_id` alanını doldurur. Kayıtlı değilse 404 döner ve grup kurulmaz; kişi kendini seçerse 400 döner. Ayrı kullanıcı arama ucu yoktur. Eski `target_user_id` (UUID) alanı geriye dönük uyumluluk için kabul edilir; iki alan birlikte gönderilirse 400 döner. `target_person_name` her durumda kullanıcının yazdığı isim olarak kalır.
-- `GET /api/v1/groups/:id` -> Grup detayları, üye sayısı, kişi başı bütçe (Anti-Spoiler korumalı)
+- `GET /api/v1/groups/:id` -> Grup detayları, üye sayısı, kişi başı bütçe (Anti-Spoiler korumalı). `group.cover_version` (varsa) ve `group.cover_admin_only` dahildir.
 - `POST /api/v1/groups/:id/members` -> Gruba e-posta ile üye ekler
 - `POST /api/v1/groups/:id/interests` -> `{ interest: string }` ile listeye tek ilgi alanı ekler; tüm grup üyeleri ekleyebilir. Başındaki/sonundaki boşluklar temizlenir; 1–100 karakter, virgül/noktalı virgül/satır sonu içermez. Tekrar ekleme 409 döner. Yanıt `{ interests: string[] }` olur.
 - `DELETE /api/v1/groups/:id/interests` -> `{ interest: string }` ile yalnızca **admin** bir öğeyi silebilir; normal üye kendi eklediğini de silemez (403). Anti-Spoiler ve üyelik kontrolü her iki uçta da zorunludur. Eski toplu `PATCH` yolu kaldırılmıştır; tüm listeyi değiştirerek silme yetkisi aşılamaz. Eşzamanlı eklemeler transaction + satır kilidiyle korunur.
@@ -168,7 +189,11 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `POST /api/v1/groups/:id/winner` -> `{ idea_ids: [uuid, ...] }` ile yalnızca **admin** grubun 1–20 aktif fikrini kazanan seçer (tekrarlar ayıklanır): fikirler `SELECTED`, grup `COMPLETED`. Fikirlerden biri başka gruba aitse ya da liste boş/20'den uzunsa 400; biri aktif değilse veya grup zaten tamamlandıysa 409; hata durumunda hiçbir fikir değişmez. Grup satırı kilitlenerek transaction içinde yapılır.
 - `DELETE /api/v1/groups/:id/winner` -> Yalnızca **admin**, yanlış seçimi geri almak için grubu yeniden açar: tüm kazanan fikirler `ACTIVE`, grup `ACTIVE`. Grup zaten açıksa 409.
 - `PATCH /api/v1/groups/:id/target` -> `{ email }` ile yalnızca **admin**, hedefi boş olan gruba kayıtlı bir kullanıcıyı hedef olarak bağlar. Kayıtlı değilse 404; hedef zaten bağlıysa veya kişi grubun üyesiyse 409; admin kendini seçerse 400; admin olmayan üye 403 alır. Kontroller grup satırı kilitlenerek transaction içinde tekrarlanır; eşzamanlı üye ekleme de aynı kilidi kullandığı için hedef kişi üye yapılamaz. `target_person_name` değişmez. Bağlandıktan sonra hedef kişi grubu listede görmez ve tüm `/groups/:id/*` uçlarında 403 alır.
-- `DELETE /api/v1/groups/:id` -> Grubu ve bağlı tüm verileri siler (Sadece grup admini silebilir; Anti-Spoiler korumalı)
+- `GET /api/v1/groups/:id/cover` -> Kapak fotoğrafının baytları (`image/jpeg`; JSON değil). `ETag` + `If-None-Match` → 304; `Cache-Control: private, max-age=0, must-revalidate`, `Vary: Authorization`. Her üye görebilir; hedef kişi ve üye olmayan 403, kapak yoksa 404. Token `Authorization` başlığıyla gönderilir (frontend fetch ile Blob alır; URL'de token yok).
+- `PUT /api/v1/groups/:id/cover` -> `multipart/form-data`, alan `file` (JPEG/PNG/WebP, en fazla 10 MiB). Kapağı ekler veya değiştirir; sunucu görseli İş Kuralı 7'deki gibi işler. Yanıt `{ cover_version, width, height }`. Varsayılan olarak tüm üyeler; `cover_admin_only` açıksa yalnızca admin (üye 403). 400 / 413 / 415 hata kodları İş Kuralı 7'de.
+- `DELETE /api/v1/groups/:id/cover` -> Kapağı kaldırır; yetki yüklemeyle aynıdır. Kapak yoksa da 200 (idempotent).
+- `PATCH /api/v1/groups/:id/cover-policy` -> `{ cover_admin_only: boolean }` ile yalnızca **admin** kapağı kimin değiştirebileceğini ayarlar; üye 403. Yanıt `{ cover_admin_only }`.
+- `DELETE /api/v1/groups/:id` -> Grubu ve bağlı tüm verileri siler (Sadece grup admini silebilir; Anti-Spoiler korumalı). Kapak fotoğrafı CASCADE ile silinir.
 
 ### Hediye Havuzu ve Oylama
 - `GET /api/v1/groups/:id/ideas` -> Hediyeleri toplam oy skoruyla birlikte çeker (`SUM(votes.vote_type)`)
@@ -208,6 +233,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
     │   └── services/
     ├── pkg/gemini/
     ├── pkg/linkpreview/       # Ürün linki önizleme (OG / JSON-LD scraper)
+    ├── pkg/imageproc/         # Kapak görseli işleme (tür doğrulama, EXIF yönü, 4:3 kırpma, küçültme, JPEG)
     └── go.mod
     ```
   - Hata kontrolleri açıkça yapılmalıdır (`if err != nil`).
@@ -219,3 +245,4 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
   - API istekleri `src/api/` katmanında `fetch` ile yönetilir (`{success, data | error}` zarfı, Bearer token, 401'de oturum kapanır). Sunucu durumu TanStack Query ile tutulur.
   - Renkler yalnızca `src/index.css` token'larından gelir; bileşenlerde sabit renk yazılmaz. Ana renk iki temada kobalt `#2f5bff`, para alanları hardal `#ffc93c`, koyu tema "Nötr grafit". Metin kontrastı en az 4.5:1 tutulur.
   - Tüm metinler i18next sözlüklerinde (TR varsayılan, EN). Anti-Spoiler 403'ünde özel "Bu bir sürpriz!" ekranı gösterilir.
+  - Kapak fotoğrafı: `<img>` Authorization başlığı gönderemediği için görsel `fetch` ile Blob alınır ve object URL ile gösterilir (`src/api/useGroupCover.ts`, `components/GroupCover.tsx`); TanStack Query anahtarı `['cover', grup, cover_version]`, object URL son kullanan bileşen ayrılınca serbest bırakılır. Kırpma ekranı (`components/CoverCropDialog.tsx`, hesaplar `src/lib/coverCrop.ts`) bağımlılıksızdır: sabit 4:3 çerçeve, sürükleme, tekerlek/iki parmak/kaydırıcı/klavye ile yakınlaştırma; çıktı canvas ile en çok 1600x1200 JPEG (kalite 0.85). Sunucu aynı kuralları yeniden uygular.

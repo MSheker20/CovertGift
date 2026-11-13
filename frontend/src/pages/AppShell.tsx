@@ -6,6 +6,7 @@ import { Check, ChevronDown, LayoutGrid, LogOut, UserRound } from 'lucide-react'
 import { groupsApi, queryKeys } from '@/api/endpoints'
 import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
+import { GroupThumb } from '@/components/GroupCover'
 import { LanguageSwitch } from '@/components/LanguageSwitch'
 import { Logo, LogoMark } from '@/components/Logo'
 import { NotificationBell } from '@/components/NotificationBell'
@@ -65,7 +66,7 @@ function GroupSwitcher() {
           className="inline-flex h-10 min-w-0 cursor-pointer items-center gap-2 rounded-full bg-surface pr-3 pl-1.5 text-sm font-medium transition-colors hover:bg-active data-[state=open]:bg-active md:h-11 md:pr-4"
         >
           {current ? (
-            <Avatar name={current.target_person_name} size="sm" />
+            <GroupThumb group={current} size="sm" />
           ) : (
             <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-soft text-on-soft">
               <LayoutGrid className="size-3.5" />
@@ -84,7 +85,7 @@ function GroupSwitcher() {
         {(groups.data?.length ?? 0) > 0 && <DropdownMenuSeparator />}
         {groups.data?.map((g) => (
           <DropdownMenuItem key={g.id} onSelect={() => navigate(`/groups/${g.id}`)} className="h-auto min-h-11 py-2">
-            <Avatar name={g.target_person_name} size="sm" />
+            <GroupThumb group={g} size="sm" />
             <span className="min-w-0 flex-1">
               <span className="block truncate">{g.title}</span>
               <span className="block truncate text-xs text-muted">{t('home.forPerson', { name: g.target_person_name })}</span>

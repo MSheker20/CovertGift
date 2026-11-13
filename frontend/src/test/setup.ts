@@ -22,9 +22,14 @@ window.matchMedia ??= ((query: string) => ({
   removeEventListener() {},
   dispatchEvent: () => false,
 })) as unknown as typeof window.matchMedia
+// jsdom object URL üretmez; kapak görselleri için sahte ama benzersiz adresler yeter.
+let objectUrlSeq = 0
+URL.createObjectURL ??= () => `blob:test/${++objectUrlSeq}`
+URL.revokeObjectURL ??= () => {}
 Element.prototype.scrollIntoView ??= function () {}
 Element.prototype.hasPointerCapture ??= () => false
 Element.prototype.releasePointerCapture ??= function () {}
+Element.prototype.setPointerCapture ??= function () {}
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 beforeEach(async () => {

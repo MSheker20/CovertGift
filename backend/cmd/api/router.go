@@ -13,6 +13,7 @@ import (
 	"github.com/MSheker20/CovertGift/backend/internal/repository"
 	"github.com/MSheker20/CovertGift/backend/internal/services"
 	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
+	"github.com/MSheker20/CovertGift/backend/pkg/imageproc"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -60,7 +61,10 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub
 	// Gin web motorunu başlat
 	logger := slog.Default()
 	r := gin.New()
-	r.Use(middleware.Recovery(logger), middleware.RequestLogger(logger), middleware.BodyLimit(middleware.DefaultMaxBodyBytes))
+	r.Use(middleware.Recovery(logger), middleware.RequestLogger(logger), middleware.BodyLimitWithRoutes(middleware.DefaultMaxBodyBytes, map[string]middleware.RouteLimit{
+		// Yalnızca kapak yüklemesi büyük gövde kabul eder; diğer tüm rotalar 1 MiB ile sınırlı kalır.
+		"PUT /api/v1/groups/:id/cover": {MaxBytes: middleware.CoverUploadMaxBodyBytes, Message: imageproc.ErrTooLarge.Error()},
+	}))
 
 	// Sağlık Kontrolü (Healthcheck) Endpoint'i
 	r.GET("/health", healthHandler(sqlDB))
@@ -121,6 +125,10 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub
 				groupSpecific.PATCH("/event-date", groupController.UpdateEventDate)
 				groupSpecific.POST("/winner", groupController.SelectWinner)
 				groupSpecific.DELETE("/winner", groupController.ReopenGroup)
+				groupSpecific.GET("/cover", groupController.GetCover)
+				groupSpecific.PUT("/cover", groupController.UploadCover)
+				groupSpecific.DELETE("/cover", groupController.DeleteCover)
+				groupSpecific.PATCH("/cover-policy", groupController.UpdateCoverPolicy)
 
 				// Hediye Havuzu Rotaları
 				groupSpecific.POST("/ideas", ideaController.AddIdea)

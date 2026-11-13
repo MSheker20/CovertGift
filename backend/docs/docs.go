@@ -581,6 +581,330 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/groups/{id}/cover": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Kapağın baytlarını ` + "`" + `image/jpeg` + "`" + ` olarak döner (JSON değil). ` + "`" + `ETag` + "`" + ` grubun ` + "`" + `cover_version` + "`" + ` değeridir; ` + "`" + `If-None-Match` + "`" + ` eşleşirse 304 döner. ` + "`" + `Cache-Control: private, max-age=0, must-revalidate` + "`" + `: tarayıcı kopyayı saklar ama her kullanımda sunucuya sorar, böylece yetki her seferinde yeniden denetlenir. Hedef kişi ve üye olmayan 403 alır; kapak yoksa 404.",
+                "produces": [
+                    "image/jpeg",
+                    "application/json"
+                ],
+                "tags": [
+                    "Grup İşlemleri (Groups)"
+                ],
+                "summary": "Kapak Fotoğrafını Getir (Anti-Spoiler Korumalı)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Önceki yanıtın ETag değeri",
+                        "name": "If-None-Match",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Kapak görseli (JPEG)",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "304": {
+                        "description": "Değişmedi"
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler veya gruba üye değilsiniz",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup veya kapak fotoğrafı bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "multipart/form-data ile ` + "`" + `file` + "`" + ` alanında JPEG, PNG veya WebP (en fazla 10 MB) alır. Tür, Content-Type başlığına değil dosyanın baytlarına göre doğrulanır; HEIC desteklenmez. Sunucu EXIF yönünü uygular, tüm metadata'yı (konum dahil) atar, ortadan 4:3 kırpar, en çok 1600x1200'e küçültür ve JPEG olarak saklar. Varsayılan olarak tüm üyeler yükleyebilir; ` + "`" + `cover_admin_only` + "`" + ` açıksa yalnızca admin. Hedef kişi 403 alır (Anti-Spoiler). Bildirim üretmez; grup akışına ` + "`" + `changed` + "`" + ` olayı gider.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Grup İşlemleri (Groups)"
+                ],
+                "summary": "Kapak Fotoğrafı Yükle / Değiştir",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Kapak görseli (JPEG, PNG veya WebP; en fazla 10 MB)",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Kapak kaydedildi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.CoverResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Dosya yok, görsel bozuk, çok küçük veya çözünürlüğü çok yüksek",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya kapak yalnızca admin'e açık",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "413": {
+                        "description": "Dosya 10 MB'tan büyük",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "415": {
+                        "description": "Desteklenmeyen görsel türü (ör. HEIC, GIF)",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Kapağı siler; kapak yoksa da 200 döner (idempotent). Yetki yüklemeyle aynıdır: varsayılan olarak tüm üyeler, ` + "`" + `cover_admin_only` + "`" + ` açıksa yalnızca admin. Hedef kişi 403 alır (Anti-Spoiler).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Grup İşlemleri (Groups)"
+                ],
+                "summary": "Kapak Fotoğrafını Kaldır",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Kapak kaldırıldı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya kapak yalnızca admin'e açık",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/groups/{id}/cover-policy": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Yalnızca admin. ` + "`" + `cover_admin_only` + "`" + ` true ise kapağı yalnızca admin ekler/değiştirir/kaldırır; false (varsayılan) iken tüm üyeler yapabilir. Görüntüleme her üyeye açık kalır.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Grup İşlemleri (Groups)"
+                ],
+                "summary": "Kapak Fotoğrafı İznini Ayarla (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Grup UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Kapak izni",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateCoverPolicyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "İzin güncellendi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.CoverPolicyResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Geçersiz istek",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Anti-Spoiler, üye değil veya admin değil",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Grup bulunamadı",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/groups/{id}/event-date": {
             "patch": {
                 "security": [
@@ -2469,6 +2793,32 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.CoverPolicyResponse": {
+            "type": "object",
+            "properties": {
+                "cover_admin_only": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "controllers.CoverResponse": {
+            "type": "object",
+            "properties": {
+                "cover_version": {
+                    "type": "string",
+                    "example": "3f2a9c0d1e4b5a6978879695a4b3c2d1"
+                },
+                "height": {
+                    "type": "integer",
+                    "example": 1200
+                },
+                "width": {
+                    "type": "integer",
+                    "example": 1600
+                }
+            }
+        },
         "controllers.CreateGroupRequest": {
             "type": "object",
             "required": [
@@ -2689,6 +3039,18 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.UpdateCoverPolicyRequest": {
+            "type": "object",
+            "required": [
+                "cover_admin_only"
+            ],
+            "properties": {
+                "cover_admin_only": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
         "controllers.UpdateEventDateRequest": {
             "type": "object",
             "properties": {
@@ -2883,6 +3245,14 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "completed_at": {
+                    "type": "string"
+                },
+                "cover_admin_only": {
+                    "description": "true ise kapak fotoğrafını yalnızca yönetici ekler/değiştirir/kaldırır; false (varsayılan)\niken tüm üyeler yapabilir.",
+                    "type": "boolean"
+                },
+                "cover_version": {
+                    "description": "Kapak fotoğrafının sürümü (group_covers.etag kopyası); fotoğraf yoksa boştur. Görselin\nbaytları ayrı tabloda durur ve grup sorgularıyla hiç çekilmez; kapak değişirken aynı\ntransaction'da güncellenir. İstemci bunu önbellek anahtarı olarak kullanır.",
                     "type": "string"
                 },
                 "created_at": {
@@ -3112,6 +3482,14 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "completed_at": {
+                    "type": "string"
+                },
+                "cover_admin_only": {
+                    "description": "true ise kapak fotoğrafını yalnızca yönetici ekler/değiştirir/kaldırır; false (varsayılan)\niken tüm üyeler yapabilir.",
+                    "type": "boolean"
+                },
+                "cover_version": {
+                    "description": "Kapak fotoğrafının sürümü (group_covers.etag kopyası); fotoğraf yoksa boştur. Görselin\nbaytları ayrı tabloda durur ve grup sorgularıyla hiç çekilmez; kapak değişirken aynı\ntransaction'da güncellenir. İstemci bunu önbellek anahtarı olarak kullanır.",
                     "type": "string"
                 },
                 "created_at": {

@@ -638,6 +638,9 @@ func TestEveryMutationRouteHasANotificationDecision(t *testing.T) {
 		"DELETE /api/v1/ideas/:id/vote":              false,
 		"POST /api/v1/ideas/:id/reject":              false,
 		"DELETE /api/v1/ideas/:id":                   false,
+		"PUT /api/v1/groups/:id/cover":               false, // kapak değişimi bildirim üretmez; grup akışı görünümü yeniler
+		"DELETE /api/v1/groups/:id/cover":            false,
+		"PATCH /api/v1/groups/:id/cover-policy":      false,
 	}
 	seen := map[string]bool{}
 	for _, r := range api.router.Routes() {

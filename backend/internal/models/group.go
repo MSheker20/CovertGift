@@ -29,6 +29,13 @@ type Group struct {
 	// ACTIVE: oylama sürüyor. COMPLETED: admin kazananı seçti; fikir ve oy işlemleri kapalı.
 	Status      string     `gorm:"type:varchar(20);not null;default:'ACTIVE'" json:"status"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	// Kapak fotoğrafının sürümü (group_covers.etag kopyası); fotoğraf yoksa boştur. Görselin
+	// baytları ayrı tabloda durur ve grup sorgularıyla hiç çekilmez; kapak değişirken aynı
+	// transaction'da güncellenir. İstemci bunu önbellek anahtarı olarak kullanır.
+	CoverVersion string `gorm:"type:varchar(64);not null;default:''" json:"cover_version,omitempty"`
+	// true ise kapak fotoğrafını yalnızca yönetici ekler/değiştirir/kaldırır; false (varsayılan)
+	// iken tüm üyeler yapabilir.
+	CoverAdminOnly bool `gorm:"not null;default:false" json:"cover_admin_only"`
 
 	// İlişkiler (Foreign Key)
 	Creator    *User `gorm:"foreignKey:CreatorID;constraint:OnDelete:RESTRICT" json:"creator,omitempty"`
