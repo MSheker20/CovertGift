@@ -1,7 +1,7 @@
 # Azure demo dağıtımı
 
-> **Güncel AI modu (2026-10-21):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
-> `GEMINI_MODEL=gemini-3.6-flash` (yedek `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite`) ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
+> **Güncel AI modu (2026-11-10'dan beri):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
+> `GEMINI_MODEL=gemini-3.6-flash` (yedek `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite`, `GEMINI_THINKING_LEVEL=low`) ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir. Model kalıcı 503 verirse API 503 + "servis yoğun" mesajı döner.
 > Model kimlikleri uygulama kodunda sabit değildir. `GEMINI_MODEL` anahtar varsa zorunludur.
 > `GEMINI_FALLBACK_MODEL` boşsa otomatik model geçişi yapılmaz; doluysa yalnızca 503'te denenir.
 > `GEMINI_RESEARCH_MODEL` yalnızca Search açıkken kullanılır; boşsa ana model kullanılır.
@@ -10,12 +10,14 @@
 
 Go API ve kalıcı React frontend ayrı imajlar olarak paketlenir. PostgreSQL ayrı bir yönetilen serviste çalışır.
 
-## Güncel durum (2026-11-10)
+## Güncel durum (2026-11-13)
 
-- **Açık.** API `covertgift-api:515aee6`, arayüz `covertgift-web:515aee6` (`main`, #5–#15). Adres: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
+- **Açık.** API `covertgift-api:f883801`, arayüz `covertgift-web:f883801` (`main`, #5–#21). Adres: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
+- Önceki canlı sürüm `24f64a2` idi (`515aee6` + #16 dağıtım dokümanı + #17 AI model geçişi; o dağıtımın geçmiş tablosunda ayrı satırı yok). `24f64a2` ve öncesine dönülürse #20'deki `target_user` sızıntısı düzeltmesi de geri gider.
 - İmajlar **yerel Docker** ile `linux/amd64` için derlenip gönderilir; bu abonelikte `az acr build` kapalıdır (`TasksOperationsNotAllowed`).
-- API **en fazla 1 replica** kalmalıdır: SSE hub'ı bellek içidir, birden çok kopyada olaylar kopyalar arasında taşınmaz.
-- API başlarken AutoMigrate şemayı günceller (2026-11-09'da `groups.status`, `completed_at`, `event_date` eklendi).
+- API **en fazla 1 replica** kalmalıdır: grup SSE'si (`/groups/:id/events`) ve kullanıcı bildirim SSE'si (`/notifications/stream`) bellek içi hub kullanır; birden çok kopyada olaylar kopyalar arasında taşınmaz.
+- API başlarken AutoMigrate şemayı günceller. 2026-11-13 dağıtımında yeni tablolar `notifications` ve `group_covers`, `groups` tablosuna `cover_version` ve `cover_admin_only` sütunları eklendi (2026-11-09'da `groups.status`, `completed_at`, `event_date` eklenmişti).
+- Hatırlatma zamanlayıcısı API içinde, açılışta bir kez ve sonra saatlik çalışır. API 0 replikaya inip uyanınca kaçan hatırlatmaları yakalar; `dedupe_key` her hatırlatmanın kullanıcı başına bir kez üretilmesini sağlar. İlk dağıtımda tarihi geçmiş her açık grup için yöneticilere birer "süre doldu" bildirimi üretilir.
 - Bu CLI sürümünde `az containerapp logs show` `KeyError: 'eventStreamEndpoint'` verir; loglar portaldan okunur. Production'da loglar JSON'dur, her satırda `request_id` vardır.
 - Express ortamında `--revision-suffix` desteklenmez; `az containerapp update` yalnızca `--image` ile çalıştırılır.
 
@@ -45,6 +47,7 @@ Eski etiketler geri dönüş için registry'de durur.
 
 | Tarih | API | Arayüz | Not |
 |---|---|---|---|
+| 2026-11-13 | `covertgift-api:f883801` | `covertgift-web:f883801` | `24f64a2`'nin üzerine: #18 bildirimler, #19 grup kapak fotoğrafı, #20 açıklama + hesap durumu (`target_user` sızıntısı düzeltmesi), #21 küçük kapak yüklemesi; yeni tablolar `notifications`, `group_covers`, yeni sütunlar `groups.cover_version`, `cover_admin_only`; web imajında kapak rotası için `client_max_body_size 3m`. Önceki canlı sürüm `24f64a2` (#17 AI model geçişi: `gemini-3.6-flash`, yedek `gemini-3.5-flash-lite`, aşırı yükte 503) |
 | 2026-11-10 | `covertgift-api:515aee6` | `covertgift-web:515aee6` | #15: yeniden tasarlanan ana ekran (`GET /groups` sayaçları), profil sayfası (`PATCH /me`, `PUT /me/password`); şema değişikliği yok |
 | 2026-11-09 | `covertgift-api:208fa08` | `covertgift-web:208fa08` | #13: birden çok kazanan (`idea_ids`) |
 | 2026-11-09 | `covertgift-api:7bb8416` | `covertgift-web:7bb8416` | #5–#10: reset-db koruması, Anti-Spoiler düzeltmesi, limitler ve doğrulama, slog, kazanan seçimi, oyu geri alma, hediye tarihi, SSE |
@@ -59,10 +62,10 @@ Eski etiketler geri dönüş için registry'de durur.
 - Ortam: `covertgift-env`, Express modu.
 - API: `covertgift-api`, yalnızca ortam içinden erişim, port 8080.
 - Arayüz: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
-- Registry: `covertgiftmsheker.azurecr.io`; imajlar commit kısa kimliğiyle etiketlenir (ör. `7bb8416`). `demo` etiketi ilk dağıtımın imajıdır.
+- Registry: `covertgiftmsheker.azurecr.io`; imajlar commit kısa kimliğiyle etiketlenir (ör. `f883801`). `demo` etiketi ilk dağıtımın imajıdır.
 - PostgreSQL: `covertgift-db-msheker`, sürüm 17, B1ms, 32 GiB.
 - İmaj çekme kimliği: `covertgift-acr-pull` (kullanıcı atanmış), registry kapsamında AcrPull.
-- API: 0.5 vCPU / 1 GiB; arayüz: 0.25 vCPU / 0.5 GiB. İkisi de 0–1 replica (API için 1'in üstüne çıkmayın; SSE).
+- API: 0.5 vCPU / 1 GiB; arayüz: 0.25 vCPU / 0.5 GiB. İkisi de 0–1 replica (API için 1'in üstüne çıkmayın; grup ve bildirim SSE hub'ları bellek içi).
 - DATABASE_URL, JWT_SECRET ve mevcut GEMINI_API_KEY, API'de secret olarak tanımlıdır.
 
 2026-10-19 tarihinde yerel yedek Azure'a aktarıldı. Aktarım sonrası ve API başladıktan
@@ -123,16 +126,19 @@ kayıt defterinin izin modeline uygun imaj çekme yetkisini verin.
 
 ## API uygulaması
 
-- İmaj: `LOGIN_SERVER/covertgift-api:demo`
+- İmaj: `LOGIN_SERVER/covertgift-api:KISA_COMMIT` (ilk dağıtımda `demo`; güncel etiket "Güncel durum" bölümünde)
 - İş yükü profili: Consumption
-- Başlangıç kaynağı: 0.25 vCPU / 0.5 GiB; bellek yetersizse artırın.
+- Kaynak: canlıda 0.5 vCPU / **1 GiB**. 0.5 GiB'a indirmeyin: kapak işleme bellek kullanır.
 - Ingress: internal, target port 8080. Panel ile aynı ortamda çalıştırın.
-- HTTP ölçeklendirme: minimum 0, maksimum 1 replica.
+- HTTP ölçeklendirme: minimum 0, maksimum **1** replica. Grup SSE'si ve kullanıcı bildirim SSE'si bellek içi hub kullanır; ikinci bir kopyada olaylar taşınmaz (gerekirse PostgreSQL LISTEN/NOTIFY eklenmeli). Hatırlatma zamanlayıcısı da her kopyada çalışırdı (`dedupe_key` çift satırı yine engeller).
+- Kapak fotoğrafı (`PUT /groups/:id/cover`): sunucu yalnızca küçük görsel kabul eder: en çok 2 MiB, uzun kenar ≤ 2000 px ve ≤ 4 MP. Boyut başlıktan okunur, aşan görsel çözülmez (400); 2 MiB üstü 413. Büyük fotoğrafı tarayıcı küçültür (40 MB / 100 MP'ye kadar seçilebilir). Aynı anda en fazla 2 görsel işlenir. Kapaklar veritabanında (`group_covers.data`, bytea) durur; yedek boyutu grup başına ~150–400 KB artar.
+- Hatırlatma zamanlayıcısı API sürecinin içindedir (ayrı cron/iş yok): açılışta bir kez, sonra saatlik. Ölçek 0'dayken çalışmaz; API uyandığında kaçanları yakalar.
 - Ortam değişkenleri: `PORT=8080`, `APP_ENV=production`, `GIN_MODE=release`.
 - Secret üzerinden: `DATABASE_URL`, `JWT_SECRET`; AI için ayrıca `GEMINI_API_KEY`.
 - `GEMINI_MODEL`: öneri modeli; anahtar varsa **zorunludur**, kodda varsayılan yoktur (`gemini-3.6-flash`; 2026-11-10'da `gemini-3.7/3.8-flash` yanıt vermeyi bıraktığı için değişti).
 - `GEMINI_RESEARCH_MODEL`: yalnızca Search açıkken kullanılır; boşsa `GEMINI_MODEL` kullanılır.
-- Kota/istek sınırı hataları API üzerinden HTTP 429 döner.
+- `GEMINI_FALLBACK_MODEL`: canlıda `gemini-3.5-flash-lite`; yalnızca birincil model 503 verirse denenir, zaman aşımında denenmez.
+- Kota/istek sınırı hataları API üzerinden HTTP 429, modelin kalıcı aşırı yükü 503 ("servis yoğun") döner.
 
 Veritabanında önceden `covertgift` veritabanını oluşturun. API başlangıçta tabloları
 AutoMigrate ile oluşturur. Azure PostgreSQL bağlantısında TLS kullanın:
@@ -159,6 +165,7 @@ az containerapp update -g covertgift-rg -n covertgift-ui --image LOGIN_SERVER/co
 - Uygulama adı `covertgift-ui` olarak kaldı; ingress external, target port 5173 (nginx bu portu dinler).
 - `API_TARGET=https://API_INTERNAL_FQDN` mevcut ortam değişkeni olarak kullanılır. `UI_HOST`/`UI_PORT` artık kullanılmaz.
 - nginx `/api/`, `/health`, `/swagger/`, `/docs` yollarını API'ye iletir; bilinmeyen yollar `index.html`'e düşer.
+- Gövde sınırı: genel API bloğunda `client_max_body_size 1m`; yalnızca `^/api/v1/groups/[^/]+/cover$` için ayrı bir regex blok `client_max_body_size 3m` kullanır (2 MiB kapak + zarf payı). Bu blok genel API bloğundan **önce** durmalıdır.
 - `/api/v1/dev/*` büyük/küçük harften bağımsız olarak nginx'te 403 ile engellenir. Bu kural regex olarak API kuralından **önce** durmalıdır; düz prefix location yazılırsa API regex'i önce eşleşir ve istek API'ye gider. Engeli yalnızca ölü bir hedefle (`API_TARGET=http://127.0.0.1:9`) deneyin, çalışan bir API'ye karşı denemeyin.
 - Güvenlik başlıkları (`nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`) ve `Cache-Control` sunucu düzeyindedir; parmak izli `/assets/` bir yıl, HTML ve API yanıtları `no-cache`.
 
@@ -176,10 +183,15 @@ olamaz. Bu panel geçici demo içindir; kalıcı frontend yerine kullanılmamal�
 
 ## Kontrol
 
-Panel HTTPS adresinde `/` açılmalı, `/health` 200 ve `db: up` dönmeli,
-oturumsuz `/api/v1/me` 401 dönmeli. Kayıt, giriş, grup oluşturma ve AI önerisini
-deneyin. Geliştirme sıfırlama endpoint'i panel proxy'sinde engellenir; API'de
-`APP_ENV=production` bu işlemi kapatır.
+Dağıtımdan sonra canlıda yalnızca **okuma** kontrolleri yapılır; canlı veriye yazan istek atılmaz:
+
+- `/` 200; `/health` 200 ve `db: up` (AutoMigrate başarılı demektir).
+- Oturumsuz `/api/v1/me`, `/api/v1/notifications` ve `/api/v1/groups/<id>/cover` 401.
+- İki Container App de 0–1 replica ve `Running`.
+- `/api/v1/dev/*` nginx'te 403 döner; bu engeli canlıda **istek atarak denemeyin**, yerelde ölü hedefle doğrulayın (yukarıdaki "İmajları hazırlama" ve frontend bölümleri). Hazır bir kontrol listesi kullanıyorsanız `/api/v1/dev/` ile başlayan hiçbir satır içermediğinden emin olun.
+
+Kayıt, giriş, grup oluşturma, kapak yükleme ve AI önerisi gibi yazan akışları kullanıcı kendisi dener. Geliştirme sıfırlama endpoint'i frontend nginx'inde (ve eski panel proxy'sinde) engellenir; API'de
+`APP_ENV=production` bu işlemi ayrıca kapatır.
 
 Swagger şemasındaki localhost host değeri düzeltilmeden bulutta Try it out
 özelliği çalışmaz. Gemini kota ve ücretleri Azure kredisinden bağımsızdır.

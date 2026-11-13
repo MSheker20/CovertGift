@@ -21,18 +21,21 @@ npm run test:coverage  # kapsam raporu (coverage/)
 npm run test:e2e       # Playwright; önce Go API'yi başlat, Vite sunucusunu kendisi açar
 ```
 
+Durum (2026-11-13): Vitest 14 dosyada 151 test; Playwright 5 dosyada 8 test, `desktop` ve `phone` (Pixel 7) projelerinde = 16 senaryo (`e2e/acceptance`, `profile`, `notifications`, `cover`, `description`).
+
 Uçtan uca testler kendi geçici `e2e-…@demo.test` kullanıcılarını oluşturur ve sonunda `DELETE /me` ile siler; Gemini çağrılmaz. İlk kurulumda tarayıcı için `npx playwright install chromium` gerekir.
 
 Ayarlar `.env.example` içinde: `API_TARGET` (geliştirme proxy hedefi), `VITE_API_BASE_URL` (üretimde API ayrı bir origin'deyse).
 
 ## Yapı
 
-- `src/api/` — fetch istemcisi (`{success, data | error}` zarfı, Bearer token, 401 olayı), uç noktalar, tipler ve `useGroupEvents` (SSE akışı fetch ile okunur; bağlantı yoksa 10 sn, varken 60 sn yenileme)
-- `src/auth/` — oturum durumu; token `localStorage`'da (`covertgift.token`)
-- `src/i18n/` — `tr.ts` ana sözlük, `en.ts` aynı tipte; dil `covertgift.lang` anahtarında saklanır
-- `src/pages/` — Giriş, Kayıt, uygulama kabuğu (yüzen üst bar + grup seçici), Gruplar, Yeni grup diyaloğu (hedef kişinin e-postası dahil), Grup (Anti-Spoiler sürpriz ekranı dahil)
-- `src/pages/group/` — hediye havuzu ve oy kartları (oyu geri alma, kazanan seçimi), manuel ekleme + link önizleme, üye ekleme, yerinde yönetim (ilgi alanı, bütçe, hediye tarihi, grubu yeniden açma, grubu silme, hedef kişiyi bağlama)
-- `src/lib/eventDate.ts` — hediye tarihi geri sayımı ve yaklaşan tarihe göre sıralama
+- `src/api/` — fetch istemcisi (`{success, data | error}` zarfı, Bearer token, 401 olayı), uç noktalar ve tipler; `eventStream.ts` (ortak SSE okuyucu, fetch ile; token URL'de değil), `useGroupEvents` (grup akışı; bağlantı yoksa 10 sn, varken 60 sn yenileme), `useNotificationEvents` (kullanıcı bildirim akışı), `useGroupCover` (kapak görseli Bearer ile Blob olarak alınır, `['cover', grup, sürüm]` anahtarıyla önbelleğe alınır, object URL son kullanan ayrılınca serbest bırakılır)
+- `src/auth/` — oturum durumu; token `localStorage`'da (`covertgift.token`); `updateUser` profil değişikliğinden sonra önbelleği ve gerekirse token'ı günceller
+- `src/i18n/locales/` — `tr.ts` ana sözlük, `en.ts` aynı tipte; dil `covertgift.lang` anahtarında saklanır
+- `src/components/` — `NotificationBell` (üst bar zili: okunmamış rozeti, açılır liste, tümünü okundu), `CoverCropDialog` (bağımlılıksız 4:3 kırpma: sürükleme, tekerlek/iki parmak/kaydırıcı/klavye ile yakınlaştırma), `GroupCover` (`GroupCoverImage`, `GroupThumb`), `ConfirmDialog`, `Avatar`, `Panel`, `FormField`; `ui/` shadcn tarzı temel bileşenler
+- `src/pages/` — Giriş, Kayıt, uygulama kabuğu (yüzen üst bar: grup seçici, dil, bildirim zili, hesap menüsü), ana ekran (`GroupsPage`: sıradaki sürpriz, senden bekleyenler, gruplarım, geçmiş sürprizler), Yeni grup diyaloğu (hedef kişinin e-postası, açıklama, isteğe bağlı kapak), Grup (Anti-Spoiler sürpriz ekranı dahil), Profil (`ProfilePage`: ad/e-posta, şifre, hesap silme)
+- `src/pages/group/` — hediye havuzu ve oy kartları (oyu geri alma), birden çok kazanan seçimi (`WinnersDialog`), manuel ekleme + link önizleme, üye ekleme, yerinde yönetim (`GroupManage`: ilgi alanı, bütçe, hediye tarihi, açıklama, kapak ve kapak yetkisi, grubu yeniden açma, grubu silme, hedef kişiyi bağlama), `GroupHeaderInfo` (açıklama: 3 satırda kesilir, "Devamını gör"; hedef hesap durumu: "{ad} hesabı bağlı" / "Hesap bağlı değil")
+- `src/lib/` — `eventDate.ts` (geri sayım, sıralama), `priority.ts` (ana ekran öncelikleri), `coverCrop.ts` (kırpma hesapları, tarayıcıda küçültme: 40 MB / 100 MP'ye kadar seçim, 3200 px çalışma kopyası, çıktı ≤ 2 MiB), `notifications.ts` (bildirim metinleri), `description.ts`, `marketplace.ts`
 - `src/test/` — MSW sunucusu, örnek veriler ve render yardımcıları; `e2e/` — Playwright senaryoları
 
 ## Tasarım
@@ -43,4 +46,4 @@ Pazar yeri linkleri `search_query` üzerinden `encodeURIComponent` ile kurulur (
 
 ## Üretim imajı
 
-`Dockerfile` iki aşamalıdır (Node 22 derleme → `nginx-unprivileged`). `nginx.conf.template` başlangıçta `API_TARGET` ile doldurulur; `/api`, `/health`, `/swagger`, `/docs` yollarını API'ye iletir, bilinmeyen yolları `index.html`'e düşürür ve `/api/v1/dev/*` yolunu 403 ile engeller. Port 5173. Azure adımları: [docs/AZURE.md](../docs/AZURE.md).
+`Dockerfile` iki aşamalıdır (Node 22 derleme → `nginx-unprivileged`). `nginx.conf.template` başlangıçta `API_TARGET` ile doldurulur; `/api`, `/health`, `/swagger`, `/docs` yollarını API'ye iletir, bilinmeyen yolları `index.html`'e düşürür ve `/api/v1/dev/*` yolunu 403 ile engeller. Gövde sınırı API rotalarında 1m, yalnızca kapak yükleme rotasında (`/api/v1/groups/<id>/cover`) 3m. Port 5173. Azure adımları: [docs/AZURE.md](../docs/AZURE.md).
