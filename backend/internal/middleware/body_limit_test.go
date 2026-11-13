@@ -84,3 +84,36 @@ func TestBodyLimitWithRoutes(t *testing.T) {
 		}
 	}
 }
+
+func TestCoverUploadMaxBodyBytes(t *testing.T) {
+	// Fotoğrafı tarayıcı küçültür: kapak gövdesi 2 MiB dosya + 64 KiB multipart zarfıdır.
+	if want := int64(2<<20 + 64<<10); CoverUploadMaxBodyBytes != want {
+		t.Fatalf("CoverUploadMaxBodyBytes = %d, beklenen %d", CoverUploadMaxBodyBytes, want)
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(BodyLimitWithRoutes(DefaultMaxBodyBytes, map[string]RouteLimit{
+		"PUT /groups/:id/cover": {MaxBytes: CoverUploadMaxBodyBytes, Message: "görsel çok büyük"},
+	}))
+	router.PUT("/groups/:id/cover", func(c *gin.Context) {
+		n, err := io.Copy(io.Discard, c.Request.Body)
+		if err != nil {
+			c.String(http.StatusBadRequest, "read failed")
+			return
+		}
+		c.String(http.StatusOK, "%d", n)
+	})
+	send := func(size int64) *httptest.ResponseRecorder {
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, httptest.NewRequest(http.MethodPut, "/groups/42/cover", strings.NewReader(strings.Repeat("x", int(size)))))
+		return res
+	}
+	if res := send(CoverUploadMaxBodyBytes); res.Code != http.StatusOK {
+		t.Fatalf("sınırdaki kapak gövdesi: HTTP %d", res.Code)
+	}
+	// Sınırın 1 bayt üstü (eski 10 MiB sınırının çok altında): okunmadan 413.
+	if res := send(CoverUploadMaxBodyBytes + 1); res.Code != http.StatusRequestEntityTooLarge || !strings.Contains(res.Body.String(), "görsel çok büyük") {
+		t.Fatalf("sınırı aşan kapak gövdesi: HTTP %d %q", res.Code, res.Body)
+	}
+}

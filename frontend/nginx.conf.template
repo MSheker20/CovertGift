@@ -26,7 +26,8 @@ server {
         return 403 '{"success":false,"error":"Bu uç bu ortamda kapalıdır"}';
     }
 
-    # Kapak fotoğrafı: yalnızca bu rota büyük gövde kabul eder (API sınırı 10 MiB + multipart zarfı).
+    # Kapak fotoğrafı: yalnızca bu rota 1m'den büyük gövde kabul eder. Fotoğrafı tarayıcı küçültür;
+    # API sınırı 2 MiB dosya + 64 KiB multipart zarfıdır, 3m küçük bir paydır (aşan gövde burada 413).
     # Genel API bloğundan önce kalmalı; diğer tüm rotalar 1m ile sınırlı kalır.
     location ~ ^/api/v1/groups/[^/]+/cover$ {
         proxy_pass ${API_TARGET};
@@ -34,7 +35,7 @@ server {
         proxy_set_header Host $proxy_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        client_max_body_size 11m;
+        client_max_body_size 3m;
     }
 
     location ~ ^/(api/|health$|swagger/|docs$) {

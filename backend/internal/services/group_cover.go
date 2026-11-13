@@ -10,7 +10,8 @@ import (
 )
 
 // maxConcurrentCoverJobs aynı anda çözülüp ölçeklenen görsel sayısıdır. Sınırdaki bir
-// görsel (50 MP) çözülürken yüzlerce MB bellek kullanabilir; fazlası sırada bekler.
+// görsel (4 MP) çözülürken ~16 MB RGBA tamponu ve ölçekleme tamponu kullanır; fazlası
+// sırada bekler.
 const maxConcurrentCoverJobs = 2
 
 // requireMember grubu ve çağıranın üyeliğini getirir; Anti-Spoiler ve üyeliği denetler.

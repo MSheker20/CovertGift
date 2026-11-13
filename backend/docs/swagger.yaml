@@ -1100,13 +1100,15 @@ paths:
     put:
       consumes:
       - multipart/form-data
-      description: multipart/form-data ile `file` alanında JPEG, PNG veya WebP (en
-        fazla 10 MB) alır. Tür, Content-Type başlığına değil dosyanın baytlarına göre
-        doğrulanır; HEIC desteklenmez. Sunucu EXIF yönünü uygular, tüm metadata'yı
-        (konum dahil) atar, ortadan 4:3 kırpar, en çok 1600x1200'e küçültür ve JPEG
-        olarak saklar. Varsayılan olarak tüm üyeler yükleyebilir; `cover_admin_only`
-        açıksa yalnızca admin. Hedef kişi 403 alır (Anti-Spoiler). Bildirim üretmez;
-        grup akışına `changed` olayı gider.
+      description: 'multipart/form-data ile `file` alanında JPEG, PNG veya WebP alır:
+        en fazla 2 MB, uzun kenar en çok 2000 piksel (4 megapiksel). Büyük fotoğrafı
+        tarayıcı küçültür (arayüz 4:3 kırpılmış, en çok 1600x1200 JPEG gönderir);
+        sunucu daha büyüğünü çözmeden reddeder. Tür, Content-Type başlığına değil
+        dosyanın baytlarına göre doğrulanır; HEIC desteklenmez. Sunucu EXIF yönünü
+        uygular, tüm metadata''yı (konum dahil) atar, ortadan 4:3 kırpar, en çok 1600x1200''e
+        küçültür ve JPEG olarak saklar. Varsayılan olarak tüm üyeler yükleyebilir;
+        `cover_admin_only` açıksa yalnızca admin. Hedef kişi 403 alır (Anti-Spoiler).
+        Bildirim üretmez; grup akışına `changed` olayı gider.'
       parameters:
       - description: Grup UUID
         format: uuid
@@ -1114,7 +1116,8 @@ paths:
         name: id
         required: true
         type: string
-      - description: Kapak görseli (JPEG, PNG veya WebP; en fazla 10 MB)
+      - description: Kapak görseli (JPEG, PNG veya WebP; en fazla 2 MB ve 2000 piksel
+          uzun kenar)
         in: formData
         name: file
         required: true
@@ -1133,6 +1136,7 @@ paths:
               type: object
         "400":
           description: Dosya yok, görsel bozuk, çok küçük veya çözünürlüğü çok yüksek
+            (uzun kenar 2000 pikselden ya da 4 megapikselden büyük)
           schema:
             $ref: '#/definitions/controllers.Response'
         "401":
@@ -1148,7 +1152,7 @@ paths:
           schema:
             $ref: '#/definitions/controllers.Response'
         "413":
-          description: Dosya 10 MB'tan büyük
+          description: Dosya 2 MB'tan (gövde 2 MiB + 64 KiB'tan) büyük
           schema:
             $ref: '#/definitions/controllers.Response'
         "415":

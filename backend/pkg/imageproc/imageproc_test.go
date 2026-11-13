@@ -137,12 +137,13 @@ func TestProcessCoverSizeAndRatio(t *testing.T) {
 		w, h         int
 		wantW, wantH int
 	}{
-		{"büyük 4:3 küçültülür", 4000, 3000, 1600, 1200},
+		{"tarayıcı çıktısı 1600x1200 olduğu gibi kalır", 1600, 1200, 1600, 1200},
+		{"büyük 4:3 küçültülür", 2000, 1500, 1600, 1200},
 		{"16:9 ortadan kırpılır", 1920, 1080, 1440, 1080},
 		{"dikey görsel kırpılır", 1000, 2000, 1000, 750},
 		{"küçük görsel büyütülmez", 400, 300, 400, 300},
-		{"çok geniş panorama", 6000, 1000, 1332, 999},
-		{"kare", 2400, 2400, 1600, 1200},
+		{"çok geniş panorama", 2000, 400, 532, 399},
+		{"kare (tam 4 MP sınırında)", 2000, 2000, 1600, 1200},
 		{"4'e bölünmeyen genişlik", 801, 700, 800, 600},
 	}
 	for _, tc := range cases {
@@ -162,7 +163,7 @@ func TestProcessCoverSizeAndRatio(t *testing.T) {
 }
 
 func TestProcessCoverOutputIsSmall(t *testing.T) {
-	res, _ := mustProcess(t, encodeJPEG(t, photo(4000, 3000)))
+	res, _ := mustProcess(t, encodeJPEG(t, photo(2000, 1500)))
 	if len(res.Data) > 600<<10 {
 		t.Fatalf("1600x1200 çıktı %d KB; 600 KB altında olmalı", len(res.Data)>>10)
 	}
@@ -297,8 +298,10 @@ func TestProcessCoverRejectsDecompressionBombs(t *testing.T) {
 		w, h uint32
 	}{
 		{"dev kare", 20000, 20000},
-		{"tek kenar sınırın üstünde", MaxDimension + 1, 100},
-		{"kenarlar sınırda ama 50 MP üstünde", 10000, 6000},
+		{"48 MP telefon fotoğrafı", 8000, 6000},
+		{"uzun kenar 2001", MaxDimension + 1, 100},
+		{"dikey uzun kenar 2001", 100, MaxDimension + 1},
+		{"eski 12000 piksel sınırı", 12000, 100},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -315,10 +318,47 @@ func TestProcessCoverRejectsDecompressionBombs(t *testing.T) {
 	if _, err := ProcessCover(pngWithHeaderSize(t, 0x7FFFFFFF, 0x7FFFFFFF)); !errors.Is(err, ErrDimensionsTooBig) && !errors.Is(err, ErrCorrupt) {
 		t.Fatalf("taşan boyut reddedilmedi: %v", err)
 	}
-	// Sınırdaki kenar reddedilmez (boyut kontrolü geçer; başlık yalan söylediği için çözme
-	// aşamasında bozuk sayılır, ama "çok büyük" değildir).
-	if _, err := ProcessCover(pngWithHeaderSize(t, MaxDimension, 100)); errors.Is(err, ErrDimensionsTooBig) {
-		t.Fatalf("12000 piksellik kenar sınırın içinde olmalıydı: %v", err)
+}
+
+// TestProcessCoverRejectsBeforeDecoding reddin yalnızca başlığa (image.DecodeConfig) bakılarak,
+// görsel çözülmeden yapıldığını gösterir. Dosyalar 64x64 piksel veri taşır ama başlıkları başka
+// bir boyut bildirir: tam çözme denenseydi veri başlıkla uyuşmayacağı için ErrCorrupt dönerdi.
+// Sınırın üstündeki başlık ErrDimensionsTooBig alıyorsa çözücüye hiç girilmemiştir; sınırdaki
+// başlık ise boyut denetimini geçer ve ancak çözme aşamasında (ErrCorrupt) düşer.
+func TestProcessCoverRejectsBeforeDecoding(t *testing.T) {
+	cases := []struct {
+		name string
+		w, h uint32
+		want error
+	}{
+		{"uzun kenar 2001: başlıktan reddedilir", MaxDimension + 1, 1500, ErrDimensionsTooBig},
+		{"dikey uzun kenar 2001: başlıktan reddedilir", 1500, MaxDimension + 1, ErrDimensionsTooBig},
+		{"2000x2000 (tam 4 MP): boyut denetimini geçer", MaxDimension, MaxDimension, ErrCorrupt},
+		{"2000x1500: boyut denetimini geçer", MaxDimension, 1500, ErrCorrupt},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := ProcessCover(pngWithHeaderSize(t, tc.w, tc.h)); !errors.Is(err, tc.want) {
+				t.Fatalf("hata %v, beklenen %v", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestProcessCoverDimensionLimits(t *testing.T) {
+	if MaxDimension*MaxDimension != MaxPixels {
+		t.Fatalf("sınırlar tutarsız: %d^2 != %d", MaxDimension, MaxPixels)
+	}
+	// Tam sınırda: 2000x2000 = 4 000 000 piksel kabul edilir.
+	res, _ := mustProcess(t, encodePNG(t, photo(MaxDimension, MaxDimension)))
+	if res.Width != CoverMaxWidth || res.Height != CoverMaxHeight {
+		t.Fatalf("2000x2000: %dx%d", res.Width, res.Height)
+	}
+	// Gerçek (başlığı doğru) görseller: uzun kenar 2001 reddedilir.
+	for _, size := range [][2]int{{MaxDimension + 1, 1500}, {1200, MaxDimension + 1}} {
+		if _, err := ProcessCover(encodeJPEG(t, photo(size[0], size[1]))); !errors.Is(err, ErrDimensionsTooBig) {
+			t.Fatalf("%dx%d: hata %v, beklenen ErrDimensionsTooBig", size[0], size[1], err)
+		}
 	}
 }
 
@@ -340,7 +380,7 @@ func TestProcessCoverRejectsBadInput(t *testing.T) {
 		{"yalnızca jpeg imzası", []byte{0xFF, 0xD8, 0xFF, 0xE0, 0, 0}, ErrCorrupt},
 		{"png imzası + çöp", append([]byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A}, bytes.Repeat([]byte{0x41}, 64)...), ErrCorrupt},
 		{"webp imzası + çöp", append([]byte("RIFF\x40\x00\x00\x00WEBP"), bytes.Repeat([]byte{0x41}, 64)...), ErrCorrupt},
-		{"10 MB üstü", append(append([]byte{}, valid...), make([]byte, MaxInputBytes)...), ErrTooLarge},
+		{"2 MiB üstü", append(append([]byte{}, valid...), make([]byte, MaxInputBytes)...), ErrTooLarge},
 		{"çok küçük", encodePNG(t, photo(10, 10)), ErrDimensionsTooTiny},
 	}
 	for _, tc := range cases {
@@ -413,5 +453,18 @@ func TestSniffIgnoresDeclaredType(t *testing.T) {
 	}
 	if f, err := Sniff(encodeJPEG(t, photo(64, 64))); err != nil || f != FormatJPEG {
 		t.Fatalf("jpeg: %v %v", f, err)
+	}
+}
+
+func TestProcessCoverAcceptsExactlyMaxInputBytes(t *testing.T) {
+	// JPEG çözücüsü EOI'den sonraki baytları yok sayar; dolgu dosyayı tam 2 MiB yapar.
+	valid := encodeJPEG(t, photo(800, 600))
+	padded := append(append([]byte{}, valid...), make([]byte, MaxInputBytes-len(valid))...)
+	if len(padded) != MaxInputBytes {
+		t.Fatalf("dolgu hatalı: %d", len(padded))
+	}
+	mustProcess(t, padded)
+	if _, err := ProcessCover(append(padded, 0)); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("2 MiB + 1 bayt: hata %v, beklenen ErrTooLarge", err)
 	}
 }

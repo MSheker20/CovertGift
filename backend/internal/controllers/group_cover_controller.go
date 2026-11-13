@@ -56,19 +56,19 @@ func bodyTooLarge(err error) bool {
 
 // UploadCover grubun kapak fotoğrafını yükler veya değiştirir
 // @Summary      Kapak Fotoğrafı Yükle / Değiştir
-// @Description  multipart/form-data ile `file` alanında JPEG, PNG veya WebP (en fazla 10 MB) alır. Tür, Content-Type başlığına değil dosyanın baytlarına göre doğrulanır; HEIC desteklenmez. Sunucu EXIF yönünü uygular, tüm metadata'yı (konum dahil) atar, ortadan 4:3 kırpar, en çok 1600x1200'e küçültür ve JPEG olarak saklar. Varsayılan olarak tüm üyeler yükleyebilir; `cover_admin_only` açıksa yalnızca admin. Hedef kişi 403 alır (Anti-Spoiler). Bildirim üretmez; grup akışına `changed` olayı gider.
+// @Description  multipart/form-data ile `file` alanında JPEG, PNG veya WebP alır: en fazla 2 MB, uzun kenar en çok 2000 piksel (4 megapiksel). Büyük fotoğrafı tarayıcı küçültür (arayüz 4:3 kırpılmış, en çok 1600x1200 JPEG gönderir); sunucu daha büyüğünü çözmeden reddeder. Tür, Content-Type başlığına değil dosyanın baytlarına göre doğrulanır; HEIC desteklenmez. Sunucu EXIF yönünü uygular, tüm metadata'yı (konum dahil) atar, ortadan 4:3 kırpar, en çok 1600x1200'e küçültür ve JPEG olarak saklar. Varsayılan olarak tüm üyeler yükleyebilir; `cover_admin_only` açıksa yalnızca admin. Hedef kişi 403 alır (Anti-Spoiler). Bildirim üretmez; grup akışına `changed` olayı gider.
 // @Tags         Grup İşlemleri (Groups)
 // @Accept       multipart/form-data
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id path string true "Grup UUID" Format(uuid)
-// @Param        file formData file true "Kapak görseli (JPEG, PNG veya WebP; en fazla 10 MB)"
+// @Param        file formData file true "Kapak görseli (JPEG, PNG veya WebP; en fazla 2 MB ve 2000 piksel uzun kenar)"
 // @Success      200 {object} Response{data=CoverResponse} "Kapak kaydedildi"
-// @Failure      400 {object} Response "Dosya yok, görsel bozuk, çok küçük veya çözünürlüğü çok yüksek"
+// @Failure      400 {object} Response "Dosya yok, görsel bozuk, çok küçük veya çözünürlüğü çok yüksek (uzun kenar 2000 pikselden ya da 4 megapikselden büyük)"
 // @Failure      401 {object} Response "Oturum açılmamış"
 // @Failure      403 {object} Response "Anti-Spoiler, üye değil veya kapak yalnızca admin'e açık"
 // @Failure      404 {object} Response "Grup bulunamadı"
-// @Failure      413 {object} Response "Dosya 10 MB'tan büyük"
+// @Failure      413 {object} Response "Dosya 2 MB'tan (gövde 2 MiB + 64 KiB'tan) büyük"
 // @Failure      415 {object} Response "Desteklenmeyen görsel türü (ör. HEIC, GIF)"
 // @Failure      500 {object} Response "Sunucu hatası"
 // @Router       /api/v1/groups/{id}/cover [put]

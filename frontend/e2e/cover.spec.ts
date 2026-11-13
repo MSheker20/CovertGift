@@ -191,3 +191,80 @@ test('group cover: crop and upload, shown in header and home card, restrict and 
     await request.delete(`${API}/me`, { headers })
   }
 })
+
+// Büyük fotoğrafı tarayıcı küçültür: 6000x4000 (24 MP) görsel seçilir, kırpma çalışma kopyası
+// üzerinde yapılır ve sunucuya yalnızca 1600x1200 JPEG (2 MiB altında) gider. Sunucu ise
+// küçültülmemiş görseli çözmeden reddeder.
+test('group cover: a large photo is shrunk in the browser before upload', async ({ page, request }, info) => {
+  test.setTimeout(60_000)
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const email = `e2e-cover-big-${info.project.name}-${stamp}@demo.test`
+  const reg = await request.post(`${API}/auth/register`, { data: { name: 'Kapak Büyük', email, password: PASSWORD } })
+  expect(reg.status(), await reg.text()).toBe(201)
+  const login = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } })
+  const headers = { Authorization: `Bearer ${(await login.json()).data.token as string}` }
+
+  try {
+    const created = await request.post(`${API}/groups`, {
+      headers,
+      data: { title: `Büyük kapak ${stamp}`, target_person_name: 'Hedef', total_budget: '1000' },
+    })
+    expect(created.status(), await created.text()).toBe(201)
+    const groupId = (await created.json()).data.id as string
+    const big = png(6000, 4000)
+
+    // Sunucu küçültülmemiş görseli kabul etmez (başlıktan, çözmeden 400).
+    const direct = await request.put(`${API}/groups/${groupId}/cover`, {
+      headers,
+      multipart: { file: { name: 'buyuk.png', mimeType: 'image/png', buffer: big } },
+    })
+    expect(direct.status()).toBe(400)
+    expect((await direct.json()).error).toContain('2000 piksel')
+
+    // Yüklenen dosyanın boyutunu ve ilk baytlarını kaydeden fetch sarmalayıcısı.
+    await page.addInitScript(() => {
+      const uploads: { size: number; type: string; head: number[] }[] = []
+      ;(window as unknown as { __coverUploads: typeof uploads }).__coverUploads = uploads
+      const original = window.fetch.bind(window)
+      window.fetch = async (input, init) => {
+        const file = init?.body instanceof FormData ? init.body.get('file') : null
+        if (file instanceof Blob) {
+          const head = [...new Uint8Array(await file.slice(0, 3).arrayBuffer())]
+          uploads.push({ size: file.size, type: file.type, head })
+        }
+        return original(input, init)
+      }
+    })
+    await page.goto('/login')
+    await page.getByLabel('E-posta').fill(email)
+    await page.getByLabel('Şifre').fill(PASSWORD)
+    await page.getByRole('button', { name: 'Giriş yap' }).click()
+    await expect(page).not.toHaveURL(/\/login$/)
+    await page.goto(`/groups/${groupId}`)
+    await page.getByRole('button', { name: 'Grup işlemleri' }).click()
+    await page.getByRole('menuitem', { name: 'Fotoğraf ekle' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Kapak fotoğrafı' })
+    await dialog.locator('input[type=file]').setInputFiles({ name: 'buyuk.png', mimeType: 'image/png', buffer: big })
+
+    // Çalışma kopyası 3200x2133: ortadan 4:3 kırpma 2844x2133.
+    const frame = dialog.getByRole('group', { name: 'Kırpma alanı' })
+    await expect(frame).toHaveAttribute('data-crop', '178,0,2844,2133')
+    await expect.poll(() => dialog.getByRole('img').evaluate((el: HTMLImageElement) => [el.naturalWidth, el.naturalHeight])).toEqual([3200, 2133])
+
+    const response = page.waitForResponse((r) => r.request().method() === 'PUT' && r.url().endsWith(`/groups/${groupId}/cover`))
+    await dialog.getByRole('button', { name: 'Fotoğrafı kaydet' }).click()
+    const res = await response
+    // Chromium blob içeren multipart gövdesini Playwright'a vermez; gönderilen dosya fetch
+    // sarmalayıcısında kaydedildi.
+    const sent = await page.evaluate(() => (window as unknown as { __coverUploads: { size: number; type: string; head: number[] }[] }).__coverUploads)
+    expect(sent).toHaveLength(1)
+    expect(sent[0].type).toBe('image/jpeg')
+    expect(sent[0].head).toEqual([0xff, 0xd8, 0xff]) // PNG değil, JPEG gönderildi
+    expect(sent[0].size).toBeLessThan(2 * 1024 * 1024)
+    expect(res.status()).toBe(200)
+    expect((await res.json()).data).toMatchObject({ width: 1600, height: 1200 })
+    await expect(page.getByText('Kapak fotoğrafı kaydedildi.')).toBeVisible()
+  } finally {
+    await request.delete(`${API}/me`, { headers })
+  }
+})

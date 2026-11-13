@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   COVER_ACCEPT,
+  CoverImageError,
   clampCrop,
   cropRect,
   initialCrop,
   isTooSmall,
-  loadImage,
   maxZoom,
+  prepareImage,
   renderCrop,
   validateCoverFile,
   type CropState,
@@ -23,7 +24,8 @@ import { cn } from '@/lib/utils'
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  // Kırpılmış 4:3 JPEG (en çok 1600x1200). Yüklemeyi çağıran yapar; başarıda diyaloğu kapatır.
+  // Kırpılmış 4:3 JPEG (en çok 1600x1200, en fazla 2 MiB). Yüklemeyi çağıran yapar; başarıda
+  // diyaloğu kapatır. Büyük fotoğraf tarayıcıda küçültülür; sunucu yalnızca küçük görsel kabul eder.
   onCropped: (image: Blob) => void
   // Onay düğmesinin metni ("Fotoğrafı kaydet", "Bu fotoğrafı kullan").
   confirmLabel: string
@@ -87,6 +89,8 @@ function CropFlow({
   // Görsel değişince ve diyalog kapanınca object URL serbest bırakılır.
   useEffect(() => () => image?.release(), [image])
 
+  const imageError = (err: unknown) => t(`cover.error.${err instanceof CoverImageError ? err.code : 'read'}`)
+
   const pick = async (file: File | undefined) => {
     if (!file) return
     const invalid = validateCoverFile(file)
@@ -96,7 +100,7 @@ function CropFlow({
     }
     setBusy(true)
     try {
-      const loaded = await loadImage(file)
+      const loaded = await prepareImage(file)
       if (isTooSmall(loaded.width, loaded.height)) {
         loaded.release()
         setLocalError(t('cover.error.tooSmall'))
@@ -105,8 +109,8 @@ function CropFlow({
       setLocalError(null)
       setCrop(initialCrop(loaded.width, loaded.height))
       setImage(loaded)
-    } catch {
-      setLocalError(t('cover.error.read'))
+    } catch (err) {
+      setLocalError(imageError(err))
     } finally {
       setBusy(false)
     }
@@ -117,8 +121,8 @@ function CropFlow({
     setBusy(true)
     try {
       onCropped(await renderCrop(image.element, cropRect(crop, image.width, image.height)))
-    } catch {
-      setLocalError(t('cover.error.read'))
+    } catch (err) {
+      setLocalError(imageError(err))
     } finally {
       setBusy(false)
     }
