@@ -847,3 +847,9 @@
 - **Oynaklık:** entegrasyon paketi tek başına 4/4 geçti; önceki tek başarısızlık aynı test veritabanını kullanan eşzamanlı bir koşuya denk gelmişti.
 - **Kilitli kartta sorumlu (yalnızca yönetici):** `LockedPool.manager` yalnızca çağıran grup yöneticisiyse ve kendi havuzuna sorumlu atanmışsa döner (sorumluyu kendisi atadığı için yeni bilgi değildir); diğer alıcıların kilitli kartında alan hiç yoktur ve test bunu ayrı ayrı doğrular. Sorumlu değiştirme penceresi mevcut sorumluyu önceden seçer.
 
+## 2026-11-14 — Azure dağıtımı `a5c65ce`
+
+- #23 `main`'e birleştirildi. İmajlar yerel Docker ile `linux/amd64` için derlendi, `a5c65ce` etiketiyle ACR'ye gönderildi; önce API, `/health` `db: up` döndükten sonra arayüz güncellendi.
+- Göndermeden önce web imajı ölü `API_TARGET` ile yerelde denendi: `/` ve `/invite/<token>` 200, `/api/v1/dev` 403, güvenlik başlıkları yerinde, loglarda token yok.
+- Canlıda yalnızca okuma kontrolleri: `/` 200, `/health` 200 (`db: up`, AutoMigrate başarılı), oturumsuz `/api/v1/me`, `/notifications`, `/groups/<id>/cover`, `/groups/<id>/pools`, `/invites/<x>` 401, `/invite/<x>` 200; yeni arayüz paketi sunuluyor; iki uygulama `Running`, 0–1 replica. Canlı veriye yazan istek atılmadı; kayıt, davet ve MULTI akışları canlıda denenmedi.
+

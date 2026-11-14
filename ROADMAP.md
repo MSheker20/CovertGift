@@ -2,7 +2,7 @@
 
 > Referans: [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md)
 > İlerledikçe kutucukları `[x]` olarak işaretle. Her fazın sonunda **✅ Kabul Kriterleri** sağlanmadan sonraki faza geçme.
-> Son doğrulama: **2026-11-13** (davet linki + MULTI gruplar, yerel): Go birim + entegrasyon testleri, Vitest 218/218, Playwright 18/18 (9 test × masaüstü/telefon; test veritabanına karşı). Azure'a dağıtılmadı. Önceki not — Vitest 151/151 (14 dosya). Go testleri, entegrasyon testleri ve Playwright son olarak #20/#21 geliştirmesinde geçti (Playwright: 8 test × masaüstü/telefon = 16 senaryo; bu doküman güncellemesinde yeniden çalıştırılmadı). Azure'da API ve React frontend `f883801` canlı; dağıtım sonrası salt-okunur kontroller geçti ([docs/AZURE.md](docs/AZURE.md)).
+> Son doğrulama: **2026-11-13** (davet linki + MULTI gruplar, yerel): Go birim + entegrasyon testleri, Vitest 218/218, Playwright 18/18 (9 test × masaüstü/telefon; test veritabanına karşı). 2026-11-14'te Azure'a `a5c65ce` ile dağıtıldı; dağıtım sonrası salt-okunur kontroller geçti ([docs/AZURE.md](docs/AZURE.md)). Önceki not — Vitest 151/151 (14 dosya). Go testleri, entegrasyon testleri ve Playwright son olarak #20/#21 geliştirmesinde geçti (Playwright: 8 test × masaüstü/telefon = 16 senaryo; bu doküman güncellemesinde yeniden çalıştırılmadı). Azure'da API ve React frontend `f883801` canlı; dağıtım sonrası salt-okunur kontroller geçti ([docs/AZURE.md](docs/AZURE.md)).
 
 ```mermaid
 flowchart LR
@@ -212,8 +212,8 @@ Ayrıntılar [docs/DEVLOG.md](docs/DEVLOG.md) içinde; hepsi 2026-11-13'te Azure
 - [x] **Grup kapak fotoğrafı (2026-11-13, #19, #21):** `GET/PUT/DELETE /groups/:id/cover`, `PATCH /groups/:id/cover-policy`; `pkg/imageproc`, kapaklar `group_covers` (bytea). Büyük fotoğrafı tarayıcı küçültür; sunucu en çok 2 MiB, 2000 px, 4 MP kabul eder.
 - [x] **Grup açıklaması ve hedef hesap durumu (2026-11-13, #20):** `PATCH /groups/:id/description` (yalnızca admin, ≤ 1000 karakter); başlıkta "{ad} hesabı bağlı / Hesap bağlı değil". Grup detayının hedef kişinin tam kullanıcı nesnesini (e-posta dahil) üyelere döndürmesi düzeltildi; yalnızca `target_account: { id, name }` döner.
 
-- [x] **Davet linki (2026-11-13, dal `feat/invite-link`):** Grup başına tek aktif, 1/7/30 gün geçerli paylaşılabilir link; yalnızca admin yönetir; linki açan doğrudan üye olur. `GET/POST/DELETE /groups/:id/invite`, `GET /invites/:token`, `POST /invites/:token/accept`. Hedef kişi linkle giremez.
-- [x] **Birden çok kişi için gruplar (2026-11-13, dal `feat/multi-groups`):** Grup tipi kurulurken seçilir (`SINGLE` / `MULTI`). MULTI'de admin üyeler arasından hediye alınacak kişileri seçer; her kişinin ayrı havuzu (fikir, oy, bütçe, ilgi alanı, tarih, kazanan) vardır ve kişi kendi havuzunu yalnızca kilitli kart olarak görür. Admin kendini seçerse havuza sorumlu atar. Üyeler havuz bazında ortaklıktan çıkabilir (yalnızca kişi başı payı değiştirir).
+- [x] **Davet linki (2026-11-13, #23):** Grup başına tek aktif, 1/7/30 gün geçerli paylaşılabilir link; yalnızca admin yönetir; linki açan doğrudan üye olur. `GET/POST/DELETE /groups/:id/invite`, `GET /invites/:token`, `POST /invites/:token/accept`. Hedef kişi linkle giremez.
+- [x] **Birden çok kişi için gruplar (2026-11-13, #23):** Grup tipi kurulurken seçilir (`SINGLE` / `MULTI`). MULTI'de admin üyeler arasından hediye alınacak kişileri seçer; her kişinin ayrı havuzu (fikir, oy, bütçe, ilgi alanı, tarih, kazanan) vardır ve kişi kendi havuzunu yalnızca kilitli kart olarak görür. Admin kendini seçerse havuza sorumlu atar. Üyeler havuz bazında ortaklıktan çıkabilir (yalnızca kişi başı payı değiştirir).
 
 **Bilinen sınırlar (açık):**
 - [ ] Eski bildirimler silinmiyor (liste en yeni 50'yi gösterir); tablo büyürse temizlik işi.

@@ -10,13 +10,13 @@
 
 Go API ve kalıcı React frontend ayrı imajlar olarak paketlenir. PostgreSQL ayrı bir yönetilen serviste çalışır.
 
-## Güncel durum (2026-11-13)
+## Güncel durum (2026-11-14)
 
-- **Açık.** API `covertgift-api:f883801`, arayüz `covertgift-web:f883801` (`main`, #5–#21). Adres: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
-- Önceki canlı sürüm `24f64a2` idi (`515aee6` + #16 dağıtım dokümanı + #17 AI model geçişi; o dağıtımın geçmiş tablosunda ayrı satırı yok). `24f64a2` ve öncesine dönülürse #20'deki `target_user` sızıntısı düzeltmesi de geri gider.
+- **Açık.** API `covertgift-api:a5c65ce`, arayüz `covertgift-web:a5c65ce` (`main`, #5–#23). Adres: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
+- Önceki canlı sürüm `f883801` idi. Geri dönülürse davet linki ve MULTI gruplar kaybolur; eski API yeni tabloları ve sütunları yok sayar, ama o sırada kurulmuş MULTI gruplar eski arayüzde hedefsiz tekli grup gibi görünür ve havuzdaki fikirler (`pool_id` dolu) grup listesine karışır. Geri dönmeden önce bu gruplar değerlendirilmelidir.
 - İmajlar **yerel Docker** ile `linux/amd64` için derlenip gönderilir; bu abonelikte `az acr build` kapalıdır (`TasksOperationsNotAllowed`).
 - API **en fazla 1 replica** kalmalıdır: grup SSE'si (`/groups/:id/events`) ve kullanıcı bildirim SSE'si (`/notifications/stream`) bellek içi hub kullanır; birden çok kopyada olaylar kopyalar arasında taşınmaz.
-- API başlarken AutoMigrate şemayı günceller. 2026-11-13 dağıtımında yeni tablolar `notifications` ve `group_covers`, `groups` tablosuna `cover_version` ve `cover_admin_only` sütunları eklendi (2026-11-09'da `groups.status`, `completed_at`, `event_date` eklenmişti).
+- API başlarken AutoMigrate şemayı günceller. 2026-11-14 dağıtımında yeni tablolar `group_invites`, `gift_pools`, `pool_contributions`; yeni sütunlar `groups.mode` (varsayılan `SINGLE`, mevcut grupların hepsi tekli kaldı), `gift_ideas.pool_id`, `notifications.pool_id` eklendi. 2026-11-13 dağıtımında yeni tablolar `notifications` ve `group_covers`, `groups` tablosuna `cover_version` ve `cover_admin_only` sütunları eklendi (2026-11-09'da `groups.status`, `completed_at`, `event_date` eklenmişti).
 - Hatırlatma zamanlayıcısı API içinde, açılışta bir kez ve sonra saatlik çalışır. API 0 replikaya inip uyanınca kaçan hatırlatmaları yakalar; `dedupe_key` her hatırlatmanın kullanıcı başına bir kez üretilmesini sağlar. İlk dağıtımda tarihi geçmiş her açık grup için yöneticilere birer "süre doldu" bildirimi üretilir.
 - Bu CLI sürümünde `az containerapp logs show` `KeyError: 'eventStreamEndpoint'` verir; loglar portaldan okunur. Production'da loglar JSON'dur, her satırda `request_id` vardır.
 - Express ortamında `--revision-suffix` desteklenmez; `az containerapp update` yalnızca `--image` ile çalıştırılır.
@@ -47,6 +47,7 @@ Eski etiketler geri dönüş için registry'de durur.
 
 | Tarih | API | Arayüz | Not |
 |---|---|---|---|
+| 2026-11-14 | `covertgift-api:a5c65ce` | `covertgift-web:a5c65ce` | #23: davet linki (`group_invites`; `/groups/:id/invite`, `/invites/:token`) ve birden çok kişi için gruplar (`groups.mode`, `gift_pools`, `pool_contributions`, `gift_ideas.pool_id`, `notifications.pool_id`); web imajında davet yolları erişim/hata logundan çıkarıldı (`map $request_uri $loggable`) |
 | 2026-11-13 | `covertgift-api:f883801` | `covertgift-web:f883801` | `24f64a2`'nin üzerine: #18 bildirimler, #19 grup kapak fotoğrafı, #20 açıklama + hesap durumu (`target_user` sızıntısı düzeltmesi), #21 küçük kapak yüklemesi; yeni tablolar `notifications`, `group_covers`, yeni sütunlar `groups.cover_version`, `cover_admin_only`; web imajında kapak rotası için `client_max_body_size 3m`. Önceki canlı sürüm `24f64a2` (#17 AI model geçişi: `gemini-3.6-flash`, yedek `gemini-3.5-flash-lite`, aşırı yükte 503) |
 | 2026-11-10 | `covertgift-api:515aee6` | `covertgift-web:515aee6` | #15: yeniden tasarlanan ana ekran (`GET /groups` sayaçları), profil sayfası (`PATCH /me`, `PUT /me/password`); şema değişikliği yok |
 | 2026-11-09 | `covertgift-api:208fa08` | `covertgift-web:208fa08` | #13: birden çok kazanan (`idea_ids`) |
@@ -186,7 +187,7 @@ olamaz. Bu panel geçici demo içindir; kalıcı frontend yerine kullanılmamal�
 Dağıtımdan sonra canlıda yalnızca **okuma** kontrolleri yapılır; canlı veriye yazan istek atılmaz:
 
 - `/` 200; `/health` 200 ve `db: up` (AutoMigrate başarılı demektir).
-- Oturumsuz `/api/v1/me`, `/api/v1/notifications` ve `/api/v1/groups/<id>/cover` 401.
+- Oturumsuz `/api/v1/me`, `/api/v1/notifications`, `/api/v1/groups/<id>/cover`, `/api/v1/groups/<id>/pools` ve `/api/v1/invites/<herhangi>` 401 (son ikisi yeni API'nin yanıt verdiğini de gösterir; eski API 404 dönerdi). `/invite/<herhangi>` 200 (SPA).
 - İki Container App de 0–1 replica ve `Running`.
 - `/api/v1/dev/*` nginx'te 403 döner; bu engeli canlıda **istek atarak denemeyin**, yerelde ölü hedefle doğrulayın (yukarıdaki "İmajları hazırlama" ve frontend bölümleri). Hazır bir kontrol listesi kullanıyorsanız `/api/v1/dev/` ile başlayan hiçbir satır içermediğinden emin olun.
 
