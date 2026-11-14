@@ -219,6 +219,9 @@ func (ctl *PoolController) SetRecipientManager(c *gin.Context) {
 		poolError(c, err, "Havuz yöneticisi güncellenirken bir hata oluştu")
 		return
 	}
+	if !changed.Changed {
+		SkipRealtimePublish(c)
+	}
 	if changed.Changed && changed.Manager != nil {
 		RecordNotification(c, services.NotificationEvent{
 			GroupID: groupID, PoolID: &changed.PoolID, Type: models.NotificationPoolManagerAssigned,

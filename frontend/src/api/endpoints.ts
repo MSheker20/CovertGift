@@ -196,6 +196,9 @@ export const queryKeys = {
 export const mutationKeys = {
   ideas: (groupId: string) => ['ideas', groupId] as const,
   poolIdeas: (groupId: string, poolId: string) => ['ideas', groupId, 'pool', poolId] as const,
+  // Gemini önerisi uzun sürer (sunucuda en çok 150 sn); fikir/oy anahtarının altında olsaydı bu
+  // sürede grubun tüm canlı güncellemeleri ertelenirdi. Ayrı anahtar yalnızca düğmeyi meşgul gösterir.
+  ai: (groupId: string) => ['ideas-ai', groupId] as const,
   // Katkı anahtarı: bu grubun tüm havuzlarındaki katkı işlemleri (periyodik yenilemeyi durdurur).
   contribution: (groupId: string) => ['pool-contribution', groupId] as const,
 }

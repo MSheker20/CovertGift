@@ -837,3 +837,12 @@
 - **Lint:** `react/exhaustive-deps` hata düzeyinde açıldı; ihlal yok.
 - **Doğrulama:** Go birim + entegrasyon testleri, Vitest 218/218, Playwright 18/18 (test veritabanı), tarayıcıda masaüstü ve 375 px kontrolü.
 
+## 2026-11-14 — Davet linki ve MULTI: açık kalanların kapatılması
+
+- **nginx davet logu (gerçek açık):** `location ^~ /invite/ { access_log off; }` işlemiyordu: `try_files` isteği `/index.html`'e iç yönlendirdiği için log, sonlandıran location'ın ayarıyla yazılıyor ve token erişim loguna düşüyordu. Karar artık özgün yola göre veriliyor (`map $request_uri $loggable` + `access_log … if=$loggable`); `/api/v1/invites/` rotasında hata logu `crit` düzeyine çekildi (upstream hatası istek satırını token'la yazıyordu). Yerel konteynerde ölü `API_TARGET` ile doğrulandı: davet yolları için log satırı yok, diğer yollar loglanıyor, güvenlik başlıkları ve `/api/v1/dev` engeli duruyor.
+- **Hesap silme kilit sırası:** `userRepo.Delete` kullanıcının dokunduğu grupları, sonra o grupların havuzlarını kimlik sırasıyla kilitliyor (grup → havuz). `TestConcurrentAccountDeleteVsPoolWrites` düzeltme olmadan `deadlock detected` ile 500 veriyor, düzeltmeyle `-race -count=5` geçiyor.
+- **Gemini sırasında canlı güncelleme:** AI isteği ayrı mutation anahtarına (`mutationKeys.ai`) alındı; öneri üretilirken grubun SSE yenilemeleri artık ertelenmiyor.
+- **Etkisiz sorumlu değişikliği:** `PATCH /recipients/:userId/manager` hiçbir şey değiştirmediyse grup akışına olay göndermiyor (`controllers.SkipRealtimePublish`).
+- **Havuzda gerçek Gemini çağrısı:** test veritabanına bağlı geçici API ile bir kez denendi: 201, 4 öneri, hepsi `pool_id` taşıyor ve `product_url` boş; hediye alınan kişi 403 aldı, bildirim listesi değişmedi; yönetici `ai_ideas_added` bildirimini `pool_id` ile aldı.
+- **Oynaklık:** entegrasyon paketi tek başına 4/4 geçti; önceki tek başarısızlık aynı test veritabanını kullanan eşzamanlı bir koşuya denk gelmişti.
+

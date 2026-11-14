@@ -5,7 +5,7 @@ import { CalendarClock, ChevronDown, Link2, LoaderCircle, Sparkles, Trophy } fro
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
-import { ideasApi, liveInterval, queryKeys } from '@/api/endpoints'
+import { ideasApi, liveInterval, mutationKeys, queryKeys } from '@/api/endpoints'
 import type { Idea } from '@/api/types'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Bar, BlockError } from '@/components/Panel'
@@ -75,7 +75,7 @@ export function GiftPool({ scope, meId, canManage, completed, totalBudget, live,
   })
 
   const gemini = useMutation({
-    mutationKey: scope.mutationKey,
+    mutationKey: mutationKeys.ai(scope.groupId),
     mutationFn: () => scope.generateAI(),
     onSuccess: (added) => {
       void queryClient.invalidateQueries({ queryKey: key })

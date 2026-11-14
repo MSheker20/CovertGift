@@ -50,3 +50,13 @@ func RespondInternal(c *gin.Context, msg string, err error) {
 	}
 	RespondErr(c, http.StatusInternalServerError, msg)
 }
+
+// NoRealtimePublishKey başarılı ama hiçbir şey değiştirmeyen bir isteği canlı yayından çıkaran
+// gin context anahtarıdır (middleware.PublishGroupChanges okur).
+const NoRealtimePublishKey = "realtimeNoPublish"
+
+// SkipRealtimePublish handler'ın isteğin hiçbir şey değiştirmediğini bildirmesini sağlar; böylece
+// aboneler görünür değişikliği olmayan bir "changed" olayı almaz.
+func SkipRealtimePublish(c *gin.Context) {
+	c.Set(NoRealtimePublishKey, true)
+}

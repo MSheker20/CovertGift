@@ -20,8 +20,9 @@ func succeeded(c *gin.Context) bool {
 	return c.Writer.Status() < http.StatusBadRequest
 }
 
-// noPublishKey bir rotanın hiçbir şey yazmadığını işaretleyen gin context anahtarıdır.
-const noPublishKey = "realtimeNoPublish"
+// noPublishKey bir isteğin hiçbir şey yazmadığını işaretleyen gin context anahtarıdır; handler'lar
+// aynı anahtarı controllers.SkipRealtimePublish ile koyar.
+const noPublishKey = controllers.NoRealtimePublishKey
 
 // NoPublish veritabanına yazmayan bir değişiklik rotasını (ör. POST .../ideas/preview-link) canlı
 // yayından çıkarır. Anti-Spoiler: yazmayan bir istek de grup anahtarına "changed" yayınlasaydı,

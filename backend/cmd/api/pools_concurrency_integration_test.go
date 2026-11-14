@@ -193,3 +193,94 @@ func TestConcurrentGroupDeleteVsPoolWrites(t *testing.T) {
 	}
 	t.Logf("sonuçlar: %v", o.seen)
 }
+
+// Hesap silme, kullanıcının dokunduğu grupları ve havuzları diğer yazma işlemleriyle aynı sırayla
+// (grup -> havuz) kilitler. Silinen kişi burada bir havuzun yöneticisi, iki havuzda fikir sahibi
+// ve bir havuzun alıcısıdır; eşzamanlı oy, fikir, kazanan ve katkı işlemleri 500 dönmemelidir.
+func TestConcurrentAccountDeleteVsPoolWrites(t *testing.T) {
+	api := newTestAPI(t)
+	var o outcomes
+	for round := 0; round < 4; round++ {
+		s := &multiScenario{api: api, admin: api.newUser("Admin"), alice: api.newUser("Alice"), bob: api.newUser("Bob"), carol: api.newUser("Carol")}
+		s.adminID, s.aliceID, s.bobID, s.carolID = api.userID(s.admin), api.userID(s.alice), api.userID(s.bob), api.userID(s.carol)
+		s.groupID = idOf(t, api.mustOK(http.MethodPost, "/groups", s.admin.token, map[string]any{"title": "Hesap silme", "mode": "MULTI"}, http.StatusCreated))
+		for _, u := range []user{s.alice, s.bob, s.carol} {
+			api.mustOK(http.MethodPost, s.g()+"/members", s.admin.token, map[string]string{"email": u.email}, http.StatusCreated)
+		}
+		s.poolAlice = s.addRecipient(s.aliceID, nil)
+		poolAdmin := s.addRecipient(s.adminID, &s.bobID) // Bob yöneticinin havuzunun sorumlusu
+		poolBob := s.addRecipient(s.bobID, nil)
+		bobIdea := s.addIdea(s.bob, s.poolAlice, "Bob'un fikri")
+		bobIdeaAdmin := s.addIdea(s.bob, poolAdmin, "Bob'un diğer fikri")
+		carolIdea := s.addIdea(s.carol, s.poolAlice, "Carol'un fikri")
+		inBobPool := s.addIdea(s.carol, poolBob, "Bob için")
+
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		run := func(f func()) {
+			wg.Add(1)
+			go func() { defer wg.Done(); <-start; f() }()
+		}
+		// Fikir ya da havuz Bob'la birlikte silindiyse 404; işlem silmeden önce yetiştiyse 200/201/409.
+		for _, u := range []user{s.carol, s.admin} {
+			u := u
+			run(func() {
+				code, body := api.hammer(http.MethodPost, "/ideas/"+bobIdea+"/vote", u.token, map[string]int{"vote_type": 1})
+				o.record("vote on deleted user's idea", code, body, http.StatusOK, http.StatusNotFound, http.StatusConflict)
+			})
+			run(func() {
+				code, body := api.hammer(http.MethodPost, "/ideas/"+carolIdea+"/vote", u.token, map[string]int{"vote_type": -1})
+				o.record("vote in shared pool", code, body, http.StatusOK, http.StatusConflict)
+			})
+		}
+		run(func() {
+			code, body := api.hammer(http.MethodPost, "/ideas/"+bobIdeaAdmin+"/vote", s.carol.token, map[string]int{"vote_type": 1})
+			o.record("vote in managed pool", code, body, http.StatusOK, http.StatusNotFound, http.StatusConflict)
+		})
+		run(func() {
+			code, body := api.hammer(http.MethodPost, "/ideas/"+inBobPool+"/vote", s.alice.token, map[string]int{"vote_type": 1})
+			o.record("vote in deleted user's pool", code, body, http.StatusOK, http.StatusNotFound, http.StatusConflict)
+		})
+		for i := 0; i < 2; i++ {
+			run(func() {
+				code, body := api.hammer(http.MethodPost, s.pool(s.poolAlice)+"/ideas", s.carol.token, map[string]any{"title": uuid.NewString()[:8]})
+				o.record("add idea in shared pool", code, body, http.StatusCreated, http.StatusConflict)
+			})
+			run(func() {
+				code, body := api.hammer(http.MethodPost, s.pool(poolBob)+"/ideas", s.alice.token, map[string]any{"title": uuid.NewString()[:8]})
+				o.record("add idea in deleted user's pool", code, body, http.StatusCreated, http.StatusNotFound)
+			})
+			run(func() {
+				code, body := api.hammer(http.MethodPost, s.pool(poolAdmin)+"/ideas", s.carol.token, map[string]any{"title": uuid.NewString()[:8]})
+				o.record("add idea in managed pool", code, body, http.StatusCreated)
+			})
+		}
+		run(func() {
+			code, body := api.hammer(http.MethodPost, s.pool(s.poolAlice)+"/winner", s.admin.token, map[string][]string{"idea_ids": {carolIdea}})
+			o.record("winner in shared pool", code, body, http.StatusOK, http.StatusConflict)
+		})
+		run(func() {
+			code, body := api.hammer(http.MethodPut, s.pool(poolBob)+"/contribution", s.carol.token, map[string]bool{"contributing": false})
+			o.record("contribution in deleted user's pool", code, body, http.StatusOK, http.StatusNotFound)
+		})
+		run(func() {
+			code, body := api.hammer(http.MethodDelete, "/me", s.bob.token, nil)
+			o.record("delete account", code, body, http.StatusOK)
+		})
+		close(start)
+		wg.Wait()
+
+		// Silme sonrası tutarlılık: Bob'un havuzu yok, yöneticinin havuzu sorumlusuz kaldı.
+		cards := s.poolCards(s.carol)
+		if _, ok := cards[poolBob]; ok {
+			t.Errorf("tur %d: silinen kullanıcının havuzu hâlâ listede", round)
+		}
+		if _, ok := cards[poolAdmin]; !ok {
+			t.Errorf("tur %d: yöneticinin havuzu kayboldu", round)
+		}
+	}
+	for _, b := range o.bad {
+		t.Error(b)
+	}
+	t.Logf("sonuçlar: %v", o.seen)
+}
