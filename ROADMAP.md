@@ -216,7 +216,6 @@ Ayrıntılar [docs/DEVLOG.md](docs/DEVLOG.md) içinde; hepsi 2026-11-13'te Azure
 - [x] **Birden çok kişi için gruplar (2026-11-13, dal `feat/multi-groups`):** Grup tipi kurulurken seçilir (`SINGLE` / `MULTI`). MULTI'de admin üyeler arasından hediye alınacak kişileri seçer; her kişinin ayrı havuzu (fikir, oy, bütçe, ilgi alanı, tarih, kazanan) vardır ve kişi kendi havuzunu yalnızca kilitli kart olarak görür. Admin kendini seçerse havuza sorumlu atar. Üyeler havuz bazında ortaklıktan çıkabilir (yalnızca kişi başı payı değiştirir).
 
 **Bilinen sınırlar (açık):**
-- [ ] MULTI'de sorumlu değiştirme penceresi mevcut sorumluyu önceden seçmez (kilitli kart sorumluyu taşımaz).
 - [ ] Eski bildirimler silinmiyor (liste en yeni 50'yi gösterir); tablo büyürse temizlik işi.
 - [ ] API birden çok replica'ya çıkarsa grup/bildirim SSE'si için PostgreSQL LISTEN/NOTIFY gerekir (şimdilik en fazla 1 replica).
 - [ ] Go 1.27.3 standart kütüphanesinde GO-2026-6859 (`net/http` MaxBytesReader; 1.27.4'te düzeltilmiş) raporlanıyor; Go sürümü yükseltilmedi.

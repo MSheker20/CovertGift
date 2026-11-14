@@ -845,4 +845,5 @@
 - **Etkisiz sorumlu değişikliği:** `PATCH /recipients/:userId/manager` hiçbir şey değiştirmediyse grup akışına olay göndermiyor (`controllers.SkipRealtimePublish`).
 - **Havuzda gerçek Gemini çağrısı:** test veritabanına bağlı geçici API ile bir kez denendi: 201, 4 öneri, hepsi `pool_id` taşıyor ve `product_url` boş; hediye alınan kişi 403 aldı, bildirim listesi değişmedi; yönetici `ai_ideas_added` bildirimini `pool_id` ile aldı.
 - **Oynaklık:** entegrasyon paketi tek başına 4/4 geçti; önceki tek başarısızlık aynı test veritabanını kullanan eşzamanlı bir koşuya denk gelmişti.
+- **Kilitli kartta sorumlu (yalnızca yönetici):** `LockedPool.manager` yalnızca çağıran grup yöneticisiyse ve kendi havuzuna sorumlu atanmışsa döner (sorumluyu kendisi atadığı için yeni bilgi değildir); diğer alıcıların kilitli kartında alan hiç yoktur ve test bunu ayrı ayrı doğrular. Sorumlu değiştirme penceresi mevcut sorumluyu önceden seçer.
 

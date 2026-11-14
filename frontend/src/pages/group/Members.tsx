@@ -239,7 +239,13 @@ function RecipientDialog({
   const self = member.user_id === meId
   const needsManager = mode === 'manager' || self
   const candidates = (detail.members ?? []).filter((m) => m.user_id !== member.user_id)
-  const [manager, setManager] = useState('')
+  // Sorumlu değiştirirken mevcut sorumlu önceden seçilir (yalnızca yöneticinin kendi kilitli
+  // kartında gelir ve hâlâ üyeyse).
+  const currentPool = mode === 'manager' ? detail.pools?.find((p) => p.recipient.id === member.user_id) : undefined
+  const currentManager = currentPool?.manager?.id
+  const [manager, setManager] = useState(
+    currentManager && candidates.some((m) => m.user_id === currentManager) ? currentManager : '',
+  )
   const [error, setError] = useState<string | null>(null)
 
   const save = useMutation({

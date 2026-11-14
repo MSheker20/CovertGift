@@ -215,7 +215,9 @@ export type InvitePreview = {
 
 // MULTI havuzlar (docs: multi-api-contract). Kendi havuzum yalnızca 4 alanlı kilitli karttır;
 // arayüz o havuz için hiçbir /pools/:id/... isteği yapmaz.
-export type LockedPool = { id: string; recipient: AccountSummary; is_mine: true; locked: true }
+// manager yalnızca grup yöneticisinin kendi havuzunda gelir (sorumluyu kendisi atar); diğer
+// alıcıların kilitli kartında alan hiç yoktur.
+export type LockedPool = { id: string; recipient: AccountSummary; is_mine: true; locked: true; manager?: AccountSummary }
 
 export type OpenPool = {
   id: string

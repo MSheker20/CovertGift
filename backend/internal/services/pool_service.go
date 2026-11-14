@@ -41,12 +41,15 @@ type PoolView interface {
 }
 
 // LockedPool çağıranın alıcısı olduğu havuzdur. Yalnızca kimlik ve alıcı (çağıranın kendisi)
-// döner; durum, tarih, yönetici, bütçe ve sayaçlar bilerek yoktur (Anti-Spoiler).
+// döner; durum, tarih, bütçe ve sayaçlar bilerek yoktur (Anti-Spoiler). Manager yalnızca çağıran
+// grup yöneticisiyse dolar: sorumluyu kendisi atadığı için bu bilgi ona yeni bir şey söylemez ve
+// sorumlu değiştirme penceresinin mevcut seçimi göstermesini sağlar. Diğer alıcılarda alan hiç yoktur.
 type LockedPool struct {
-	ID        uuid.UUID      `json:"id" format:"uuid"`
-	Recipient AccountSummary `json:"recipient"`
-	IsMine    bool           `json:"is_mine" example:"true"`
-	Locked    bool           `json:"locked" example:"true"`
+	ID        uuid.UUID       `json:"id" format:"uuid"`
+	Recipient AccountSummary  `json:"recipient"`
+	IsMine    bool            `json:"is_mine" example:"true"`
+	Locked    bool            `json:"locked" example:"true"`
+	Manager   *AccountSummary `json:"manager,omitempty"`
 }
 
 func (LockedPool) isPoolView() {}
@@ -372,7 +375,13 @@ func (s *poolService) poolViewsWithMembers(groupID, viewerID uuid.UUID, pools []
 		p := &pools[i]
 		recipient := AccountSummary{ID: p.RecipientUserID, Name: p.Recipient.Name}
 		if p.RecipientUserID == viewerID {
-			views = append(views, LockedPool{ID: p.ID, Recipient: recipient, IsMine: true, Locked: true})
+			locked := LockedPool{ID: p.ID, Recipient: recipient, IsMine: true, Locked: true}
+			if viewerID == adminID && p.ManagerUserID != nil {
+				if name, ok := names[*p.ManagerUserID]; ok {
+					locked.Manager = &AccountSummary{ID: *p.ManagerUserID, Name: name}
+				}
+			}
+			views = append(views, locked)
 			continue
 		}
 		views = append(views, openPool(p, stats[p.ID], adminID, names, viewerID))

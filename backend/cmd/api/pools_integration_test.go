@@ -454,9 +454,14 @@ func TestPoolRecipientSnapshotInvariance(t *testing.T) {
 					}
 				}
 			}
-			// Kilitli kartta yalnızca id, recipient, is_mine, locked var (yönetici, durum, tarih yok).
+			// Kilitli kartta yalnızca id, recipient, is_mine, locked var (durum, tarih, sayaç yok).
+			// Tek istisna: grup yöneticisi kendi havuzunda, kendi atadığı sorumluyu (manager) görür.
+			wantKeys := "id,is_mine,locked,recipient"
+			if tc.poolID == s.poolAdmin {
+				wantKeys = "id,is_mine,locked,manager,recipient"
+			}
 			for _, p := range []string{s.g(), s.g() + "/pools"} {
-				if keys := strings.Join(lockedCardKeys(t, after[p], tc.poolID), ","); keys != "id,is_mine,locked,recipient" {
+				if keys := strings.Join(lockedCardKeys(t, after[p], tc.poolID), ","); keys != wantKeys {
 					t.Errorf("%s: kilitli kartın alanları %s", p, keys)
 				}
 			}
@@ -1149,7 +1154,7 @@ func TestRecipientManagementRules(t *testing.T) {
 	}
 	added := api.mustOK(http.MethodPost, r, s.admin.token, map[string]any{"user_id": s.adminID, "manager_user_id": outsiderID}, http.StatusCreated)
 	var locked map[string]map[string]any
-	if err := json.Unmarshal(added.Data, &locked); err != nil || locked["pool"]["locked"] != true || len(locked["pool"]) != 4 {
+	if err := json.Unmarshal(added.Data, &locked); err != nil || locked["pool"]["locked"] != true || len(locked["pool"]) != 5 || locked["pool"]["manager"] == nil {
 		t.Fatalf("kendini alıcı yapan yöneticiye kilitli kart dönmedi: %s", added.Data)
 	}
 

@@ -389,6 +389,16 @@ describe('recipient management (admin)', () => {
     await waitFor(() => expect(sent).toEqual({ manager_user_id: can.id }))
   })
 
+  it('preselects the current manager of my own pool when changing it', async () => {
+    multiHandlers({ pools: [openPool(), lockedPool({ manager: { id: can.id, name: can.name } })] })
+    renderApp(G)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Deniz Aksoy için işlemler' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sorumluyu değiştir' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('combobox')).toHaveValue(can.id)
+  })
+
   it('on 409 asks for confirmation, then resends with confirm=true', async () => {
     const calls: (string | null)[] = []
     multiHandlers()
