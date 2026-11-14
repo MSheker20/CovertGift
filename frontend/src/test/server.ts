@@ -6,12 +6,14 @@ import type { Group, GroupDetail, Idea, User } from '@/api/types'
 // Testler gerçek API yerine bu MSW sunucusuna konuşur. Her test kendi yanıtlarını
 // server.use(...) ile ekler; tanımsız bir istek testi hata ile durdurur.
 // Üst bardaki bildirim zili her sayfada çalıştığı için varsayılan yanıtları burada durur:
-// boş liste ve açılmayan akış (404'te istemci yeniden denemez). Zili deneyen testler bunları ezer.
+// boş liste, açılmayan akış (404'te istemci yeniden denemez) ve davet durumu. Zili deneyen testler bunları ezer.
 export const server = setupServer(
   http.get('/api/v1/notifications', () => HttpResponse.json({ success: true, data: { items: [], unread_count: 0 } })),
   http.get('/api/v1/notifications/stream', () =>
     HttpResponse.json({ success: false, error: 'akış testte kapalı' }, { status: 404 }),
   ),
+  // Admin grup sayfasındaki davet linki bölümü her açılışta durumu sorar; varsayılan: aktif link yok.
+  http.get('/api/v1/groups/:id/invite', () => HttpResponse.json({ success: true, data: { active: false } })),
 )
 
 export const ok = <T>(data: T, status = 200) => HttpResponse.json({ success: true, data }, { status })

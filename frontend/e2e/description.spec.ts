@@ -103,7 +103,7 @@ test('group description and target account status', async ({ page, request }, in
     await page.goto(`/groups/${groupId}`)
     await expect(page.getByRole('heading', { name: 'Bu bir sürpriz!' })).toBeVisible()
     await expect(page.getByText('Cuma akşamı sürpriz.')).toHaveCount(0)
-    await expect(page.getByText('hesabı bağlı')).toHaveCount(0)
+    await expect(page.getByText(/hesabı bağlı$/)).toHaveCount(0)
   } finally {
     for (const a of [member, target, admin]) await request.delete(`${API}/me`, { headers: a.headers })
   }

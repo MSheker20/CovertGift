@@ -12,7 +12,6 @@ import (
 	"github.com/MSheker20/CovertGift/backend/internal/realtime"
 	"github.com/MSheker20/CovertGift/backend/internal/repository"
 	"github.com/MSheker20/CovertGift/backend/internal/services"
-	"github.com/MSheker20/CovertGift/backend/pkg/gemini"
 	"github.com/MSheker20/CovertGift/backend/pkg/imageproc"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -30,7 +29,10 @@ func migrate(db *gorm.DB) error {
 // geminiClient nil olabilir (AI üretimi devre dışı).
 // hub grup sayfası akışlarını (grup kimliğiyle), userHub bildirim akışlarını (kullanıcı
 // kimliğiyle) taşır.
-func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub, userHub *realtime.Hub) *gin.Engine {
+//
+// geminiClient arayüzdür: main *gemini.Client verir (anahtar yoksa tipli nil; istemci yöntemi
+// ErrAPIKeyMissing döner, davranış öncekiyle aynıdır), entegrasyon testleri sahte üretici verebilir.
+func newRouter(db *gorm.DB, cfg *config.Config, geminiClient services.GiftIdeaGenerator, hub, userHub *realtime.Hub) *gin.Engine {
 	sqlDB, err := db.DB()
 	if err != nil {
 		slog.Error("veritabanı havuzu alınamadı", "error", err)
@@ -42,16 +44,23 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub
 	groupRepo := repository.NewGroupRepository(db)
 	ideaRepo := repository.NewIdeaRepository(db)
 	notificationRepo := repository.NewNotificationRepository(db)
+	inviteRepo := repository.NewInviteRepository(db)
+	poolRepo := repository.NewPoolRepository(db)
 
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
-	groupService := services.NewGroupService(groupRepo, userRepo)
-	ideaService := services.NewIdeaService(ideaRepo, groupRepo, geminiClient)
-	notificationService := services.NewNotificationService(notificationRepo, groupRepo, userRepo, userHub)
+	groupService := services.NewGroupService(groupRepo, userRepo, poolRepo)
+	ideaService := services.NewIdeaService(ideaRepo, groupRepo, poolRepo, geminiClient)
+	poolService := services.NewPoolService(groupRepo, poolRepo)
+	inviteService := services.NewInviteService(inviteRepo, groupRepo, userRepo)
+	notificationService := services.NewNotificationService(notificationRepo, groupRepo, poolRepo, userRepo, userHub)
 
 	authController := controllers.NewAuthController(authService)
 	groupController := controllers.NewGroupController(groupService)
 	ideaController := controllers.NewIdeaController(ideaService)
+	inviteController := controllers.NewInviteController(inviteService)
+	poolController := controllers.NewPoolController(poolService)
 	eventsController := controllers.NewEventsController(hub, userHub)
+	eventsController.PoolKeys = poolService.VisiblePoolIDs
 	notificationController := controllers.NewNotificationController(notificationService)
 	devController := controllers.NewDevController(db, cfg.AppEnv, cfg.AllowDBReset)
 	if cfg.AllowDBReset && cfg.AppEnv != "production" {
@@ -113,34 +122,80 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient *gemini.Client, hub
 			// Belirli Bir Gruba Ait Rotalar (Anti-Spoiler + Üyelik Denetimli)
 			groupSpecific := protected.Group("/groups/:id")
 			groupSpecific.Use(middleware.GroupAccess(groupRepo), middleware.PublishGroupChanges(hub), middleware.Notify(notificationService))
+			// Yalnızca SINGLE (tek kişi için) gruplarda açık rotalar; MULTI grupta 409.
+			single := middleware.RequireMode(models.GroupModeSingle)
+			// Yalnızca MULTI (birden çok kişi için) gruplarda açık rotalar; SINGLE grupta 409.
+			multi := middleware.RequireMode(models.GroupModeMulti)
 			{
 				groupSpecific.GET("", groupController.GetGroupDetail)
 				groupSpecific.GET("/events", eventsController.Stream)
 				groupSpecific.DELETE("", groupController.DeleteGroup)
 				groupSpecific.POST("/members", groupController.AddMember)
-				groupSpecific.POST("/interests", groupController.AddInterest)
-				groupSpecific.DELETE("/interests", groupController.DeleteInterest)
-				groupSpecific.PATCH("/budget", groupController.UpdateBudget)
-				groupSpecific.PATCH("/target", groupController.LinkTarget)
-				groupSpecific.PATCH("/event-date", groupController.UpdateEventDate)
+				groupSpecific.POST("/interests", single, groupController.AddInterest)
+				groupSpecific.DELETE("/interests", single, groupController.DeleteInterest)
+				groupSpecific.PATCH("/budget", single, groupController.UpdateBudget)
+				groupSpecific.PATCH("/target", single, groupController.LinkTarget)
+				groupSpecific.PATCH("/event-date", single, groupController.UpdateEventDate)
 				groupSpecific.PATCH("/description", groupController.UpdateDescription)
-				groupSpecific.POST("/winner", groupController.SelectWinner)
-				groupSpecific.DELETE("/winner", groupController.ReopenGroup)
+				groupSpecific.POST("/winner", single, groupController.SelectWinner)
+				groupSpecific.DELETE("/winner", single, groupController.ReopenGroup)
 				groupSpecific.GET("/cover", groupController.GetCover)
 				groupSpecific.PUT("/cover", groupController.UploadCover)
 				groupSpecific.DELETE("/cover", groupController.DeleteCover)
 				groupSpecific.PATCH("/cover-policy", groupController.UpdateCoverPolicy)
 
-				// Hediye Havuzu Rotaları
-				groupSpecific.POST("/ideas", ideaController.AddIdea)
-				groupSpecific.GET("/ideas", ideaController.GetIdeas)
-				groupSpecific.POST("/ideas/preview-link", ideaController.PreviewLink)
-				groupSpecific.POST("/ideas/generate-ai", ideaController.GenerateAI)
+				// Davet Linki (yalnızca admin; Anti-Spoiler GroupAccess'te)
+				groupSpecific.GET("/invite", inviteController.GetStatus)
+				groupSpecific.POST("/invite", inviteController.Create)
+				groupSpecific.DELETE("/invite", inviteController.Revoke)
+
+				// Hediye Havuzu Rotaları (SINGLE). preview-link veritabanına yazmaz; iki türde de açık.
+				groupSpecific.POST("/ideas", single, ideaController.AddIdea)
+				groupSpecific.GET("/ideas", single, ideaController.GetIdeas)
+				// Yazmaz: canlı yayın yapmaz (NoPublish), bildirim üretmez.
+				groupSpecific.POST("/ideas/preview-link", middleware.NoPublish(), ideaController.PreviewLink)
+				groupSpecific.POST("/ideas/generate-ai", single, ideaController.GenerateAI)
+
+				// MULTI: alıcılar (yalnızca grup yöneticisi; PoolAccess'ten geçmez, böylece kendi
+				// havuzunun alıcısı olan yönetici de çağırabilir) ve havuz listesi.
+				groupSpecific.GET("/pools", multi, poolController.ListPools)
+				groupSpecific.POST("/recipients", multi, poolController.AddRecipient)
+				groupSpecific.PATCH("/recipients/:userId/manager", multi, poolController.SetRecipientManager)
+				groupSpecific.DELETE("/recipients/:userId", multi, poolController.RemoveRecipient)
+
+				// MULTI: tek bir havuza ait rotalar. PoolAccess gövde okunmadan önce çalışır; havuzun
+				// alıcısı her rotada 403 + sürpriz mesajı alır. GroupAccess, PublishGroupChanges
+				// (havuz anahtarıyla) ve Notify (pool_id ile) bu gruba da uygulanır.
+				poolSpecific := groupSpecific.Group("/pools/:poolId")
+				poolSpecific.Use(middleware.PoolAccess(poolRepo, poolService))
+				{
+					poolSpecific.GET("", poolController.GetPool)
+					poolSpecific.GET("/ideas", ideaController.GetIdeas)
+					poolSpecific.POST("/ideas", ideaController.AddIdea)
+					poolSpecific.POST("/ideas/generate-ai", ideaController.GenerateAI)
+					poolSpecific.POST("/interests", poolController.AddPoolInterest)
+					poolSpecific.DELETE("/interests", poolController.DeletePoolInterest)
+					poolSpecific.PATCH("/budget", poolController.UpdatePoolBudget)
+					poolSpecific.PATCH("/event-date", poolController.UpdatePoolEventDate)
+					poolSpecific.POST("/winner", poolController.SelectPoolWinner)
+					poolSpecific.DELETE("/winner", poolController.ReopenPool)
+					poolSpecific.PUT("/contribution", poolController.SetContribution)
+				}
+			}
+
+			// Davetle Katılma (grup henüz bilinmediği için /groups/:id altında değildir; bildirim ve
+			// SSE yayını burada açıkça bağlanır, Anti-Spoiler serviste denetlenir)
+			invites := protected.Group("/invites/:token")
+			invites.Use(middleware.PublishRecordedGroupChanges(hub), middleware.Notify(notificationService))
+			{
+				invites.GET("", inviteController.Preview)
+				invites.POST("/accept", inviteController.Accept)
 			}
 
 			// Fikir ve Oylama Rotaları
 			ideasGroup := protected.Group("/ideas/:id")
-			ideasGroup.Use(middleware.PublishIdeaChanges(hub, ideaRepo), middleware.Notify(notificationService))
+			// IdeaGuard gövde doğrulamasından önce Anti-Spoiler'ı denetler (hedef kişi / havuzun alıcısı).
+			ideasGroup.Use(middleware.IdeaGuard(ideaService), middleware.PublishIdeaChanges(hub, ideaRepo), middleware.Notify(notificationService))
 			{
 				ideasGroup.POST("/vote", ideaController.Vote)
 				ideasGroup.DELETE("/vote", ideaController.Unvote)

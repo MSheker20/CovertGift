@@ -15,6 +15,10 @@ import (
 //   - 3 gün kala ve 1 gün kala: grubun tüm üyelerine (grup tamamlanmış olsa da; hediye yine verilecek).
 //   - Tarih geçti ve grup hâlâ ACTIVE (kazanan seçilmedi): yalnızca yöneticilere, bir kez.
 //
+// MULTI gruplarda aynı kurallar her havuz için ayrı işler (anahtar havuz kimliğini taşır,
+// bildirim pool_id ve recipient_name içerir): hatırlatmalar alıcı HARİÇ tüm üyelere, "süre doldu"
+// yalnızca havuzun etkin yöneticisine (yoksa kimseye) gider. Havuzun alıcısına hiçbir şey gitmez.
+//
 // Her hatırlatma kullanıcı + dedupe_key benzersizliğiyle bir kez üretilir; anahtar tarihi de
 // içerir, böylece tarih değişirse yeni tarih için yeniden hatırlatılır. Zamanlayıcı gün
 // sayısına "tam 3" diye değil aralıkla bakar: API kapalıyken (ör. uykudayken) kaçan bir
@@ -74,12 +78,19 @@ func (s *ReminderScheduler) RunOnce() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if len(groups) == 0 {
+	pools, err := s.repo.ReminderPools(today, until)
+	if err != nil {
+		return 0, err
+	}
+	if len(groups) == 0 && len(pools) == 0 {
 		return 0, nil
 	}
-	ids := make([]uuid.UUID, len(groups))
-	for i, g := range groups {
-		ids[i] = g.ID
+	ids := make([]uuid.UUID, 0, len(groups)+len(pools))
+	for _, g := range groups {
+		ids = append(ids, g.ID)
+	}
+	for _, p := range pools {
+		ids = append(ids, p.GroupID)
 	}
 	members, err := s.repo.MembersOfGroups(ids)
 	if err != nil {
@@ -92,7 +103,7 @@ func (s *ReminderScheduler) RunOnce() (int, error) {
 
 	created := 0
 	for _, g := range groups {
-		reminder, ok := reminderFor(g, today)
+		reminder, ok := reminderFor(g.ID, g.EventDate, g.Status, today)
 		if !ok {
 			continue
 		}
@@ -118,6 +129,57 @@ func (s *ReminderScheduler) RunOnce() (int, error) {
 			}
 		}
 	}
+	for _, p := range pools {
+		n, err := s.remindPool(p, byGroup[p.GroupID], today)
+		created += n
+		if err != nil {
+			return created, err
+		}
+	}
+	return created, nil
+}
+
+// remindPool bir havuzun hatırlatmalarını üretir. Alıcı hiçbir zaman alıcılar arasında değildir;
+// "süre doldu" yalnızca etkin yöneticiye gider.
+func (s *ReminderScheduler) remindPool(p repository.ReminderPool, members []repository.ReminderMember, today models.Date) (int, error) {
+	reminder, ok := reminderFor(p.ID, p.EventDate, p.Status, today)
+	if !ok {
+		return 0, nil
+	}
+	adminID := uuid.Nil
+	for _, m := range members {
+		if m.Role == "admin" {
+			adminID = m.UserID
+			break
+		}
+	}
+	manager := effectiveManagerID(&models.GiftPool{RecipientUserID: p.RecipientUserID, ManagerUserID: p.ManagerUserID}, adminID)
+	params := models.NotificationParams{"recipient_name": p.RecipientName}
+	for k, v := range reminder.params {
+		params[k] = v
+	}
+	poolID := p.ID
+	created := 0
+	for _, m := range members {
+		if m.UserID == p.RecipientUserID {
+			continue // Anti-Spoiler: havuzun alıcısına o havuzdan hatırlatma gitmez
+		}
+		if reminder.adminsOnly && (manager == nil || *manager != m.UserID) {
+			continue
+		}
+		key := reminder.dedupeKey
+		inserted, err := s.repo.Insert(&models.Notification{
+			UserID: m.UserID, GroupID: p.GroupID, PoolID: &poolID, Type: reminder.kind, Params: params,
+			DedupeKey: &key, CreatedAt: s.Now(),
+		})
+		if err != nil {
+			return created, err
+		}
+		if inserted {
+			created++
+			s.notifier.Publish(m.UserID)
+		}
+	}
 	return created, nil
 }
 
@@ -128,14 +190,15 @@ type reminder struct {
 	adminsOnly bool
 }
 
-// reminderFor grubun bugün için gereken hatırlatmasını belirler.
-func reminderFor(g repository.ReminderGroup, today models.Date) (reminder, bool) {
-	date := g.EventDate.String()
-	days := int(g.EventDate.Sub(today.Time).Hours() / 24)
-	suffix := ":" + g.ID.String() + ":" + date
+// reminderFor bir grubun ya da havuzun (key) bugün için gereken hatırlatmasını belirler. Anahtar
+// "<tür>:<key>:<tarih>" biçimindedir; havuzda key havuz kimliğidir.
+func reminderFor(key uuid.UUID, eventDate models.Date, status string, today models.Date) (reminder, bool) {
+	date := eventDate.String()
+	days := int(eventDate.Sub(today.Time).Hours() / 24)
+	suffix := ":" + key.String() + ":" + date
 	switch {
 	case days < 0:
-		if g.Status != models.GroupStatusActive {
+		if status != models.GroupStatusActive {
 			return reminder{}, false
 		}
 		return reminder{

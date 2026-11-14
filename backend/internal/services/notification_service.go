@@ -27,8 +27,13 @@ type UserNotifier interface {
 // yalnızca bildirir; alıcı seçimi ve Anti-Spoiler kuralı Dispatch içinde tek yerde uygulanır.
 type NotificationEvent struct {
 	GroupID uuid.UUID
-	Type    string
-	Params  models.NotificationParams
+	// PoolID olay MULTI gruptaki bir havuza aitse doludur. Doluysa havuz her olayda yeniden
+	// okunur: havuz silindiyse olay düşer, havuzun alıcısı alıcılardan çıkarılır (Anti-Spoiler)
+	// ve params'a recipient_name eklenir. /pools/:poolId rotalarında middleware.Notify, handler
+	// boş bıraktıysa bunu rota parametresinden doldurur.
+	PoolID *uuid.UUID
+	Type   string
+	Params models.NotificationParams
 	// Only doluysa bildirim yalnızca bu kullanıcılara gider (yine üye olmalı; işlemi yapan
 	// ve hedef kişi yine hariç). Boşsa tüm üyelere.
 	Only []uuid.UUID
@@ -59,14 +64,16 @@ type NotificationService interface {
 type notificationService struct {
 	repo      repository.NotificationRepository
 	groupRepo repository.GroupRepository
+	poolRepo  repository.PoolRepository
 	userRepo  repository.UserRepository
 	notifier  UserNotifier
 	now       func() time.Time
 }
 
 // NewNotificationService yeni bir NotificationService oluşturur.
-func NewNotificationService(repo repository.NotificationRepository, groupRepo repository.GroupRepository, userRepo repository.UserRepository, notifier UserNotifier) NotificationService {
-	return &notificationService{repo: repo, groupRepo: groupRepo, userRepo: userRepo, notifier: notifier, now: time.Now}
+// poolRepo nil olabilir; o zaman havuz olayları düşer.
+func NewNotificationService(repo repository.NotificationRepository, groupRepo repository.GroupRepository, poolRepo repository.PoolRepository, userRepo repository.UserRepository, notifier UserNotifier) NotificationService {
+	return &notificationService{repo: repo, groupRepo: groupRepo, poolRepo: poolRepo, userRepo: userRepo, notifier: notifier, now: time.Now}
 }
 
 func (s *notificationService) Dispatch(actorID uuid.UUID, events []NotificationEvent) {
@@ -120,12 +127,27 @@ func (s *notificationService) dispatchOne(actorID uuid.UUID, actorName string, e
 	for k, v := range event.Params {
 		params[k] = v
 	}
+	if event.PoolID != nil {
+		// Havuz her olayda yeniden okunur: alıcı kararı en güncel havuzla verilir.
+		if s.poolRepo == nil {
+			return nil
+		}
+		pool, err := s.poolRepo.GetPoolByID(*event.PoolID)
+		if err != nil {
+			return err
+		}
+		if pool == nil || pool.GroupID != event.GroupID {
+			return nil // havuz bu arada silinmiş
+		}
+		skip[pool.RecipientUserID] = true // Anti-Spoiler: havuzun alıcısına o havuzdan bildirim gitmez
+		params["recipient_name"] = pool.Recipient.Name
+	}
 	for _, m := range members {
 		if skip[m.UserID] || (len(only) > 0 && !only[m.UserID]) {
 			continue
 		}
 		created, err := s.repo.Insert(&models.Notification{
-			UserID: m.UserID, GroupID: event.GroupID, Type: event.Type, Params: params, CreatedAt: s.now(),
+			UserID: m.UserID, GroupID: event.GroupID, PoolID: event.PoolID, Type: event.Type, Params: params, CreatedAt: s.now(),
 		})
 		if err != nil {
 			return err

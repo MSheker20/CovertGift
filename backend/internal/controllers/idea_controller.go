@@ -59,12 +59,12 @@ type VoteRequest struct {
 // @Failure      403 {object} Response "Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz"
 // @Failure      404 {object} Response "Grup bulunamadı"
 // @Failure      500 {object} Response "Sunucu hatası"
+// @Failure      409 {object} Response "Grup/havuz tamamlandı veya grup türü uygun değil"
 // @Router       /api/v1/groups/{id}/ideas [post]
+// @Router       /api/v1/groups/{id}/pools/{poolId}/ideas [post]
 func (ctl *IdeaController) AddIdea(c *gin.Context) {
-	groupIDStr := c.Param("id")
-	groupID, err := uuid.Parse(groupIDStr)
-	if err != nil {
-		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+	scope, ok := ideaScopeFromRequest(c)
+	if !ok {
 		return
 	}
 
@@ -81,7 +81,7 @@ func (ctl *IdeaController) AddIdea(c *gin.Context) {
 	}
 
 	idea, err := ctl.ideaService.AddManualIdea(
-		groupID,
+		scope,
 		userID,
 		req.Title,
 		req.Description,
@@ -91,6 +91,9 @@ func (ctl *IdeaController) AddIdea(c *gin.Context) {
 		req.EstimatedPrice,
 	)
 	if err != nil {
+		if respondScopeErr(c, err) {
+			return
+		}
 		if errors.Is(err, services.ErrGroupCompleted) {
 			RespondErr(c, http.StatusConflict, err.Error())
 			return
@@ -116,7 +119,7 @@ func (ctl *IdeaController) AddIdea(c *gin.Context) {
 	}
 
 	RecordNotification(c, services.NotificationEvent{
-		GroupID: groupID, Type: models.NotificationIdeaAdded,
+		GroupID: scope.GroupID, PoolID: scope.PoolID, Type: models.NotificationIdeaAdded,
 		Params: models.NotificationParams{"idea_title": idea.Title},
 	})
 	RespondCreated(c, idea)
@@ -135,12 +138,12 @@ func (ctl *IdeaController) AddIdea(c *gin.Context) {
 // @Failure      403 {object} Response "Erişim engellendi: Anti-Spoiler veya gruba üye değilsiniz"
 // @Failure      404 {object} Response "Grup bulunamadı"
 // @Failure      500 {object} Response "Sunucu hatası"
+// @Failure      409 {object} Response "Grup türü uygun değil"
 // @Router       /api/v1/groups/{id}/ideas [get]
+// @Router       /api/v1/groups/{id}/pools/{poolId}/ideas [get]
 func (ctl *IdeaController) GetIdeas(c *gin.Context) {
-	groupIDStr := c.Param("id")
-	groupID, err := uuid.Parse(groupIDStr)
-	if err != nil {
-		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+	scope, ok := ideaScopeFromRequest(c)
+	if !ok {
 		return
 	}
 
@@ -150,8 +153,11 @@ func (ctl *IdeaController) GetIdeas(c *gin.Context) {
 		return
 	}
 
-	ideas, err := ctl.ideaService.GetGroupIdeas(groupID, userID)
+	ideas, err := ctl.ideaService.GetGroupIdeas(scope, userID)
 	if err != nil {
+		if respondScopeErr(c, err) {
+			return
+		}
 		if errors.Is(err, services.ErrGroupCompleted) {
 			RespondErr(c, http.StatusConflict, err.Error())
 			return
@@ -233,12 +239,12 @@ func (ctl *IdeaController) PreviewLink(c *gin.Context) {
 // @Failure      429 {object} Response "Gemini kullanım kotası veya istek sınırı aşıldı"
 // @Failure      503 {object} Response "Gemini API anahtarı yapılandırılmamış veya servis geçici olarak kullanılamıyor"
 // @Failure      500 {object} Response "Sunucu hatası"
+// @Failure      409 {object} Response "Grup/havuz tamamlandı veya grup türü uygun değil"
 // @Router       /api/v1/groups/{id}/ideas/generate-ai [post]
+// @Router       /api/v1/groups/{id}/pools/{poolId}/ideas/generate-ai [post]
 func (ctl *IdeaController) GenerateAI(c *gin.Context) {
-	groupIDStr := c.Param("id")
-	groupID, err := uuid.Parse(groupIDStr)
-	if err != nil {
-		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+	scope, ok := ideaScopeFromRequest(c)
+	if !ok {
 		return
 	}
 
@@ -248,8 +254,11 @@ func (ctl *IdeaController) GenerateAI(c *gin.Context) {
 		return
 	}
 
-	ideas, err := ctl.ideaService.GenerateAIIdeas(c.Request.Context(), groupID, userID)
+	ideas, err := ctl.ideaService.GenerateAIIdeas(c.Request.Context(), scope, userID)
 	if err != nil {
+		if respondScopeErr(c, err) {
+			return
+		}
 		if errors.Is(err, services.ErrGroupCompleted) {
 			RespondErr(c, http.StatusConflict, err.Error())
 			return
@@ -287,7 +296,7 @@ func (ctl *IdeaController) GenerateAI(c *gin.Context) {
 	}
 
 	RecordNotification(c, services.NotificationEvent{
-		GroupID: groupID, Type: models.NotificationAIIdeasAdded,
+		GroupID: scope.GroupID, PoolID: scope.PoolID, Type: models.NotificationAIIdeasAdded,
 		Params: models.NotificationParams{"count": len(ideas)},
 	})
 	RespondCreated(c, ideas)
@@ -331,6 +340,9 @@ func (ctl *IdeaController) Vote(c *gin.Context) {
 
 	err = ctl.ideaService.VoteIdea(ideaID, userID, req.VoteType)
 	if err != nil {
+		if respondScopeErr(c, err) {
+			return
+		}
 		if errors.Is(err, services.ErrInvalidVoteType) {
 			RespondErr(c, http.StatusBadRequest, err.Error())
 			return
@@ -390,6 +402,9 @@ func (ctl *IdeaController) RejectIdea(c *gin.Context) {
 
 	err = ctl.ideaService.RejectIdea(ideaID, userID)
 	if err != nil {
+		if respondScopeErr(c, err) {
+			return
+		}
 		if errors.Is(err, services.ErrIdeaNotFound) {
 			RespondErr(c, http.StatusNotFound, err.Error())
 			return
@@ -449,6 +464,9 @@ func (ctl *IdeaController) DeleteIdea(c *gin.Context) {
 
 	err = ctl.ideaService.DeleteIdea(ideaID, userID)
 	if err != nil {
+		if respondScopeErr(c, err) {
+			return
+		}
 		if errors.Is(err, services.ErrIdeaNotFound) {
 			RespondErr(c, http.StatusNotFound, err.Error())
 			return
@@ -504,6 +522,9 @@ func (ctl *IdeaController) Unvote(c *gin.Context) {
 		return
 	}
 	if err := ctl.ideaService.UnvoteIdea(ideaID, userID); err != nil {
+		if respondScopeErr(c, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, services.ErrIdeaNotFound):
 			RespondErr(c, http.StatusNotFound, err.Error())
@@ -517,4 +538,38 @@ func (ctl *IdeaController) Unvote(c *gin.Context) {
 		return
 	}
 	RespondOK(c, MessageData{Message: "Oy kaldırıldı"})
+}
+
+// ideaScopeFromRequest grup (ve varsa havuz) rota parametrelerinden fikir kapsamını üretir.
+// /groups/:id/ideas SINGLE grubun, /groups/:id/pools/:poolId/ideas havuzun kapsamıdır.
+func ideaScopeFromRequest(c *gin.Context) (repository.IdeaScope, bool) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
+		return repository.IdeaScope{}, false
+	}
+	raw := c.Param("poolId")
+	if raw == "" {
+		return repository.GroupScope(groupID), true
+	}
+	poolID, err := uuid.Parse(raw)
+	if err != nil {
+		RespondErr(c, http.StatusBadRequest, "Geçersiz havuz kimliği")
+		return repository.IdeaScope{}, false
+	}
+	return repository.PoolScope(groupID, poolID), true
+}
+
+// respondScopeErr MULTI grup (havuz) hatalarını HTTP yanıtına çevirir; eşleşirse true döner.
+func respondScopeErr(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, services.ErrPoolCompleted), errors.Is(err, services.ErrWrongGroupMode):
+		RespondErr(c, http.StatusConflict, err.Error())
+	case errors.Is(err, services.ErrPoolNotFound), errors.Is(err, services.ErrGroupNotFound):
+		// Grup bu arada silindiyse (ör. /ideas/:id ile DELETE /groups/:id yarışı) 404; 500 değil.
+		RespondErr(c, http.StatusNotFound, err.Error())
+	default:
+		return false
+	}
+	return true
 }

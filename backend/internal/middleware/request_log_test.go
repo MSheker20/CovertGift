@@ -23,6 +23,7 @@ func newLoggedRouter(buf *bytes.Buffer) *gin.Engine {
 	r.GET("/fail", func(c *gin.Context) {
 		controllers.RespondInternal(c, "Genel hata", errors.New("pq: connection refused at 10.0.0.5"))
 	})
+	r.GET("/invites/:token", func(c *gin.Context) { controllers.RespondOK(c, "ok") })
 	r.GET("/panic", func(c *gin.Context) { panic("boom") })
 	return r
 }
@@ -86,5 +87,40 @@ func TestRecoveryReturnsEnvelopeAndLogsPanic(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), `"msg":"panic"`) || !strings.Contains(buf.String(), "boom") {
 		t.Fatalf("panik loglanmadı: %s", buf.String())
+	}
+}
+
+func TestRequestLoggerDoesNotLogInviteToken(t *testing.T) {
+	var buf bytes.Buffer
+	r := newLoggedRouter(&buf)
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/invites/raw-secret-token", nil))
+	if strings.Contains(buf.String(), "raw-secret-token") {
+		t.Fatalf("log ham davet token'ını içeriyor: %s", buf.String())
+	}
+	if entry := lastLogLine(t, &buf); entry["path"] != "/invites/:token" {
+		t.Fatalf("beklenmeyen path: %v", entry)
+	}
+}
+
+func TestRequestLoggerRedactsInviteTokenWhenNoRouteMatched(t *testing.T) {
+	var buf bytes.Buffer
+	r := newLoggedRouter(&buf)
+	for _, c := range []struct{ method, path, want string }{
+		{http.MethodPost, "/api/v1/invites/raw-secret-token", "/api/v1/invites/:token"},
+		{http.MethodPost, "/api/v1/invites/raw-secret-token/accept/", "/api/v1/invites/:token/accept/"},
+		{http.MethodGet, "/invites/raw-secret-token/", "/invites/:token/"},
+		{http.MethodGet, "/invite/raw-secret-token", "/invite/:token"},
+	} {
+		buf.Reset()
+		r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(c.method, c.path, nil))
+		if strings.Contains(buf.String(), "raw-secret-token") {
+			t.Fatalf("%s %s: log ham token içeriyor: %s", c.method, c.path, buf.String())
+		}
+		if buf.Len() == 0 {
+			continue // gin eğik çizgi yönlendirmesini middleware'den önce yanıtlar; log yok, sızıntı yok
+		}
+		if entry := lastLogLine(t, &buf); entry["path"] != c.want {
+			t.Fatalf("%s: path %v, beklenen %s", c.path, entry["path"], c.want)
+		}
 	}
 }

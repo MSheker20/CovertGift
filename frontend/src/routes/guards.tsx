@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router'
 
 import { useAuth } from '@/auth/AuthProvider'
+import { returnPath } from '@/lib/returnPath'
 
 export function RequireAuth() {
   const { token } = useAuth()
@@ -11,6 +12,7 @@ export function RequireAuth() {
 
 export function GuestOnly() {
   const { token } = useAuth()
-  if (token) return <Navigate to="/" replace />
+  const location = useLocation()
+  if (token) return <Navigate to={returnPath(location.state)} replace />
   return <Outlet />
 }

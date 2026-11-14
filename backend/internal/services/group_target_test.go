@@ -86,7 +86,7 @@ func TestCreateGroupResolvesTargetEmail(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &targetRepository{}
-			svc := NewGroupService(repo, &emailUserRepository{users: users, err: tc.lookupErr})
+			svc := NewGroupService(repo, &emailUserRepository{users: users, err: tc.lookupErr}, nil)
 			group, err := svc.CreateGroup(creatorID, "Sürpriz", "", "Ahmet", "", tc.targetUserID, tc.email, decimal.Zero, nil)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tc.wantErr)
@@ -157,7 +157,7 @@ func TestLinkTargetPermissionsAndRules(t *testing.T) {
 			if tc.role != "" {
 				repo.member = &models.GroupMember{Role: tc.role, UserID: callerID, GroupID: groupID}
 			}
-			svc := NewGroupService(repo, &emailUserRepository{users: users, err: tc.lookupErr})
+			svc := NewGroupService(repo, &emailUserRepository{users: users, err: tc.lookupErr}, nil)
 			linked, err := svc.LinkTarget(groupID, callerID, tc.email)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tc.wantErr)
@@ -185,7 +185,7 @@ func TestAddMemberMapsLockedTargetCheck(t *testing.T) {
 	repo.member = &models.GroupMember{Role: "admin", UserID: adminID, GroupID: groupID}
 	users := map[string]*models.User{"new@demo.com": {ID: newID}}
 	// GetMember returns the caller for every lookup, so make the "already member" check pass.
-	svc := NewGroupService(&memberLookupRepository{targetRepository: repo, callerID: adminID}, &emailUserRepository{users: users})
+	svc := NewGroupService(&memberLookupRepository{targetRepository: repo, callerID: adminID}, &emailUserRepository{users: users}, nil)
 	if _, err := svc.AddMemberByEmail(groupID, adminID, "new@demo.com"); !errors.Is(err, ErrCannotAddTargetAsMember) {
 		t.Fatalf("error = %v, want %v", err, ErrCannotAddTargetAsMember)
 	}

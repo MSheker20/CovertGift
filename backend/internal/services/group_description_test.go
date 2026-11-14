@@ -68,7 +68,7 @@ func TestUpdateDescriptionPermissions(t *testing.T) {
 			if !tc.noMember {
 				repo.member = &models.GroupMember{GroupID: groupID, UserID: userID, Role: tc.role}
 			}
-			svc := NewGroupService(repo, nil)
+			svc := NewGroupService(repo, nil, nil)
 			group, err := svc.UpdateDescription(groupID, userID, tc.in)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tc.wantErr)

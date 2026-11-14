@@ -106,6 +106,27 @@ func (r *userRepository) Delete(id uuid.UUID) error {
 			return err
 		}
 
+		// Kilit sırası (groups -> gift_pools -> diğerleri): bu silme işlemi kullanıcının dokunduğu
+		// her grupta fikir, oy, üyelik ve havuz satırlarını değiştirir. Diğer yazma işlemleri önce
+		// grup, sonra havuz satırını kilitlediği için burada da önce ilgili gruplar, sonra o
+		// grupların havuzları kimlik sırasıyla kilitlenir; aksi halde eşzamanlı bir oy ya da fikir
+		// eklemeyle karşılıklı kilitlenme (deadlock) oluşabilir.
+		var lockedGroups []uuid.UUID
+		if err := tx.Raw(`SELECT id FROM groups
+			WHERE creator_id = ? OR target_user_id = ?
+			   OR id IN (SELECT group_id FROM group_members WHERE user_id = ?)
+			   OR id IN (SELECT group_id FROM gift_ideas WHERE created_by = ?)
+			   OR id IN (SELECT group_id FROM gift_pools WHERE recipient_user_id = ? OR manager_user_id = ?)
+			ORDER BY id FOR UPDATE`, id, id, id, id, id, id).Scan(&lockedGroups).Error; err != nil {
+			return err
+		}
+		if len(lockedGroups) > 0 {
+			var lockedPools []uuid.UUID
+			if err := tx.Raw("SELECT id FROM gift_pools WHERE group_id IN ? ORDER BY id FOR UPDATE", lockedGroups).Scan(&lockedPools).Error; err != nil {
+				return err
+			}
+		}
+
 		// 2. Kullanıcının hedef kişi olduğu gruplarda target_user_id'yi NULL yap (sürpriz bozulmasın, ilişki kopsun)
 		if err := tx.Model(&models.Group{}).Where("target_user_id = ?", id).Update("target_user_id", nil).Error; err != nil {
 			return err

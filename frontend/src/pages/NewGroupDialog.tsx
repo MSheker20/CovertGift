@@ -14,6 +14,8 @@ import { FormError, FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input, Textarea } from '@/components/ui/input'
+import type { GroupMode } from '@/api/types'
+import { cn } from '@/lib/utils'
 import { MAX_GROUP_DESCRIPTION } from '@/lib/description'
 import { errorMessage } from '@/lib/errors'
 import { eventDateBounds } from '@/lib/eventDate'
@@ -29,6 +31,8 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(EMPTY)
+  const [mode, setMode] = useState<GroupMode>('SINGLE')
+  const multi = mode === 'MULTI'
   const [localError, setLocalError] = useState<string | null>(null)
   // İsteğe bağlı kapak: tarayıcıda kırpılmış JPEG; grup kurulduktan sonra yüklenir.
   const [cover, setCover] = useState<Blob | null>(null)
@@ -41,16 +45,22 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const group = await groupsApi.create({
-        title: form.title.trim(),
-        target_person_name: form.target.trim(),
-        target_email: form.targetEmail.trim() || undefined,
-        total_budget: (form.budget.trim() || '0').replace(',', '.'),
-        description: form.notes.trim() || undefined,
-        // Backend virgül ve satır sonu ayrımlı metni listeye ayrıştırır.
-        target_interests: form.interests.trim() || undefined,
-        event_date: form.eventDate || undefined,
-      })
+      // MULTI'de hedef, bütçe, ilgi alanı ve tarih gönderilmez (sunucu 400 döner); bunlar her kişinin
+      // havuzunda, alıcılar seçildikten sonra ayarlanır.
+      const group = await groupsApi.create(
+        multi
+          ? { title: form.title.trim(), mode: 'MULTI', description: form.notes.trim() || undefined }
+          : {
+              title: form.title.trim(),
+              target_person_name: form.target.trim(),
+              target_email: form.targetEmail.trim() || undefined,
+              total_budget: (form.budget.trim() || '0').replace(',', '.'),
+              description: form.notes.trim() || undefined,
+              // Backend virgül ve satır sonu ayrımlı metni listeye ayrıştırır.
+              target_interests: form.interests.trim() || undefined,
+              event_date: form.eventDate || undefined,
+            },
+      )
       // Fotoğraf yüklenemese de grup kurulmuştur; hata ayrıca bildirilir, grup geri alınmaz.
       let coverFailed = false
       if (cover) {
@@ -68,6 +78,7 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
       if (coverFailed) toast.error(t('newGroup.coverFailed'))
       setOpen(false)
       setForm(EMPTY)
+      setMode('SINGLE')
       setCover(null)
       navigate(`/groups/${group.id}`)
     },
@@ -79,15 +90,15 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (form.budget.trim() && !MONEY.test(form.budget.trim())) {
+    if (!multi && form.budget.trim() && !MONEY.test(form.budget.trim())) {
       setLocalError(t('newGroup.invalidBudget'))
       return
     }
-    if (form.eventDate && (form.eventDate < bounds.min || form.eventDate > bounds.max)) {
+    if (!multi && form.eventDate && (form.eventDate < bounds.min || form.eventDate > bounds.max)) {
       setLocalError(t('manage.eventDateInvalid'))
       return
     }
-    if (emailSelf) return
+    if (!multi && emailSelf) return
     setLocalError(null)
     mutation.mutate()
   }
@@ -112,6 +123,37 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <FormError message={localError ?? (mutation.error && !emailNotFound ? errorMessage(mutation.error) : null)} />
+          <fieldset className="flex flex-col gap-2" aria-describedby="g-mode-hint">
+            <legend className="mb-2 text-sm leading-none font-medium">{t('newGroup.mode.label')}</legend>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {(['SINGLE', 'MULTI'] as const).map((m) => (
+                <label
+                  key={m}
+                  className={cn(
+                    'flex min-h-11 cursor-pointer items-center gap-3 rounded-[12px] border px-3.5 py-2.5 text-sm font-medium transition-colors focus-within:ring-2 focus-within:ring-accent/40',
+                    mode === m ? 'border-primary bg-soft text-on-soft' : 'border-control bg-raised hover:bg-surface',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="g-mode"
+                    value={m}
+                    checked={mode === m}
+                    onChange={() => {
+                      setMode(m)
+                      setLocalError(null)
+                      mutation.reset()
+                    }}
+                    className="size-4 shrink-0 accent-[var(--color-primary)]"
+                  />
+                  {t(m === 'SINGLE' ? 'newGroup.mode.single' : 'newGroup.mode.multi')}
+                </label>
+              ))}
+            </div>
+            <p id="g-mode-hint" className="text-xs text-muted">
+              {t(multi ? 'newGroup.mode.multiHint' : 'newGroup.mode.singleHint')}
+            </p>
+          </fieldset>
           <FormField id="g-title" label={t('newGroup.groupTitle')}>
             <Input
               id="g-title"
@@ -123,81 +165,85 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
               onChange={set('title')}
             />
           </FormField>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField id="g-target" label={t('newGroup.target')}>
-              <Input
-                id="g-target"
-                required
-                minLength={2}
-                maxLength={100}
-                placeholder={t('newGroup.targetPlaceholder')}
-                value={form.target}
-                onChange={set('target')}
-              />
-            </FormField>
-            <FormField id="g-budget" label={t('newGroup.budget')} hint={t('newGroup.budgetHint')}>
-              <Input
-                id="g-budget"
-                inputMode="decimal"
-                placeholder="2500"
-                aria-describedby="g-budget-hint"
-                className="num"
-                value={form.budget}
-                onChange={set('budget')}
-              />
-            </FormField>
-          </div>
-          <FormField
-            id="g-target-email"
-            label={t('newGroup.targetEmail')}
-            optional={t('newGroup.optional')}
-            hint={t('newGroup.targetEmailHint')}
-          >
-            <Input
+          {!multi && (
+            <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField id="g-target" label={t('newGroup.target')}>
+                <Input
+                  id="g-target"
+                  required
+                  minLength={2}
+                  maxLength={100}
+                  placeholder={t('newGroup.targetPlaceholder')}
+                  value={form.target}
+                  onChange={set('target')}
+                />
+              </FormField>
+              <FormField id="g-budget" label={t('newGroup.budget')} hint={t('newGroup.budgetHint')}>
+                <Input
+                  id="g-budget"
+                  inputMode="decimal"
+                  placeholder="2500"
+                  aria-describedby="g-budget-hint"
+                  className="num"
+                  value={form.budget}
+                  onChange={set('budget')}
+                />
+              </FormField>
+            </div>
+            <FormField
               id="g-target-email"
-              type="email"
-              autoComplete="off"
-              maxLength={150}
-              placeholder={t('newGroup.targetEmailPlaceholder')}
-              aria-describedby={emailError ? 'g-target-email-error g-target-email-hint' : 'g-target-email-hint'}
-              aria-invalid={emailError ? true : undefined}
-              value={form.targetEmail}
-              onChange={(e) => {
-                set('targetEmail')(e)
-                if (emailNotFound) mutation.reset()
-              }}
-            />
-            {emailError && (
-              <p id="g-target-email-error" role="alert" className="text-xs text-negative">
-                {emailError}
-              </p>
-            )}
-          </FormField>
-          <FormField id="g-event-date" label={t('newGroup.eventDate')} optional={t('newGroup.optional')} hint={t('newGroup.eventDateHint')}>
-            <Input
-              id="g-event-date"
-              type="date"
-              min={bounds.min}
-              max={bounds.max}
-              aria-describedby="g-event-date-hint"
-              value={form.eventDate}
-              onChange={set('eventDate')}
-            />
-          </FormField>
-          <FormField
-            id="g-interests"
-            label={t('newGroup.interests')}
-            optional={t('newGroup.optional')}
-            hint={t('newGroup.interestsHint')}
-          >
-            <Input
+              label={t('newGroup.targetEmail')}
+              optional={t('newGroup.optional')}
+              hint={t('newGroup.targetEmailHint')}
+            >
+              <Input
+                id="g-target-email"
+                type="email"
+                autoComplete="off"
+                maxLength={150}
+                placeholder={t('newGroup.targetEmailPlaceholder')}
+                aria-describedby={emailError ? 'g-target-email-error g-target-email-hint' : 'g-target-email-hint'}
+                aria-invalid={emailError ? true : undefined}
+                value={form.targetEmail}
+                onChange={(e) => {
+                  set('targetEmail')(e)
+                  if (emailNotFound) mutation.reset()
+                }}
+              />
+              {emailError && (
+                <p id="g-target-email-error" role="alert" className="text-xs text-negative">
+                  {emailError}
+                </p>
+              )}
+            </FormField>
+            <FormField id="g-event-date" label={t('newGroup.eventDate')} optional={t('newGroup.optional')} hint={t('newGroup.eventDateHint')}>
+              <Input
+                id="g-event-date"
+                type="date"
+                min={bounds.min}
+                max={bounds.max}
+                aria-describedby="g-event-date-hint"
+                value={form.eventDate}
+                onChange={set('eventDate')}
+              />
+            </FormField>
+            <FormField
               id="g-interests"
-              placeholder={t('newGroup.interestsPlaceholder')}
-              aria-describedby="g-interests-hint"
-              value={form.interests}
-              onChange={set('interests')}
-            />
-          </FormField>
+              label={t('newGroup.interests')}
+              optional={t('newGroup.optional')}
+              hint={t('newGroup.interestsHint')}
+            >
+              <Input
+                id="g-interests"
+                placeholder={t('newGroup.interestsPlaceholder')}
+                aria-describedby="g-interests-hint"
+                value={form.interests}
+                onChange={set('interests')}
+              />
+            </FormField>
+            </>
+          )}
           <FormField id="g-notes" label={t('newGroup.notes')} optional={t('newGroup.optional')}>
             <Textarea
               id="g-notes"
@@ -247,6 +293,7 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
             setPickingCover(false)
           }}
           confirmLabel={t('cover.use')}
+          hint={multi ? t('cover.visibleToRecipients') : undefined}
         />
       </DialogContent>
     </Dialog>

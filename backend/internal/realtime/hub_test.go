@@ -113,3 +113,34 @@ func TestHubConcurrentUse(t *testing.T) {
 		t.Fatalf("abonelik sızdı: %d", h.Count())
 	}
 }
+
+func TestHubSubscribeManyCountsOnceAndReceivesFromEveryKey(t *testing.T) {
+	h := NewHub(2)
+	group, pool1, pool2, hidden := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	ch, cancel, err := h.SubscribeMany([]uuid.UUID{group, pool1, pool2, pool1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.Count() != 1 {
+		t.Fatalf("çok anahtarlı abonelik %d kez sayıldı", h.Count())
+	}
+	for _, key := range []uuid.UUID{group, pool1, pool2} {
+		h.Publish(key)
+		select {
+		case <-ch:
+		default:
+			t.Fatalf("%s sinyali gelmedi", key)
+		}
+	}
+	h.Publish(hidden)
+	select {
+	case <-ch:
+		t.Fatal("abone olunmayan anahtardan sinyal geldi")
+	default:
+	}
+	cancel()
+	cancel() // idempotent
+	if h.Count() != 0 || len(h.subs) != 0 {
+		t.Fatalf("iptal sonrası kalan: count=%d subs=%d", h.Count(), len(h.subs))
+	}
+}

@@ -2,11 +2,12 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, FileText, ImageOff, ImagePlus, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2, UserCheck, X } from 'lucide-react'
+import { CalendarDays, Eye, FileText, ImageOff, ImagePlus, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2, UserCheck, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
 import { groupsApi, queryKeys } from '@/api/endpoints'
+import type { GroupMode } from '@/api/types'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { CoverCropDialog } from '@/components/CoverCropDialog'
 import { FormField } from '@/components/FormField'
@@ -27,24 +28,26 @@ import { descriptionLength, MAX_GROUP_DESCRIPTION } from '@/lib/description'
 import { errorMessage } from '@/lib/errors'
 import { eventDateBounds } from '@/lib/eventDate'
 import { formatMoney } from '@/lib/format'
+import { groupScope, type Scope } from './scope'
 
 // Backend kuralıyla aynı: tek öğe, 1–100 karakter, virgül/noktalı virgül/satır sonu yok.
 const INTEREST = /^[^,;\r\n]{1,100}$/
 // 0–99999999.99, en fazla iki ondalık; virgül de kabul edilir.
 const MONEY = /^\d{1,8}([.,]\d{1,2})?$/
 
-// İlgi alanları: her üye ekleyebilir, yalnızca admin silebilir (yetki API'de ayrıca denetlenir).
-export function InterestsTile({ groupId, interests, isAdmin }: { groupId: string; interests?: string[]; isAdmin: boolean }) {
+// İlgi alanları: her üye ekleyebilir; SINGLE'da yalnızca admin, havuzda yalnızca havuz yöneticisi
+// silebilir (canManage; yetki API'de ayrıca denetlenir).
+export function InterestsTile({ scope, interests, canManage }: { scope: Scope; interests?: string[]; canManage: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(false)
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.group(groupId), exact: true })
+  const refresh = () => queryClient.invalidateQueries({ queryKey: scope.detailKey, exact: true })
 
   const add = useMutation({
-    mutationFn: (interest: string) => groupsApi.addInterest(groupId, interest),
+    mutationFn: (interest: string) => scope.addInterest(interest),
     onSuccess: () => {
       setValue('')
       setAdding(false)
@@ -55,7 +58,7 @@ export function InterestsTile({ groupId, interests, isAdmin }: { groupId: string
   })
 
   const remove = useMutation({
-    mutationFn: (interest: string) => groupsApi.removeInterest(groupId, interest),
+    mutationFn: (interest: string) => scope.removeInterest(interest),
     onSuccess: () => void refresh(),
     onError: (err) => toast.error(errorMessage(err)),
   })
@@ -83,7 +86,7 @@ export function InterestsTile({ groupId, interests, isAdmin }: { groupId: string
             className="inline-flex h-8 items-center gap-1 rounded-full bg-soft pr-1 pl-3 text-sm font-medium text-on-soft"
           >
             {i}
-            {isAdmin ? (
+            {canManage ? (
               <button
                 type="button"
                 aria-label={t('manage.removeInterest', { interest: i })}
@@ -148,7 +151,7 @@ export function InterestsTile({ groupId, interests, isAdmin }: { groupId: string
 }
 
 // Toplam bütçe: admin yerinde düzenler. Kişi başı tutar ve bütçe üstü etiketleri yenilenir.
-export function BudgetTile({ groupId, total, isAdmin }: { groupId: string; total?: string; isAdmin: boolean }) {
+export function BudgetTile({ scope, total, canManage }: { scope: Scope; total?: string; canManage: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
@@ -156,7 +159,7 @@ export function BudgetTile({ groupId, total, isAdmin }: { groupId: string; total
   const [error, setError] = useState<string | null>(null)
 
   const save = useMutation({
-    mutationFn: (amount: string) => groupsApi.updateBudget(groupId, amount),
+    mutationFn: (amount: string) => scope.updateBudget(amount),
     onSuccess: () => {
       setEditing(false)
       toast.success(t('manage.budgetSaved'))
@@ -186,7 +189,7 @@ export function BudgetTile({ groupId, total, isAdmin }: { groupId: string; total
     <div className="rounded-[22px] bg-surface p-4 md:col-span-4 md:p-5">
       <dt className="flex items-center justify-between gap-2 text-sm font-medium text-muted">
         {t('group.totalBudget')}
-        {isAdmin && !editing && total !== undefined && (
+        {canManage && !editing && total !== undefined && (
           <button
             type="button"
             aria-label={t('manage.editBudget')}
@@ -244,9 +247,12 @@ export function DescriptionDialog({
   current,
   open,
   onOpenChange,
+  multi = false,
 }: {
   groupId: string
   current?: string
+  // MULTI grupta açıklamayı hediye alacak kişiler de görür; pencere bunu söyler.
+  multi?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -299,6 +305,12 @@ export function DescriptionDialog({
         <DialogHeader>
           <DialogTitle className="text-[19px]">{t('manage.descriptionTitle')}</DialogTitle>
           <DialogDescription className="text-[15px] leading-6">{t('manage.descriptionBody')}</DialogDescription>
+          {multi && (
+            <p className="flex items-start gap-2 text-sm font-medium text-ink">
+              <Eye className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />
+              {t('manage.descriptionVisibleToRecipients')}
+            </p>
+          )}
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <FormField id="group-description" label={t('manage.descriptionLabel')}>
@@ -435,13 +447,13 @@ export function LinkTargetDialog({
 }
 
 // Hediye tarihi: doğum günü ya da hediyenin verileceği gün. Boş bırakmak tarihi kaldırır.
-function EventDateDialog({
-  groupId,
+export function EventDateDialog({
+  scope,
   current,
   open,
   onOpenChange,
 }: {
-  groupId: string
+  scope: Scope
   current?: string
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -453,7 +465,7 @@ function EventDateDialog({
   const bounds = eventDateBounds()
 
   const save = useMutation({
-    mutationFn: (date: string | null) => groupsApi.updateEventDate(groupId, date),
+    mutationFn: (date: string | null) => scope.updateEventDate(date),
     onSuccess: (_d, date) => {
       toast.success(t(date ? 'manage.eventDateSaved' : 'manage.eventDateRemoved'))
       onOpenChange(false)
@@ -548,6 +560,7 @@ export function GroupMenu({
   isAdmin,
   coverVersion,
   coverAdminOnly,
+  mode = 'SINGLE',
 }: {
   groupId: string
   title: string
@@ -559,8 +572,11 @@ export function GroupMenu({
   isAdmin: boolean
   coverVersion?: string
   coverAdminOnly: boolean
+  // MULTI'de tarih, kazanan ve hedef kişi havuz düzeyindedir; grup menüsünde yer almaz.
+  mode?: GroupMode
 }) {
   const { t } = useTranslation()
+  const multi = mode === 'MULTI'
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirm, setConfirm] = useState(false)
@@ -670,17 +686,19 @@ export function GroupMenu({
                 <FileText />
                 {t('manage.editDescription')}
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setDating(true)}>
-                <CalendarDays />
-                {t('manage.eventDate')}
-              </DropdownMenuItem>
-              {completed && (
+              {!multi && (
+                <DropdownMenuItem onSelect={() => setDating(true)}>
+                  <CalendarDays />
+                  {t('manage.eventDate')}
+                </DropdownMenuItem>
+              )}
+              {!multi && completed && (
                 <DropdownMenuItem onSelect={() => setReopening(true)}>
                   <RotateCcw />
                   {t('manage.reopen')}
                 </DropdownMenuItem>
               )}
-              {!targetLinked && (
+              {!multi && !targetLinked && (
                 <DropdownMenuItem onSelect={() => setLinking(true)}>
                   <UserCheck />
                   {t('manage.linkTarget')}
@@ -701,6 +719,7 @@ export function GroupMenu({
         confirmLabel={t('cover.save')}
         pending={uploadCover.isPending}
         error={uploadCover.error ? errorMessage(uploadCover.error) : null}
+        hint={multi ? t('cover.visibleToRecipients') : undefined}
       />
       <ConfirmDialog
         open={removingCover}
@@ -723,8 +742,8 @@ export function GroupMenu({
         onConfirm={() => remove.mutate()}
       />
       <LinkTargetDialog groupId={groupId} targetName={targetName} open={linking} onOpenChange={setLinking} />
-      <EventDateDialog groupId={groupId} current={eventDate} open={dating} onOpenChange={setDating} />
-      <DescriptionDialog groupId={groupId} current={description} open={describing} onOpenChange={setDescribing} />
+      <EventDateDialog scope={groupScope(groupId)} current={eventDate} open={dating} onOpenChange={setDating} />
+      <DescriptionDialog groupId={groupId} current={description} open={describing} onOpenChange={setDescribing} multi={multi} />
       <ConfirmDialog
         open={reopening}
         onOpenChange={(o) => !reopen.isPending && setReopening(o)}

@@ -12,8 +12,9 @@ import { GroupCoverImage, GroupThumb } from '@/components/GroupCover'
 import { Bar, BlockError, Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { errorMessage } from '@/lib/errors'
+import i18n from '@/i18n'
 import { cn } from '@/lib/utils'
-import { countdownLabel, daysUntil, formatEventDate, sortByUpcoming } from '@/lib/eventDate'
+import { countdownLabel, daysUntil, effectiveEventDate, formatEventDate, sortByUpcoming } from '@/lib/eventDate'
 import { formatDate } from '@/lib/format'
 import { nextSurprise, prioritizedTasks, type PriorityLevel, type PriorityTask } from '@/lib/priority'
 import { NewGroupDialog } from './NewGroupDialog'
@@ -79,10 +80,26 @@ export function GroupsPage() {
         >
           <GroupList state={groups} open={view.open} meId={user?.id} />
         </Panel>
-        <HistoryPanel state={groups} completed={view.completed} />
+        <HistoryPanel state={groups} completed={view.completed} meId={user?.id} />
       </div>
     </div>
   )
+}
+
+// "Ali, Ayşe ve senin için": MULTI kartının alıcı satırı. Ben alıcıysam adım yerine "senin/you"
+// gelir ve listenin sonuna konur. Liste biçimi dile göredir (Intl.ListFormat).
+function recipientsLine(g: GroupListItem, meId: string | undefined, t: ReturnType<typeof useTranslation>['t']): string {
+  const recipients = g.recipients ?? []
+  if (recipients.length === 0) return t('home.noRecipients')
+  const names = recipients.filter((r) => r.id !== meId).map((r) => r.name)
+  if (recipients.some((r) => r.id === meId)) names.push(t('home.you'))
+  const list = new Intl.ListFormat(i18n.language === 'en' ? 'en' : 'tr', { style: 'long', type: 'conjunction' }).format(names)
+  return t('home.forList', { list })
+}
+
+// Kartın "kim için" metni: SINGLE'da hedef kişi, MULTI'de alıcılar.
+function forLine(g: GroupListItem, meId: string | undefined, t: ReturnType<typeof useTranslation>['t']): string {
+  return g.mode === 'MULTI' ? recipientsLine(g, meId, t) : t('home.forPerson', { name: g.target_person_name })
 }
 
 function split(groups: GroupListItem[]) {
@@ -122,7 +139,7 @@ function NextSurpriseCard({
   const next = nextSurprise(open)
   if (!next) {
     // Tarih yalnızca yönetici tarafından eklenir; tarihsiz ilk grubumuza yönlendir.
-    const undated = open.find((g) => !g.event_date && g.creator_id === meId)
+    const undated = open.find((g) => g.mode !== 'MULTI' && !g.event_date && g.creator_id === meId)
     return (
       <div className={cn(box, 'bg-surface')}>
         <p className="text-sm font-medium text-muted">{t('home.next.label')}</p>
@@ -187,7 +204,7 @@ function NextSurpriseCard({
               {group.title}
             </p>
             <p className={cn('mt-2 text-sm opacity-80', hasCover ? 'line-clamp-2' : 'truncate')}>
-              {t('home.forPerson', { name: group.target_person_name })} · {formatEventDate(group.event_date!)}
+              {forLine(group, meId, t)} · {formatEventDate(effectiveEventDate(group)!)}
             </p>
           </div>
           <div className={cn('shrink-0 text-right', hasCover && 'md:max-lg:flex md:max-lg:items-baseline md:max-lg:gap-2 md:max-lg:text-left')}>
@@ -285,7 +302,8 @@ function TasksPanel({
 }
 
 function taskText(task: PriorityTask, t: ReturnType<typeof useTranslation>['t']): string {
-  const when = task.group.event_date ? countdownLabel(task.group.event_date) : null
+  const date = effectiveEventDate(task.group)
+  const when = date ? countdownLabel(date) : null
   const withWhen = (s: string) => (when ? `${s} · ${when}` : s)
   switch (task.kind) {
     case 'overdue':
@@ -348,7 +366,7 @@ function GroupList({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-medium">{g.title}</p>
                 <p className="mt-0.5 truncate text-xs text-muted">
-                  {t('home.forPerson', { name: g.target_person_name })} · {t('home.members', { count: g.member_count })}{' '}
+                  {forLine(g, meId, t)} · {t('home.members', { count: g.member_count })}{' '}
                   · {t('home.ideas', { count: g.idea_count })}
                 </p>
                 {/* Dar ekranda etiketler başlığı sıkıştırmasın diye alt satırda. */}
@@ -371,8 +389,9 @@ function GroupList({
 
 // Tarihi olan açık grup geri sayım gösterir (7 gün ve altı vurgulu).
 function CountdownChip({ group }: { group: GroupListItem }) {
-  if (!group.event_date) return null
-  const days = daysUntil(group.event_date)
+  const date = effectiveEventDate(group)
+  if (!date) return null
+  const days = daysUntil(date)
   return (
     <span
       className={cn(
@@ -381,13 +400,21 @@ function CountdownChip({ group }: { group: GroupListItem }) {
       )}
     >
       <CalendarDays className="size-3" aria-hidden />
-      {countdownLabel(group.event_date)}
+      {countdownLabel(date)}
     </span>
   )
 }
 
 // 4. Geçmiş sürprizler: tamamlanan gruplar, yeniden eskiye. Kazanan hediye listede yok.
-function HistoryPanel({ state, completed }: { state: UseQueryResult<GroupListItem[]>; completed: GroupListItem[] }) {
+function HistoryPanel({
+  state,
+  completed,
+  meId,
+}: {
+  state: UseQueryResult<GroupListItem[]>
+  completed: GroupListItem[]
+  meId?: string
+}) {
   const { t } = useTranslation()
   return (
     <Panel
@@ -409,9 +436,11 @@ function HistoryPanel({ state, completed }: { state: UseQueryResult<GroupListIte
                 to={`/groups/${g.id}`}
                 className="flex min-h-12 items-center gap-3 rounded-[12px] px-2 py-1.5 transition-colors hover:bg-raised"
               >
-                <Avatar name={g.target_person_name} size="sm" />
+                <Avatar name={g.mode === 'MULTI' ? g.title : g.target_person_name} size="sm" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{g.target_person_name}</span>
+                  <span className="block truncate text-sm font-medium">
+                    {g.mode === 'MULTI' ? recipientsLine(g, meId, t) : g.target_person_name}
+                  </span>
                   <span className="block truncate text-xs text-muted">{g.title}</span>
                 </span>
                 {g.completed_at && (

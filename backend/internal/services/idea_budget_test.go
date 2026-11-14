@@ -14,7 +14,7 @@ type budgetIdeaRepository struct {
 	ideas []repository.IdeaWithScore
 }
 
-func (r *budgetIdeaRepository) GetIdeasWithScores(uuid.UUID, uuid.UUID) ([]repository.IdeaWithScore, error) {
+func (r *budgetIdeaRepository) GetIdeasWithScores(repository.IdeaScope, uuid.UUID) ([]repository.IdeaWithScore, error) {
 	return r.ideas, nil
 }
 
@@ -32,7 +32,7 @@ func TestGiftWarningsUseCurrentBudget(t *testing.T) {
 			groupID, userID := uuid.New(), uuid.New()
 			groups := &interestsRepository{group: &models.Group{ID: groupID, TotalBudget: decimal.RequireFromString(tc.budget)}, member: &models.GroupMember{Role: "member"}}
 			ideas := &budgetIdeaRepository{ideas: []repository.IdeaWithScore{{GiftIdea: models.GiftIdea{EstimatedPrice: decimal.RequireFromString(tc.price), IsOverBudget: !tc.want}}}}
-			got, err := NewIdeaService(ideas, groups, nil).GetGroupIdeas(groupID, userID)
+			got, err := NewIdeaService(ideas, groups, nil, nil).GetGroupIdeas(repository.GroupScope(groupID), userID)
 			if err != nil {
 				t.Fatal(err)
 			}

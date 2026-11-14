@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { useMutation } from '@tanstack/react-query'
 
 import { ApiError } from '@/api/client'
@@ -9,19 +9,22 @@ import { FormError, FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { errorMessage } from '@/lib/errors'
+import { returnPath } from '@/lib/returnPath'
 import { AuthLayout } from './AuthLayout'
 
 export function RegisterPage() {
   const { t } = useTranslation()
   const { register } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const from = returnPath(location.state)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
   const mutation = useMutation({
     mutationFn: () => register(name.trim(), email.trim(), password),
-    onSuccess: () => navigate('/', { replace: true }),
+    onSuccess: () => navigate(from, { replace: true }),
   })
 
   const onSubmit = (e: FormEvent) => {
@@ -80,7 +83,7 @@ export function RegisterPage() {
       </form>
       <p className="mt-6 text-sm text-muted">
         {t('auth.toLogin')}{' '}
-        <Link to="/login" className="font-medium text-ink underline-offset-4 hover:underline">
+        <Link to="/login" state={location.state} className="font-medium text-ink underline-offset-4 hover:underline">
           {t('auth.toLoginLink')}
         </Link>
       </p>

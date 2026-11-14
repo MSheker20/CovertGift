@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/MSheker20/CovertGift/backend/internal/models"
+	"github.com/MSheker20/CovertGift/backend/internal/repository"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -30,7 +31,7 @@ func TestValidMoney(t *testing.T) {
 // Geçersiz bütçe, depoya dokunulmadan reddedilmelidir (depolar nil).
 func TestCreateGroupRejectsInvalidBudget(t *testing.T) {
 	for _, budget := range []string{"-1", "100000000", "1.234"} {
-		_, err := NewGroupService(nil, nil).CreateGroup(uuid.New(), "Grup", "", "Hedef", "", nil, "", decimal.RequireFromString(budget), nil)
+		_, err := NewGroupService(nil, nil, nil).CreateGroup(uuid.New(), "Grup", "", "Hedef", "", nil, "", decimal.RequireFromString(budget), nil)
 		if !errors.Is(err, ErrInvalidBudget) {
 			t.Errorf("budget %s: err = %v, want ErrInvalidBudget", budget, err)
 		}
@@ -41,9 +42,9 @@ func TestCreateGroupRejectsInvalidBudget(t *testing.T) {
 func TestAddManualIdeaRejectsInvalidPrice(t *testing.T) {
 	groupID := uuid.New()
 	groups := &interestsRepository{group: &models.Group{ID: groupID}, member: &models.GroupMember{Role: "member"}}
-	svc := NewIdeaService(&budgetIdeaRepository{}, groups, nil)
+	svc := NewIdeaService(&budgetIdeaRepository{}, groups, nil, nil)
 	for _, price := range []string{"-5", "100000000", "9.999"} {
-		_, err := svc.AddManualIdea(groupID, uuid.New(), "Termos", "", "", "", "", decimal.RequireFromString(price))
+		_, err := svc.AddManualIdea(repository.GroupScope(groupID), uuid.New(), "Termos", "", "", "", "", decimal.RequireFromString(price))
 		if !errors.Is(err, ErrInvalidPrice) {
 			t.Errorf("price %s: err = %v, want ErrInvalidPrice", price, err)
 		}

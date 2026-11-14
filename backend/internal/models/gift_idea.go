@@ -14,8 +14,10 @@ type AISource struct {
 }
 
 type GiftIdea struct {
-	ID                  uuid.UUID       `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	GroupID             uuid.UUID       `gorm:"type:uuid;not null;index" json:"group_id"`
+	ID      uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	GroupID uuid.UUID `gorm:"type:uuid;not null;index" json:"group_id"`
+	// PoolID fikrin ait olduğu havuzdur (yalnızca MULTI gruplarda). SINGLE grubun fikirlerinde NULL.
+	PoolID              *uuid.UUID      `gorm:"type:uuid;index" json:"pool_id,omitempty" format:"uuid"`
 	Title               string          `gorm:"type:varchar(200);not null" json:"title"`
 	Description         string          `gorm:"type:text" json:"description,omitempty"`
 	EstimatedPrice      decimal.Decimal `gorm:"type:numeric(10,2);not null;default:0.00" json:"estimated_price"`
@@ -31,6 +33,7 @@ type GiftIdea struct {
 	CreatedAt           time.Time       `gorm:"not null;default:now()" json:"created_at"`
 
 	// İlişkiler
-	Group   Group `gorm:"foreignKey:GroupID;constraint:OnDelete:CASCADE" json:"-"`
-	Creator User  `gorm:"foreignKey:CreatedBy;constraint:OnDelete:RESTRICT" json:"creator,omitempty"`
+	Group   Group     `gorm:"foreignKey:GroupID;constraint:OnDelete:CASCADE" json:"-"`
+	Pool    *GiftPool `gorm:"foreignKey:PoolID;constraint:OnDelete:CASCADE" json:"-"`
+	Creator User      `gorm:"foreignKey:CreatedBy;constraint:OnDelete:RESTRICT" json:"creator,omitempty"`
 }

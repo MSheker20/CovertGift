@@ -50,6 +50,7 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `completed_at`: TIMESTAMP (Opsiyonel) -- Grubun tamamlandığı an; yeniden açılınca boşalır.
 - `cover_version`: VARCHAR(64), varsayılan '' -- Kapak fotoğrafının sürümü (`group_covers.etag` kopyası); fotoğraf yoksa boştur ve JSON'da yer almaz. Kapak değişirken aynı transaction'da güncellenir. Grup ve liste sorguları kapak baytlarına hiç dokunmaz; istemci bu değeri önbellek anahtarı olarak kullanır.
 - `cover_admin_only`: BOOLEAN, varsayılan false -- true ise kapak fotoğrafını yalnızca admin ekler/değiştirir/kaldırır; false iken tüm üyeler yapabilir.
+- `mode`: VARCHAR(10), varsayılan 'SINGLE', CHECK ('SINGLE','MULTI') -- Kurulurken seçilir, değişmez. Eski gruplar SINGLE'dır. MULTI grupta `target_*`, `total_budget`, `event_date` boştur; bunlar alıcı başına havuzlardadır (İş Kuralı 9). `status`/`completed_at` MULTI'de yanıtta çağırana göre hesaplanır.
 
 ### 3. `GroupMember` (Grup Üyelikleri)
 - `id`: UUID (Primary Key)
@@ -76,6 +77,8 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `created_by`: UUID (Foreign Key -> `users.id`), boş geçilemez
 - `created_at`: TIMESTAMP, varsayılan now()
 
+- `pool_id`: UUID (Opsiyonel, Foreign Key -> `gift_pools.id`, ON DELETE CASCADE) -- Yalnızca MULTI gruplarda fikrin havuzu; SINGLE fikirlerde NULL. JSON'da `pool_id` (yoksa alan yer almaz).
+
 ### 5. `Vote` (Oylama Verileri)
 - `id`: UUID (Primary Key)
 - `gift_idea_id`: UUID (Foreign Key -> `gift_ideas.id`, ON DELETE CASCADE), boş geçilemez
@@ -95,6 +98,8 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `created_at`: TIMESTAMP, varsayılan now()
 - *Kısıtlama:* UNIQUE(`user_id`, `dedupe_key`) -- her hatırlatma kullanıcı başına bir kez (NULL anahtarlar birbirinden farklı sayılır). İndeks: (`user_id`, `created_at`).
 
+- `pool_id`: UUID (Opsiyonel, Foreign Key -> `gift_pools.id`, ON DELETE CASCADE) -- Havuz olaylarında dolu; havuzun alıcısına hiçbir zaman üretilmez ve listede süzülür. Yeni türler: `pool_added`, `pool_manager_assigned`; havuz olaylarının params'ında `recipient_name` bulunur. Havuz hatırlatmalarının anahtarı `reminder:3d:<havuz>:<tarih>` / `overdue:<havuz>:<tarih>` biçimindedir.
+
 ### 7. `GroupCover` (Grup Kapak Fotoğrafları)
 - `group_id`: UUID (Primary Key, Foreign Key -> `groups.id`, ON DELETE CASCADE) -- grup başına en fazla bir kapak
 - `data`: BYTEA, boş geçilemez -- sunucuda işlenmiş JPEG (4:3, en çok 1600x1200, metadata'sız). Yüklenen özgün dosya saklanmaz.
@@ -105,7 +110,17 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `updated_by`: UUID (Opsiyonel, Foreign Key -> `users.id`, ON DELETE SET NULL) -- kapağı son yükleyen
 - Baytlar hiçbir JSON yanıtında yer almaz; yalnızca `GET /groups/:id/cover` döner.
 
+### 8. `GiftPool` (MULTI grupta alıcı başına havuz)
+- `id` UUID PK; `group_id` (FK groups, CASCADE); `recipient_user_id` (FK users, CASCADE; indeks); `manager_user_id` (opsiyonel, FK users, SET NULL; yalnızca alıcı grup yöneticisiyse dolu); `total_budget` NUMERIC(10,2) varsayılan 0; `interests` TEXT (satır sonuyla); `event_date` DATE; `status` ('ACTIVE','COMPLETED'); `completed_at`; `created_at`. UNIQUE(`group_id`, `recipient_user_id`). Hiçbir JSON yanıtında doğrudan yer almaz (`LockedPool` / `OpenPool` / `PoolDetail` DTO'ları).
+
+### 9. `PoolContribution` (Havuz katkıları)
+- PK (`pool_id` FK gift_pools CASCADE, `user_id` FK users CASCADE); `contributing` BOOLEAN varsayılan true; `updated_at`. Satırın olmaması "katkı veriyor" demektir (`COALESCE(contributing, true)`); satırlar havuz kurulurken ve her katılma yolunda (üye ekleme, davet linki) yine de yazılır.
+
 ---
+
+### 10. `GroupInvite` (Davet linkleri)
+- `id` UUID PK; `group_id` (FK groups, CASCADE); `token_hash` VARCHAR(64) benzersiz (ham token'ın SHA-256 hex özeti; ham token saklanmaz); `created_by` (FK users, CASCADE); `expires_at`; `revoked_at` (opsiyonel); `created_at`.
+- Grup başına en fazla bir aktif davet (iptal edilmemiş ve süresi dolmamış). Yenisi oluşturulunca eskisi aynı transaction'da iptal edilir.
 
 ## 4. Temel İş Mantığı ve Mimari Kurallar (Business Logic)
 
@@ -172,7 +187,21 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
    - **Hedef hesap (Anti-Spoiler, kritik):** `models.Group.TargetUser` hiçbir JSON yanıtında yer almaz (`json:"-"`; önceden grup detayı hedefin e-postasını da içeren tam kullanıcı nesnesini dönüyordu). Grup detayı yalnızca üyelere `target_account: { id, name }` döner; e-posta, şifre özeti, avatar yoktur. Hedef kişi detayda 403 aldığı için bu veriye ulaşamaz; `GET /groups` listesi ve `PATCH /groups/:id/target` yanıtı hedef hesap bilgisini hiç taşımaz.
    - **Arayüz:** Bağlıysa kobalt kalkanla "{ad} hesabı bağlı" (ad yoksa `target_person_name`), değilse turuncu uyarı tonunda "Hesap bağlı değil"; admin'e yanında "Hesabı bağla" (yönetici menüsündeki bağlama penceresinin aynısı), üyeye yalnızca bilgi. Durum her zaman metinle yazılır; ikon `aria-hidden`.
 
+9. **Birden çok kişi için gruplar (MULTI):**
+   - Admin üyeler arasından alıcı seçer (`POST /groups/:id/recipients`); her alıcının kendi havuzu (fikirler, oylar, bütçe, ilgi alanları, tarih, durum, 1–20 kazanan, yeniden açma) vardır. Admin kendini yalnızca başka bir üyeyi havuz yöneticisi seçerek alıcı yapabilir.
+   - **Etkin yönetici:** alıcı grup yöneticisiyse `manager_user_id` (NULL ise kimse; admin yeniden atar), değilse grup yöneticisi. Yetkileri: bütçe, tarih, kazanan/yeniden açma, veto, ilgi alanı silme, fikir silme.
+   - **Havuz düzeyinde Anti-Spoiler (kritik):** Alıcı kendi havuzunu yalnızca `{id, recipient, is_mine: true, locked: true}` olarak görür (tek istisna: grup yöneticisi kendi havuzunda, kendi atadığı sorumluyu `manager: {id, name}` olarak da görür); `/groups/:id/pools/:poolId/*` ve kendi havuzundaki fikirler için `/ideas/:id/*` uçlarında gövde doğrulamasından önce 403 + sürpriz mesajı alır. Grup listesi/detayı, havuz listesi, bildirimler (liste, sayaç, okundu, akış), hatırlatmalar ve grup SSE akışı (havuz anahtarları) kendi havuzundan hiçbir iz taşımaz. Diğer havuzlara normal katılır.
+   - **Katkı:** Alıcı dışındaki her üye varsayılan olarak katkı verir; yalnızca kendi tercihini değiştirir, havuz COMPLETED iken 409. Katkı vermeyen fikir ekler ve oy verir. Kişi başı = havuz bütçesi / katkı veren sayısı; katkı veren yoksa `per_person_budget: null`, `no_contributors: true`. Çoğunluk vetosu seçmenleri: alıcı hariç üyeler.
+   - Alıcı her zaman eklenebilir; havuzunda fikir varsa kaldırmak `confirm=true` ister (çağıran o havuzun alıcısıysa her zaman). Alıcının hesabı silinirse havuzu da silinir.
+   - SINGLE'a özgü grup uçları (`/ideas`, `/ideas/generate-ai`, `/budget`, `/interests`, `/event-date`, `/winner`, `/target`) MULTI'de, `/pools` ve `/recipients/*` SINGLE'da 409 döner.
+
 ---
+
+10. **Davet linki:**
+   - Yalnızca admin oluşturur, yeniler, iptal eder; geçerlilik 1, 7 veya 30 gün. Ham token 32 rastgele bayt (base64url), yalnızca oluşturma yanıtında bir kez döner.
+   - Linki açan giriş yapmış kullanıcı önizlemeyi görür ve onay beklemeden `member` olur; tamamlanmış gruba da katılınabilir. Katılım `member_joined` bildirimi ve grup akışına `changed` olayı üretir.
+   - **Anti-Spoiler (kritik):** SINGLE grubun hedef kişisi önizleme ve katılmada 403 + sürpriz mesajı alır; yanıt grup verisi taşımaz. Katılma, üye ekleme ve hedef bağlama ile aynı grup satırı kilidinde hedefi ve üyeliği yeniden denetler; hedef hiçbir yarışta üye olamaz. Hedef hesabı bağlı değilken link koruma sağlamaz; arayüz bu durumda uyarı gösterir.
+   - Token loglara yazılmaz: API isteği logu rota şablonunu yazar, nginx davet yollarında `access_log off` kullanır. Geçersiz, süresi dolmuş, iptal edilmiş ve biçimi bozuk token aynı 404'ü alır.
 
 ## 5. REST API Uç Noktaları (REST Contract)
 
@@ -202,6 +231,8 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `PUT /api/v1/groups/:id/cover` -> `multipart/form-data`, alan `file` (JPEG/PNG/WebP, en fazla 2 MiB ve uzun kenar 2000 piksel; büyük fotoğrafı tarayıcı küçültür). Kapağı ekler veya değiştirir; sunucu görseli İş Kuralı 7'deki gibi işler. Yanıt `{ cover_version, width, height }`. Varsayılan olarak tüm üyeler; `cover_admin_only` açıksa yalnızca admin (üye 403). 400 / 413 / 415 hata kodları İş Kuralı 7'de.
 - `DELETE /api/v1/groups/:id/cover` -> Kapağı kaldırır; yetki yüklemeyle aynıdır. Kapak yoksa da 200 (idempotent).
 - `PATCH /api/v1/groups/:id/cover-policy` -> `{ cover_admin_only: boolean }` ile yalnızca **admin** kapağı kimin değiştirebileceğini ayarlar; üye 403. Yanıt `{ cover_admin_only }`.
+- `POST /api/v1/groups` isteğinde `mode` (`SINGLE` varsayılan | `MULTI`) alanı vardır; MULTI'de hedef alanları, `total_budget` > 0 ve `event_date` 400 döner.
+- **MULTI uçları** (ayrıntılı sözleşme Swagger'dadır): `GET /groups/:id/pools`; `POST /groups/:id/recipients` `{user_id, manager_user_id?}`; `PATCH /groups/:id/recipients/:userId/manager` `{manager_user_id}`; `DELETE /groups/:id/recipients/:userId[?confirm=true]`; `GET /groups/:id/pools/:poolId`; `GET|POST /groups/:id/pools/:poolId/ideas`, `POST .../ideas/generate-ai`; `POST|DELETE .../interests`; `PATCH .../budget`; `PATCH .../event-date`; `POST|DELETE .../winner`; `PUT .../contribution` `{contributing}`.
 - `DELETE /api/v1/groups/:id` -> Grubu ve bağlı tüm verileri siler (Sadece grup admini silebilir; Anti-Spoiler korumalı). Kapak fotoğrafı CASCADE ile silinir.
 
 ### Hediye Havuzu ve Oylama
@@ -213,6 +244,13 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `DELETE /api/v1/ideas/:id/vote` -> Kullanıcının bu fikre verdiği oyu kaldırır; oy yoksa da 200 (idempotent). Çoğunluk vetosuyla reddedilmiş fikir kendiliğinden geri açılmaz. Anti-Spoiler ve üyelik kontrolü zorunludur.
 - `POST /api/v1/ideas/:id/reject` -> Grup admini doğrudan hediye fikrini veto eder (`status = REJECTED`)
 - `DELETE /api/v1/ideas/:id` -> Hediyeyi kaldırır (Sadece öneren kişi veya grup admini silebilir)
+
+### Davet Linki
+- `GET /api/v1/groups/:id/invite` -> Yalnızca admin. `{ active, expires_at?, created_at? }`; token dönmez.
+- `POST /api/v1/groups/:id/invite` -> Yalnızca admin. `{ expires_in_days: 1 | 7 | 30 }` (başka değer 400). `201` + `{ token, expires_at }`; önceki aktif link iptal olur.
+- `DELETE /api/v1/groups/:id/invite` -> Yalnızca admin; aktif linki iptal eder (idempotent 200).
+- `GET /api/v1/invites/:token` -> Giriş yapmış herkes. `{ group_title, inviter_name, member_count, already_member, group_id? }` (`group_id` yalnızca zaten üyeyse). Hedef kişi 403 + sürpriz mesajı; geçersiz token 404.
+- `POST /api/v1/invites/:token/accept` -> Çağıranı `member` yapar; `{ group_id }`. Zaten üyeyse 200 (idempotent, bildirim yok). Hedef kişi 403; geçersiz token 404; hesabı silinmiş oturum 401.
 
 ### Bildirimler
 - `GET /api/v1/notifications` -> `{ items: Notification[], unread_count }`. Giriş yapan kullanıcının en yeni 50 bildirimi (yeniden eskiye); öğe: `{ id, group_id, group_title, type, params, read_at?, created_at }`. `unread_count` tüm okunmamışları sayar. Kullanıcının hedef kişisi olduğu gruplara ait satırlar hiçbir zaman dönmez (Anti-Spoiler).

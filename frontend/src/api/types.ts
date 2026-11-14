@@ -9,10 +9,16 @@ export type User = {
   created_at: string
 }
 
+// SINGLE: tek hedef kişi (eski davranış). MULTI: her hediye alacak kişi için ayrı havuz. Kurulurken
+// seçilir, değişmez. Alan eski yanıtlarda yoksa SINGLE sayılır.
+export type GroupMode = 'SINGLE' | 'MULTI'
+
 export type Group = {
   id: string
   title: string
   description?: string
+  mode?: GroupMode
+  // MULTI grupta boştur.
   target_person_name: string
   target_interests?: string
   target_user_id?: string
@@ -44,6 +50,10 @@ export type GroupListItem = Group & {
   idea_count: number
   // Bana özel: açık gruptaki, benim eklemediğim ve henüz oy vermediğim aktif fikirler.
   pending_votes: number
+  // Yalnızca MULTI: hediye alacak kişilerin adları (havuz kurulma sırasıyla; ben de olabilirim).
+  recipients?: AccountSummary[]
+  // Yalnızca MULTI: görebildiğim aktif havuzların en yakın tarihi.
+  next_event_date?: string
 }
 
 export type GroupMember = {
@@ -65,6 +75,8 @@ export type GroupDetail = {
   // Bağlı hedef hesabın yalnızca kimliği ve adı (e-posta yok). Hedef bağlı değilse ya da hesap
   // yüklenemediyse gelmez; arayüz o zaman target_person_name'i kullanır. Grup listesinde yoktur.
   target_account?: AccountSummary
+  // Yalnızca MULTI: havuz kartları; kendi havuzum LockedPool olarak gelir.
+  pools?: PoolView[]
 }
 
 export type AccountSummary = { id: string; name: string }
@@ -77,8 +89,10 @@ export type UpdateProfileResponse = { user: User; token?: string }
 
 export type CreateGroupInput = {
   title: string
-  target_person_name: string
-  total_budget: string
+  // MULTI grupta hedef, bütçe, ilgi alanı ve tarih gönderilmez (400); SINGLE'da mode yoksa SINGLE'dır.
+  mode?: GroupMode
+  target_person_name?: string
+  total_budget?: string
   description?: string
   target_interests?: string
   // Sunucu kayıtlı kullanıcıyı bulur; bulamazsa 404 döner.
@@ -94,6 +108,8 @@ export type IdeaStatus = 'ACTIVE' | 'REJECTED' | 'SELECTED'
 export type Idea = {
   id: string
   group_id: string
+  // Yalnızca MULTI havuz fikirlerinde.
+  pool_id?: string
   title: string
   description?: string
   estimated_price: string
@@ -147,6 +163,8 @@ export type NotificationType =
   | 'budget_changed'
   | 'event_reminder'
   | 'winner_overdue'
+  | 'pool_added'
+  | 'pool_manager_assigned'
 
 export type NotificationParams = {
   // İşlemi yapan üyenin adı (hatırlatmalarda yok).
@@ -159,12 +177,16 @@ export type NotificationParams = {
   total_budget?: string
   // Hatırlatma üretildiği anda kalan gün (0: bugün, 1: yarın).
   days_left?: number
+  // Havuz bildirimlerinde hediye alacak kişinin adı.
+  recipient_name?: string
 }
 
 export type AppNotification = {
   id: string
   group_id: string
   group_title: string
+  // Yalnızca MULTI havuz olaylarında.
+  pool_id?: string
   // Bilinmeyen (yeni) türler genel bir metinle gösterilir.
   type: NotificationType | (string & {})
   params: NotificationParams
@@ -176,4 +198,59 @@ export type AppNotification = {
 export type NotificationList = {
   items: AppNotification[]
   unread_count: number
+}
+
+// Davet linki. Ham token yalnızca oluşturma yanıtında bir kez gelir; durum yanıtında asla yoktur.
+export type InviteDays = 1 | 7 | 30
+export type InviteStatus = { active: boolean; expires_at?: string; created_at?: string }
+export type InviteCreated = { token: string; expires_at: string }
+export type InvitePreview = {
+  // Yalnızca already_member true iken gelir; katılınca accept yanıtı kimliği verir.
+  group_id?: string
+  group_title: string
+  inviter_name: string
+  member_count: number
+  already_member: boolean
+}
+
+// MULTI havuzlar (docs: multi-api-contract). Kendi havuzum yalnızca 4 alanlı kilitli karttır;
+// arayüz o havuz için hiçbir /pools/:id/... isteği yapmaz.
+// manager yalnızca grup yöneticisinin kendi havuzunda gelir (sorumluyu kendisi atar); diğer
+// alıcıların kilitli kartında alan hiç yoktur.
+export type LockedPool = { id: string; recipient: AccountSummary; is_mine: true; locked: true; manager?: AccountSummary }
+
+export type OpenPool = {
+  id: string
+  recipient: AccountSummary
+  is_mine: false
+  locked: false
+  // Etkin yönetici; yoksa (admin'in kendi havuzu ve sorumlu hesabı silinmiş) null.
+  manager: AccountSummary | null
+  // Bütçe, tarih, kazanan, veto gibi yönetici yetkileri bende mi (havuz yöneticisi ya da admin).
+  can_manage: boolean
+  status: GroupStatus
+  completed_at?: string
+  event_date?: string
+  total_budget: string
+  // Katılan yoksa null.
+  per_person_budget: string | null
+  no_contributors: boolean
+  contributor_count: number
+  my_contribution: boolean
+  idea_count: number
+  pending_votes: number
+}
+
+export type PoolView = OpenPool | LockedPool
+
+export type Contributor = { user_id: string; name: string; contributing: boolean }
+
+export type PoolDetail = OpenPool & { interests: string[]; contributors: Contributor[] }
+
+// PUT /groups/:id/pools/:poolId/contribution yanıtı.
+export type ContributionResult = {
+  contributing: boolean
+  contributor_count: number
+  per_person_budget: string | null
+  no_contributors: boolean
 }
