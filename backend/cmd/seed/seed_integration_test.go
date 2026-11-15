@@ -71,8 +71,9 @@ func TestSeedIsAdditiveIdempotentAndRespectsAntiSpoiler(t *testing.T) {
 		t.Fatalf("ilk seed: %v", err)
 	}
 	// SINGLE grup: 3 üye, 3 fikir, 4 oy. MULTI "Ofis Yılbaşı": 4 üye, 2 havuz, 4 fikir, 3 oy,
-	// 6 katkı satırı (her havuzda alıcı dışındaki 3 üye; biri katkı vermiyor).
-	want := map[string]int64{"users": 5, "groups": 2, "group_members": 7, "gift_ideas": 7, "votes": 7, "gift_pools": 2, "pool_contributions": 6}
+	// 6 katkı satırı (her havuzda alıcı dışındaki 3 üye; biri katkı vermiyor). Vitrin: "Selin'in
+	// Mezuniyeti" (4 üye, 3 fikir, 5 oy) ve kazananı seçilmiş "Elif'in Doğum Günü" (3 üye, 1 fikir).
+	want := map[string]int64{"users": 5, "groups": 4, "group_members": 14, "gift_ideas": 11, "votes": 12, "gift_pools": 2, "pool_contributions": 6}
 	got := counts(t, db)
 	for k, v := range want {
 		if got[k] != v {
@@ -97,11 +98,17 @@ func TestSeedIsAdditiveIdempotentAndRespectsAntiSpoiler(t *testing.T) {
 	groups := repository.NewGroupRepository(db)
 	target, _ := users.FindByEmail(demoTarget.Email)
 	admin, _ := users.FindByEmail(demoAdmin.Email)
-	// Hedef kişi SINGLE grubu görmez; MULTI grupta sıradan üyedir.
-	if list, err := groups.GetUserGroups(target.ID); err != nil || len(list) != 1 || list[0].Mode != models.GroupModeMulti {
-		t.Fatalf("hedef kişinin grup listesi yanlış (yalnızca MULTI grup beklenir): %v %v", err, list)
+	// Hedef kişi "Ahmet'in 30. Yaş Sürprizi"ni görmez; diğer üç grupta (MULTI + vitrin) sıradan üyedir.
+	list, err := groups.GetUserGroups(target.ID)
+	if err != nil || len(list) != 3 {
+		t.Fatalf("hedef kişinin grup listesi yanlış (3 grup beklenir): %v %v", err, list)
 	}
-	if list, err := groups.GetUserGroups(admin.ID); err != nil || len(list) != 2 {
+	for _, g := range list {
+		if g.Title == "Ahmet'in 30. Yaş Sürprizi" {
+			t.Fatalf("hedef kişi kendi sürpriz grubunu görüyor: %+v", g)
+		}
+	}
+	if list, err := groups.GetUserGroups(admin.ID); err != nil || len(list) != 4 {
 		t.Fatalf("yönetici demo gruplarını göremiyor: %v %v", err, list)
 	}
 

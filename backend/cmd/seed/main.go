@@ -110,7 +110,19 @@ func seed(db *gorm.DB, password string) error {
 			return err
 		}
 		if existing != nil {
-			return errAlreadySeeded
+			// Temel demo verisi var; yalnızca eksik vitrin senaryolarını ekle.
+			users := map[string]*models.User{}
+			for _, u := range demoUsers {
+				found, err := userRepo.FindByEmail(u.Email)
+				if err != nil {
+					return err
+				}
+				if found == nil {
+					return errAlreadySeeded
+				}
+				users[u.Email] = found
+			}
+			return seedShowcase(tx, users)
 		}
 
 		auth := services.NewAuthService(userRepo, "seed-unused-secret")
@@ -170,7 +182,10 @@ func seed(db *gorm.DB, password string) error {
 				return fmt.Errorf("oy: %w", err)
 			}
 		}
-		return seedMultiGroup(tx, users)
+		if err := seedMultiGroup(tx, users); err != nil {
+			return err
+		}
+		return seedShowcase(tx, users)
 	})
 }
 
