@@ -629,9 +629,9 @@ describe('pool notifications', () => {
   })
 
   it('words pool events with the recipient and keeps the old wording without one', () => {
-    expect(notificationText(n({}))).toBe('Can Er Elif Kara için yeni bir fikir ekledi: Termos')
+    expect(notificationText(n({}))).toBe('Can Er, Elif Kara için yeni bir fikir ekledi: Termos')
     expect(notificationText(n({ type: 'budget_changed', params: { actor_name: 'Can Er', total_budget: '1500.00', recipient_name: 'Elif Kara' } }))).toBe(
-      'Can Er Elif Kara için bütçeyi ₺1.500,00 yaptı',
+      'Can Er, Elif Kara için bütçeyi ₺1.500,00 yaptı',
     )
     expect(notificationText(n({ type: 'pool_added', params: { actor_name: 'Deniz Aksoy', recipient_name: 'Elif Kara' } }))).toBe(
       'Deniz Aksoy, Elif Kara için bir hediye havuzu açtı',
@@ -659,7 +659,7 @@ describe('pool notifications', () => {
     const { router } = renderApp('/')
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: 'Bildirimler, 1 okunmamış' }))
-    await user.click(await screen.findByRole('menuitem', { name: /Elif Kara Can Er için yeni bir fikir ekledi/ }))
+    await user.click(await screen.findByRole('menuitem', { name: /Elif Kara, Can Er için yeni bir fikir ekledi/ }))
     await waitFor(() => expect(router.state.location.pathname + router.state.location.search).toBe(`${G}?pool=p-can`))
     expect(await screen.findByRole('heading', { level: 2, name: 'Can Er için' })).toBeInTheDocument()
   })

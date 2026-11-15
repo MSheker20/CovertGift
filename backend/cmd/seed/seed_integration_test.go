@@ -73,7 +73,8 @@ func TestSeedIsAdditiveIdempotentAndRespectsAntiSpoiler(t *testing.T) {
 	// SINGLE grup: 3 üye, 3 fikir, 4 oy. MULTI "Ofis Yılbaşı": 4 üye, 2 havuz, 4 fikir, 3 oy,
 	// 6 katkı satırı (her havuzda alıcı dışındaki 3 üye; biri katkı vermiyor). Vitrin: "Selin'in
 	// Mezuniyeti" (4 üye, 3 fikir, 5 oy) ve kazananı seçilmiş "Elif'in Doğum Günü" (3 üye, 1 fikir).
-	want := map[string]int64{"users": 5, "groups": 4, "group_members": 14, "gift_ideas": 11, "votes": 12, "gift_pools": 2, "pool_contributions": 6}
+	// Havuz bildirimleri vitrini: MULTI "Ekip Doğum Günleri" (4 üye, 2 havuz, 2 fikir, 6 katkı satırı).
+	want := map[string]int64{"users": 5, "groups": 5, "group_members": 18, "gift_ideas": 13, "votes": 12, "gift_pools": 4, "pool_contributions": 12}
 	got := counts(t, db)
 	for k, v := range want {
 		if got[k] != v {
@@ -98,17 +99,17 @@ func TestSeedIsAdditiveIdempotentAndRespectsAntiSpoiler(t *testing.T) {
 	groups := repository.NewGroupRepository(db)
 	target, _ := users.FindByEmail(demoTarget.Email)
 	admin, _ := users.FindByEmail(demoAdmin.Email)
-	// Hedef kişi "Ahmet'in 30. Yaş Sürprizi"ni görmez; diğer üç grupta (MULTI + vitrin) sıradan üyedir.
+	// Hedef kişi "Ahmet'in 30. Yaş Sürprizi"ni görmez; diğer dört grupta (iki MULTI + vitrin) sıradan üyedir.
 	list, err := groups.GetUserGroups(target.ID)
-	if err != nil || len(list) != 3 {
-		t.Fatalf("hedef kişinin grup listesi yanlış (3 grup beklenir): %v %v", err, list)
+	if err != nil || len(list) != 4 {
+		t.Fatalf("hedef kişinin grup listesi yanlış (4 grup beklenir): %v %v", err, list)
 	}
 	for _, g := range list {
 		if g.Title == "Ahmet'in 30. Yaş Sürprizi" {
 			t.Fatalf("hedef kişi kendi sürpriz grubunu görüyor: %+v", g)
 		}
 	}
-	if list, err := groups.GetUserGroups(admin.ID); err != nil || len(list) != 4 {
+	if list, err := groups.GetUserGroups(admin.ID); err != nil || len(list) != 5 {
 		t.Fatalf("yönetici demo gruplarını göremiyor: %v %v", err, list)
 	}
 
@@ -117,7 +118,7 @@ func TestSeedIsAdditiveIdempotentAndRespectsAntiSpoiler(t *testing.T) {
 	member, _ := users.FindByEmail(demoMember.Email)
 	friend, _ := users.FindByEmail(demoFriend.Email)
 	var multi models.Group
-	if err := db.First(&multi, "mode = ?", models.GroupModeMulti).Error; err != nil || multi.Title != multiGroupTitle {
+	if err := db.First(&multi, "mode = ? AND title = ?", models.GroupModeMulti, multiGroupTitle).Error; err != nil {
 		t.Fatalf("MULTI demo grubu yok: %v %+v", err, multi)
 	}
 	// Sıra kararlıdır (created_at açıkça yazılır; liste "created_at, id" ile sıralanır): önce Zeynep.
@@ -150,5 +151,60 @@ func TestSeedIsAdditiveIdempotentAndRespectsAntiSpoiler(t *testing.T) {
 	}
 	if got := friendStats[pools[1].ID]; got.ContributorCount != 2 || got.IdeaCount != 2 {
 		t.Fatalf("Can havuzunun sayaçları yanlış: %+v", got)
+	}
+}
+
+// Havuz bildirimleri: her türden en az bir satır var, hepsi pool_id taşıyor ve recipient_name
+// içeriyor; hiçbir havuz bildirimi o havuzun alıcısına yazılmamış (Anti-Spoiler). "Süre doldu"
+// yalnızca havuzun etkin sorumlusuna gider (atanmadıysa grup yöneticisi).
+func TestSeedPoolNotificationsRespectAntiSpoiler(t *testing.T) {
+	db := openTestDB(t)
+	if err := seed(db, "Demo1234!"); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	type row struct {
+		Type      string
+		UserID    string
+		Recipient string
+		Manager   *string
+		HasName   bool
+	}
+	var rows []row
+	if err := db.Raw(`SELECT n.type, n.user_id::text AS user_id, p.recipient_user_id::text AS recipient,
+			COALESCE(p.manager_user_id, (SELECT gm.user_id FROM group_members gm
+				WHERE gm.group_id = p.group_id AND gm.role = 'admin' LIMIT 1))::text AS manager,
+			(n.params ? 'recipient_name') AS has_name
+		FROM notifications n JOIN gift_pools p ON p.id = n.pool_id`).Scan(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	byType := map[string]int{}
+	for _, r := range rows {
+		byType[r.Type]++
+		if r.UserID == r.Recipient {
+			t.Fatalf("havuzun alıcısına kendi havuzundan bildirim yazılmış: %+v", r)
+		}
+		if !r.HasName {
+			t.Fatalf("havuz bildiriminde recipient_name yok: %+v", r)
+		}
+		if r.Type == models.NotificationWinnerOverdue && (r.Manager == nil || *r.Manager != r.UserID) {
+			t.Fatalf("süre doldu bildirimi sorumlu dışında birine gitmiş: %+v", r)
+		}
+	}
+	for _, typ := range []string{
+		models.NotificationPoolAdded, models.NotificationPoolManagerAssigned, models.NotificationIdeaAdded,
+		models.NotificationEventDateChanged, models.NotificationEventReminder, models.NotificationWinnerOverdue,
+	} {
+		if byType[typ] == 0 {
+			t.Errorf("%s türünde havuz bildirimi yok (%v)", typ, byType)
+		}
+	}
+	// İkinci çalıştırma hiçbir şey eklemez.
+	before := len(rows)
+	if err := seed(db, "Demo1234!"); !errors.Is(err, errAlreadySeeded) {
+		t.Fatalf("ikinci seed errAlreadySeeded dönmeli: %v", err)
+	}
+	var after int64
+	if err := db.Raw("SELECT count(*) FROM notifications WHERE pool_id IS NOT NULL").Scan(&after).Error; err != nil || int(after) != before {
+		t.Fatalf("ikinci seed havuz bildirimi ekledi: %v %d → %d", err, before, after)
 	}
 }
