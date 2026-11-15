@@ -4,7 +4,18 @@ Not: Bu liste henüz düzeltilmemiş bug'ları ve fikirleri toplar. Çözülenle
 
 ## Sıradaki oturum planı (2026-11-15'te hazırlandı)
 
-Öneri sırası: önce güvence (1–3), sonra küçük bir dağıtım (4–5), sonra ürün işleri arasından seçim.
+Öneri sırası: önce ACİL madde (0), sonra güvence (1–3), sonra küçük bir dağıtım (4–5), sonra ürün işleri arasından seçim.
+
+### 0. ACİL — "Senden bekleyenler" paneli (kullanıcı isteği, 2026-11-15)
+#28'den sonra panel masaüstünde kartın yüksekliğine sabitlendi ve listesi kendi içinde kayıyor. Canlıda (koyu tema) görünüm kötü:
+- Tarayıcının varsayılan, kalın gri kaydırma çubuğu ve izi görünüyor.
+- Üçüncü satır yarıdan kesiliyor ("Normal" etiketi ve başlık yarım kalıyor); kaydırılabildiğine dair başka bir ipucu yok.
+
+Ya kaydırma çubuğu değiştirilecek ya da alan baştan tasarlanacak. Seçenekler:
+- **(a) Küçük düzeltme:** İnce, token renkli bir kaydırma çubuğu; altta yumuşak bir solma ipucu; satırlar yarım kesilmeyecek şekilde yükseklik ayarı ya da scroll-snap.
+- **(b) Yeniden tasarım (önerilen):** İç kaydırma kaldırılır. Panelde en önemli 2–3 görev ve altında "Tümünü gör (4)" ile genişleyen liste ya da ayrı bir görünüm olur. Mavi kart yine kendi yüksekliğinde kalır (#28'in amacı korunur), paneldeki hiçbir satır kesilmez. Telefon düzeni de birlikte gözden geçirilir.
+
+Karar oturum başında, birkaç örnekle birlikte verilecek. Dosyalar: `frontend/src/pages/GroupsPage.tsx` (`TasksPanel`) ve `components/Panel.tsx`.
 
 ### A. Güvence ve altyapı (önce)
 1. **Playwright e2e'yi çalıştır ve düzelt.** Bu oturumda hiç çalıştırılmadı; #25 (sekme yapısı), #28 (ana sayfa düzeni) ve #29 (avatar) `multi.spec`, `profile.spec` ve `acceptance.spec`'i bozmuş olabilir. `npm --prefix frontend run test:e2e`; API ve test DB açık olmalı.
