@@ -42,7 +42,7 @@ export function MembersPanel({
       <ul className="flex flex-col gap-1">
         {(d?.members ?? []).map((m) => (
           <li key={m.id} className="flex min-h-11 items-center gap-3">
-            <Avatar name={m.user?.name ?? '?'} seed={m.user_id} size="sm" />
+            <Avatar name={m.user?.name ?? '?'} seed={m.user_id} userId={m.user_id} version={m.user?.avatar_version} size="sm" />
             {multi ? (
               // MULTI'de rozetler adın altına iner: dar ekranda ad "D…" diye kısalmasın.
               <span className="min-w-0 flex-1 py-1">

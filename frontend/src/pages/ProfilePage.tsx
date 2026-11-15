@@ -1,16 +1,17 @@
 import { useState, type ComponentProps, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
-import { authApi } from '@/api/endpoints'
+import { authApi, queryKeys } from '@/api/endpoints'
 import type { User } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { CoverCropDialog } from '@/components/CoverCropDialog'
 import { FormField } from '@/components/FormField'
 import { Bar, Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
@@ -30,7 +31,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const WRONG_PASSWORD = 'mevcut şifre hatalı'
 const SAME_PASSWORD = 'yeni şifre mevcut şifreyle aynı olamaz'
 
-// Profil ekranı: tek sütun, ayrı kartlar. Hesap bilgileri, şifre değiştirme ve hesabı silme.
+// Profil ekranı: tek sütun, ayrı kartlar. Profil fotoğrafı, hesap bilgileri, şifre değiştirme ve hesabı silme.
 export function ProfilePage() {
   const { t } = useTranslation()
   const { user } = useAuth()
@@ -47,7 +48,7 @@ export function ProfilePage() {
 
       <header className="mt-4 flex items-center gap-4">
         {user ? (
-          <Avatar name={user.name} seed={user.id} size="lg" className="size-14 text-base md:size-16 md:text-lg" />
+          <Avatar name={user.name} seed={user.id} userId={user.id} version={user.avatar_version} size="lg" className="size-14 text-base md:size-16 md:text-lg" />
         ) : (
           <Bar className="size-14 md:size-16" />
         )}
@@ -60,12 +61,99 @@ export function ProfilePage() {
       </header>
 
       <div className="mt-8 flex flex-col gap-4">
+        {user && <PhotoCard user={user} />}
         {/* Kullanıcı değişince (kayıt sonrası) form kaydedilen değerlerle yeniden başlar. */}
         {user && <AccountCard key={`${user.name}\u0000${user.email}`} user={user} />}
         <PasswordCard />
         <DeleteAccountCard />
       </div>
     </div>
+  )
+}
+
+// Profil fotoğrafı: ekle/değiştir (kare kırpma ekranı) ve kaldır. Fotoğrafı yalnızca ortak gruptakiler
+// görür. Değişiklikten sonra grup verisi yenilenir: üye listeleri yeni sürümü taşır.
+function PhotoCard({ user }: { user: User }) {
+  const { t } = useTranslation()
+  const { updateUser } = useAuth()
+  const queryClient = useQueryClient()
+  const [picking, setPicking] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const setVersion = (version?: string) => {
+    updateUser({ user: { ...user, avatar_version: version } })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
+  }
+
+  const upload = useMutation({
+    mutationFn: (image: Blob) => authApi.uploadAvatar(image),
+    onSuccess: (res) => {
+      setVersion(res.avatar_version)
+      setPicking(false)
+      toast.success(t('avatar.saved'))
+    },
+  })
+  const remove = useMutation({
+    mutationFn: () => authApi.removeAvatar(),
+    onSuccess: () => {
+      setVersion(undefined)
+      setRemoving(false)
+      toast.success(t('avatar.removed'))
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  })
+
+  return (
+    <Panel title={t('avatar.title')}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <Avatar
+          name={user.name}
+          seed={user.id}
+          userId={user.id}
+          version={user.avatar_version}
+          size="lg"
+          className="size-20 text-xl"
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <p className="text-sm text-muted">{t('avatar.visibility')}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                upload.reset()
+                setPicking(true)
+              }}
+            >
+              {user.avatar_version ? t('avatar.change') : t('avatar.add')}
+            </Button>
+            {user.avatar_version && (
+              <Button variant="ghost" onClick={() => setRemoving(true)}>
+                {t('avatar.remove')}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+      <CoverCropDialog
+        kind="avatar"
+        open={picking}
+        onOpenChange={setPicking}
+        onCropped={(image) => upload.mutate(image)}
+        confirmLabel={t('avatar.save')}
+        pending={upload.isPending}
+        error={upload.error ? errorMessage(upload.error) : null}
+        hint={t('avatar.visibility')}
+      />
+      <ConfirmDialog
+        open={removing}
+        onOpenChange={(o) => !remove.isPending && setRemoving(o)}
+        title={t('avatar.removeTitle')}
+        body={t('avatar.removeBody')}
+        confirmLabel={t('avatar.removeConfirm')}
+        cancelLabel={t('manage.cancel')}
+        pending={remove.isPending}
+        onConfirm={() => remove.mutate()}
+      />
+    </Panel>
   )
 }
 

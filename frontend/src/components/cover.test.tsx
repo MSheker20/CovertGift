@@ -44,12 +44,18 @@ const cropOf = () =>
     .split(',')
     .map(Number)
 
-function Harness({ onCropped = vi.fn(), pending = false, error = null as string | null }) {
+function Harness({
+  onCropped = vi.fn(),
+  pending = false,
+  error = null as string | null,
+  kind = 'cover' as 'cover' | 'avatar',
+}) {
   const [open, setOpen] = useState(true)
   return (
     <>
       <button onClick={() => setOpen(true)}>aç</button>
       <CoverCropDialog
+        kind={kind}
         open={open}
         onOpenChange={setOpen}
         onCropped={onCropped}
@@ -146,7 +152,7 @@ describe('cover crop dialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'Fotoğrafı kaydet' }))
     await waitFor(() => expect(onCropped).toHaveBeenCalledWith(blob))
-    expect(renderCrop).toHaveBeenCalledWith(expect.any(HTMLImageElement), { sx: 240, sy: 0, sw: 1440, sh: 1080 })
+    expect(renderCrop).toHaveBeenCalledWith(expect.any(HTMLImageElement), { sx: 240, sy: 0, sw: 1440, sh: 1080 }, expect.objectContaining({ aspect: 4 / 3 }))
   })
 
   it('moves with the arrow keys, zooms with + and − and stays inside the image', async () => {
@@ -244,6 +250,36 @@ describe('cover crop dialog', () => {
     await user.click(screen.getByRole('button', { name: 'aç' }))
     expect(await screen.findByRole('button', { name: /Fotoğraf seç/ })).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Kırpma alanı' })).not.toBeInTheDocument()
+  })
+})
+
+describe('avatar crop dialog', () => {
+  it('crops a centred square under a round mask and exports a square', async () => {
+    const onCropped = vi.fn()
+    const blob = new Blob(['jpeg'], { type: 'image/jpeg' })
+    prepareImage.mockResolvedValue(loaded(1920, 1080))
+    renderCrop.mockResolvedValue(blob)
+    renderWithProviders(<Harness kind="avatar" onCropped={onCropped} />)
+    expect(screen.getByRole('heading', { name: 'Profil fotoğrafı' })).toBeInTheDocument()
+    const user = await pick(photo())
+
+    await screen.findByRole('group', { name: 'Kırpma alanı' })
+    expect(cropOf()).toEqual([420, 0, 1080, 1080])
+    expect(screen.getByTestId('avatar-mask')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Fotoğrafı kaydet' }))
+    await waitFor(() => expect(onCropped).toHaveBeenCalledWith(blob))
+    expect(renderCrop).toHaveBeenCalledWith(
+      expect.any(HTMLImageElement),
+      { sx: 420, sy: 0, sw: 1080, sh: 1080 },
+      expect.objectContaining({ aspect: 1, maxWidth: 512 }),
+    )
+  })
+
+  it('rejects photos smaller than 128 pixels with the avatar message', async () => {
+    prepareImage.mockResolvedValueOnce(loaded(120, 400))
+    renderWithProviders(<Harness kind="avatar" />)
+    await pick(photo())
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('En az 128×128 piksel'))
   })
 })
 

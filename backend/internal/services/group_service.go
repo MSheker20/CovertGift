@@ -60,11 +60,18 @@ func normalizeDescription(desc string) (string, error) {
 	return desc, nil
 }
 
-// AccountSummary bir kullanıcı hesabının yalnızca kimliği ve adıdır. E-posta, şifre özeti
-// veya avatar taşımaz; hedef kişinin hesabını üyelere göstermek için kullanılır.
+// AccountSummary bir kullanıcı hesabının yalnızca kimliği, adı ve profil fotoğrafı sürümüdür.
+// E-posta veya şifre özeti taşımaz. AvatarVersion yalnızca çağıranın fotoğrafı görebileceği
+// kişilerde (ortak grup üyeleri) doldurulur; SINGLE grubun hedef kişisinde (üye değildir) boştur.
 type AccountSummary struct {
-	ID   uuid.UUID `json:"id" format:"uuid"`
-	Name string    `json:"name" example:"Ahmet Yılmaz"`
+	ID            uuid.UUID `json:"id" format:"uuid"`
+	Name          string    `json:"name" example:"Ahmet Yılmaz"`
+	AvatarVersion string    `json:"avatar_version,omitempty" example:"3f2a9c0d1e4b5a6978879695a4b3c2d1"`
+}
+
+// memberSummary bir üyenin (ya da alıcının) özetidir; aynı gruptaki herkes fotoğrafını görebilir.
+func memberSummary(id uuid.UUID, u models.User) AccountSummary {
+	return AccountSummary{ID: id, Name: u.Name, AvatarVersion: u.AvatarVersion}
 }
 
 // GroupDetailResponse grup detay uç noktasının döneceği zenginleştirilmiş veri yapısıdır
@@ -253,7 +260,7 @@ func (s *groupService) GetUserGroups(userID uuid.UUID) ([]GroupListItem, error) 
 			pools := poolsByGroup[g.ID]
 			recipients := make([]AccountSummary, 0, len(pools))
 			for _, p := range pools {
-				recipients = append(recipients, AccountSummary{ID: p.RecipientUserID, Name: p.Recipient.Name})
+				recipients = append(recipients, memberSummary(p.RecipientUserID, p.Recipient))
 			}
 			items[i].Recipients = &recipients
 			items[i].Status, items[i].CompletedAt = viewerStatus(pools, userID)

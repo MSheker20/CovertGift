@@ -1,5 +1,6 @@
 import { api, apiBlob } from './client'
 import type {
+  AvatarUploadResult,
   ContributionResult,
   CoverUploadResult,
   CreateGroupInput,
@@ -40,6 +41,19 @@ export const authApi = {
     }),
   // Hesabı ve kullanıcının tüm verisini kalıcı olarak siler.
   deleteMe: () => api<{ message: string }>('/me', { method: 'DELETE' }),
+  // Kırpılmış kare JPEG'i (en çok 512x512) multipart "file" alanında yükler.
+  uploadAvatar: (image: Blob) => {
+    const form = new FormData()
+    form.append('file', image, 'avatar.jpg')
+    return api<AvatarUploadResult>('/me/avatar', { method: 'PUT', body: form })
+  },
+  removeAvatar: () => api<{ message: string }>('/me/avatar', { method: 'DELETE' }),
+}
+
+export const usersApi = {
+  // Sürüm adreste: tarayıcı/ara katman önbelleği sürümler arasında karışmaz. Yetkisizse 404 döner.
+  avatar: (userId: string, version: string, signal?: AbortSignal) =>
+    apiBlob(`/users/${userId}/avatar?v=${encodeURIComponent(version)}`, signal),
 }
 
 export const groupsApi = {
@@ -189,6 +203,8 @@ export const queryKeys = {
   // Bilerek ['groups'] altında değil: grup listesi geçersiz kılındığında görseller yeniden
   // indirilmez. Sürüm değişince anahtar değişir ve yeni görsel çekilir.
   cover: (groupId: string, version: string) => ['cover', groupId, version] as const,
+  // Kapak gibi: ['groups'] altında değil, sürüm değişince yenisi çekilir.
+  avatar: (userId: string, version: string) => ['avatar', userId, version] as const,
 }
 
 // Fikir mutasyonlarının ortak anahtarı: biri sürerken periyodik yenileme durur, böylece

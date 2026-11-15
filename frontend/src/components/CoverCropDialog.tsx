@@ -6,7 +6,9 @@ import { FormError } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
+  AVATAR_SHAPE,
   COVER_ACCEPT,
+  COVER_SHAPE,
   CoverImageError,
   clampCrop,
   cropRect,
@@ -16,15 +18,21 @@ import {
   prepareImage,
   renderCrop,
   validateCoverFile,
+  type CropShape,
   type CropState,
   type LoadedImage,
 } from '@/lib/coverCrop'
 import { cn } from '@/lib/utils'
 
+// 'cover': grup kapağı (4:3, en çok 1600x1200). 'avatar': profil fotoğrafı (kare, en çok 512x512,
+// çerçevenin üstünde yuvarlak maske; kaydedilen görsel karedir, yuvarlak gösterim arayüzündür).
+export type CropKind = 'cover' | 'avatar'
+
 type Props = {
   open: boolean
+  kind?: CropKind
   onOpenChange: (open: boolean) => void
-  // Kırpılmış 4:3 JPEG (en çok 1600x1200, en fazla 2 MiB). Yüklemeyi çağıran yapar; başarıda
+  // Kırpılmış JPEG (kapakta 4:3 en çok 1600x1200, profilde kare en çok 512x512; en fazla 2 MiB). Yüklemeyi çağıran yapar; başarıda
   // diyaloğu kapatır. Büyük fotoğraf tarayıcıda küçültülür; sunucu yalnızca küçük görsel kabul eder.
   onCropped: (image: Blob) => void
   // Onay düğmesinin metni ("Fotoğrafı kaydet", "Bu fotoğrafı kullan").
@@ -36,9 +44,11 @@ type Props = {
   hint?: string
 }
 
-// Kapak fotoğrafı seçme ve 4:3 kırpma. Bağımlılıksız: çerçeve sabit, görsel sürüklenir ve
+const SHAPES: Record<CropKind, CropShape> = { cover: COVER_SHAPE, avatar: AVATAR_SHAPE }
+
+// Fotoğraf seçme ve kırpma (kapak 4:3, profil kare). Bağımlılıksız: çerçeve sabit, görsel sürüklenir ve
 // yakınlaştırılır (fare, dokunma, tekerlek, iki parmak, klavye, kaydırıcı); çıktı canvas ile üretilir.
-export function CoverCropDialog({ open, onOpenChange, onCropped, confirmLabel, pending = false, error = null, hint }: Props) {
+export function CoverCropDialog({ open, kind = 'cover', onOpenChange, onCropped, confirmLabel, pending = false, error = null, hint }: Props) {
   const { t } = useTranslation()
   // Görsel hazırlanırken ya da yüklenirken diyalog kapatılamaz.
   const [busy, setBusy] = useState(false)
@@ -47,12 +57,13 @@ export function CoverCropDialog({ open, onOpenChange, onCropped, confirmLabel, p
     <Dialog open={open} onOpenChange={(next) => !working && onOpenChange(next)}>
       <DialogContent closeLabel={t('common.close')} className="sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle>{t('cover.dialogTitle')}</DialogTitle>
-          <DialogDescription>{t('cover.dialogBody')}</DialogDescription>
+          <DialogTitle>{t(`${kind}.dialogTitle`)}</DialogTitle>
+          <DialogDescription>{t(`${kind}.dialogBody`)}</DialogDescription>
           {hint && <p className="text-sm font-medium text-ink">{hint}</p>}
         </DialogHeader>
         {/* İçerik yalnızca diyalog açıkken bağlıdır; her açılışta seçim sıfırdan başlar. */}
         <CropFlow
+          kind={kind}
           onCancel={() => onOpenChange(false)}
           onCropped={onCropped}
           confirmLabel={confirmLabel}
@@ -67,6 +78,7 @@ export function CoverCropDialog({ open, onOpenChange, onCropped, confirmLabel, p
 }
 
 function CropFlow({
+  kind,
   onCancel,
   onCropped,
   confirmLabel,
@@ -75,6 +87,7 @@ function CropFlow({
   busy,
   setBusy,
 }: Pick<Props, 'onCropped' | 'confirmLabel'> & {
+  kind: CropKind
   onCancel: () => void
   pending: boolean
   error: string | null
@@ -88,6 +101,7 @@ function CropFlow({
   const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const working = busy || pending
+  const shape = SHAPES[kind]
 
   // Görsel değişince ve diyalog kapanınca object URL serbest bırakılır.
   useEffect(() => () => image?.release(), [image])
@@ -104,9 +118,9 @@ function CropFlow({
     setBusy(true)
     try {
       const loaded = await prepareImage(file)
-      if (isTooSmall(loaded.width, loaded.height)) {
+      if (isTooSmall(loaded.width, loaded.height, shape)) {
         loaded.release()
-        setLocalError(t('cover.error.tooSmall'))
+        setLocalError(t(`${kind}.error.tooSmall`))
         return
       }
       setLocalError(null)
@@ -123,7 +137,7 @@ function CropFlow({
     if (!image || working) return
     setBusy(true)
     try {
-      onCropped(await renderCrop(image.element, cropRect(crop, image.width, image.height)))
+      onCropped(await renderCrop(image.element, cropRect(crop, image.width, image.height, shape), shape))
     } catch (err) {
       setLocalError(imageError(err))
     } finally {
@@ -154,7 +168,7 @@ function CropFlow({
       />
       {image ? (
         <>
-          <Cropper image={image} crop={crop} onChange={setCrop} disabled={working} />
+          <Cropper kind={kind} image={image} crop={crop} onChange={setCrop} disabled={working} />
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
             <Button variant="ghost" className="sm:mr-auto" onClick={() => fileRef.current?.click()} disabled={working}>
               {t('cover.pickAnother')}
@@ -179,7 +193,8 @@ function CropFlow({
           onDrop={onDrop}
           disabled={working}
           className={cn(
-            'flex aspect-[4/3] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-[16px] border border-dashed border-control bg-surface px-4 text-center transition-colors hover:border-accent disabled:cursor-default disabled:opacity-60',
+            'flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-[16px] border border-dashed border-control bg-surface px-4 text-center transition-colors hover:border-accent disabled:cursor-default disabled:opacity-60',
+            kind === 'avatar' ? 'mx-auto aspect-square max-w-[320px]' : 'aspect-[4/3]',
             dragOver && 'border-accent bg-soft',
           )}
         >
@@ -199,14 +214,17 @@ const KEY_STEP = 0.05
 const KEY_STEP_LARGE = 0.2
 const ZOOM_STEP = 1.1
 
-// Sabit 4:3 çerçeve. Görsel çerçevenin arkasında yüzde değerleriyle konumlanır; çerçevede
-// görünen alan, kaydedilecek alanın kendisidir (önizleme).
+// Sabit çerçeve (kapakta 4:3, profilde kare). Görsel çerçevenin arkasında yüzde değerleriyle
+// konumlanır; çerçevede görünen alan, kaydedilecek alanın kendisidir (önizleme). Profilde çerçevenin
+// köşeleri yuvarlak maskeyle karartılır: kaydedilen kare, arayüzde daire içinde gösterilir.
 function Cropper({
+  kind,
   image,
   crop,
   onChange,
   disabled,
 }: {
+  kind: CropKind
   image: LoadedImage
   crop: CropState
   onChange: (next: CropState | ((prev: CropState) => CropState)) => void
@@ -217,10 +235,11 @@ function Cropper({
   const frameRef = useRef<HTMLDivElement>(null)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const { width: iw, height: ih } = image
-  const rect = cropRect(crop, iw, ih)
-  const zoomLimit = maxZoom(iw, ih)
+  const shape = SHAPES[kind]
+  const rect = cropRect(crop, iw, ih, shape)
+  const zoomLimit = maxZoom(iw, ih, shape)
 
-  const update = (change: (prev: CropState) => CropState) => onChange((prev) => clampCrop(change(prev), iw, ih))
+  const update = (change: (prev: CropState) => CropState) => onChange((prev) => clampCrop(change(prev), iw, ih, shape))
   const zoomBy = (factor: number) => update((s) => ({ ...s, zoom: s.zoom * factor }))
 
   // Tekerlek: React wheel dinleyicisi pasif olduğu için sayfa kaymasını engellemek üzere yerel dinleyici.
@@ -229,11 +248,11 @@ function Cropper({
     if (!frame || disabled) return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      onChange((prev) => clampCrop({ ...prev, zoom: prev.zoom * Math.exp(-e.deltaY * 0.0015) }, iw, ih))
+      onChange((prev) => clampCrop({ ...prev, zoom: prev.zoom * Math.exp(-e.deltaY * 0.0015) }, iw, ih, shape))
     }
     frame.addEventListener('wheel', onWheel, { passive: false })
     return () => frame.removeEventListener('wheel', onWheel)
-  }, [disabled, iw, ih, onChange])
+  }, [disabled, iw, ih, onChange, shape])
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (disabled) return
@@ -258,7 +277,7 @@ function Cropper({
       const dx = next.x - prev.x
       const dy = next.y - prev.y
       update((s) => {
-        const scale = cropRect(s, iw, ih).sw / frameWidth
+        const scale = cropRect(s, iw, ih, shape).sw / frameWidth
         return { ...s, cx: s.cx - dx * scale, cy: s.cy - dy * scale }
       })
     }
@@ -273,7 +292,7 @@ function Cropper({
     const step = e.shiftKey ? KEY_STEP_LARGE : KEY_STEP
     const move = (dx: number, dy: number) =>
       update((s) => {
-        const r = cropRect(s, iw, ih)
+        const r = cropRect(s, iw, ih, shape)
         return { ...s, cx: s.cx + dx * r.sw * step, cy: s.cy + dy * r.sh * step }
       })
     switch (e.key) {
@@ -319,7 +338,8 @@ function Cropper({
         onPointerCancel={onPointerEnd}
         onKeyDown={onKeyDown}
         className={cn(
-          'relative aspect-[4/3] w-full touch-none overflow-hidden rounded-[16px] bg-surface select-none',
+          'relative w-full touch-none overflow-hidden rounded-[16px] bg-surface select-none',
+          kind === 'avatar' ? 'mx-auto aspect-square max-w-[320px]' : 'aspect-[4/3]',
           disabled ? 'opacity-70' : 'cursor-grab active:cursor-grabbing',
         )}
       >
@@ -334,6 +354,13 @@ function Cropper({
             top: `${(-rect.sy / rect.sh) * 100}%`,
           }}
         />
+        {kind === 'avatar' && (
+          <span
+            aria-hidden
+            data-testid="avatar-mask"
+            className="pointer-events-none absolute inset-0 rounded-full shadow-[0_0_0_9999px_var(--overlay)] ring-2 ring-on-primary/80"
+          />
+        )}
       </div>
       <div className="flex items-center gap-3">
         <ZoomOut className="size-4 shrink-0 text-muted" aria-hidden />

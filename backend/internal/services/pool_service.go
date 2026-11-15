@@ -363,45 +363,48 @@ func (s *poolService) poolViewsWithMembers(groupID, viewerID uuid.UUID, pools []
 	if err != nil {
 		return nil, err
 	}
-	names := make(map[uuid.UUID]string, len(members))
+	people := make(map[uuid.UUID]AccountSummary, len(members))
 	adminID := uuid.Nil
 	for _, m := range members {
-		names[m.UserID] = m.User.Name
+		people[m.UserID] = memberSummary(m.UserID, m.User)
 		if m.Role == "admin" && adminID == uuid.Nil {
 			adminID = m.UserID
 		}
 	}
 	for i := range pools {
 		p := &pools[i]
-		recipient := AccountSummary{ID: p.RecipientUserID, Name: p.Recipient.Name}
+		recipient := memberSummary(p.RecipientUserID, p.Recipient)
 		if p.RecipientUserID == viewerID {
 			locked := LockedPool{ID: p.ID, Recipient: recipient, IsMine: true, Locked: true}
 			if viewerID == adminID && p.ManagerUserID != nil {
-				if name, ok := names[*p.ManagerUserID]; ok {
-					locked.Manager = &AccountSummary{ID: *p.ManagerUserID, Name: name}
+				if manager, ok := people[*p.ManagerUserID]; ok {
+					locked.Manager = &manager
 				}
 			}
 			views = append(views, locked)
 			continue
 		}
-		views = append(views, openPool(p, stats[p.ID], adminID, names, viewerID))
+		views = append(views, openPool(p, stats[p.ID], adminID, people, viewerID))
 	}
 	return views, nil
 }
 
-func openPool(p *models.GiftPool, st repository.PoolStats, adminID uuid.UUID, names map[uuid.UUID]string, viewerID uuid.UUID) OpenPool {
+func openPool(p *models.GiftPool, st repository.PoolStats, adminID uuid.UUID, people map[uuid.UUID]AccountSummary, viewerID uuid.UUID) OpenPool {
 	var manager *AccountSummary
 	if id := effectiveManagerID(p, adminID); id != nil && *id != uuid.Nil {
-		name, ok := names[*id]
-		if !ok && p.Manager != nil && p.Manager.ID == *id {
-			name = p.Manager.Name
+		summary, ok := people[*id]
+		if !ok {
+			summary = AccountSummary{ID: *id}
+			if p.Manager != nil && p.Manager.ID == *id {
+				summary = memberSummary(*id, *p.Manager)
+			}
 		}
-		manager = &AccountSummary{ID: *id, Name: name}
+		manager = &summary
 	}
 	share := PerPersonShare(p.TotalBudget, st.ContributorCount)
 	return OpenPool{
 		ID:               p.ID,
-		Recipient:        AccountSummary{ID: p.RecipientUserID, Name: p.Recipient.Name},
+		Recipient:        memberSummary(p.RecipientUserID, p.Recipient),
 		Manager:          manager,
 		CanManage:        canManagePool(p, adminID, viewerID),
 		Status:           p.Status,

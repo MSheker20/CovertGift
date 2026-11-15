@@ -111,7 +111,7 @@ function AccountMenu() {
           aria-label={t('nav.account')}
           className="inline-flex h-10 cursor-pointer items-center gap-2.5 rounded-full pr-1 pl-1 transition-colors hover:bg-surface data-[state=open]:bg-surface md:h-11 md:pr-3"
         >
-          <Avatar name={user.name} seed={user.id} />
+          <Avatar name={user.name} seed={user.id} userId={user.id} version={user.avatar_version} />
           <span className="hidden max-w-[160px] min-w-0 text-left lg:block">
             <span className="block truncate text-sm leading-5 font-medium">{user.name}</span>
             <span className="block truncate text-xs leading-4 text-muted">{user.email}</span>
@@ -121,7 +121,7 @@ function AccountMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuLabel className="flex items-center gap-3 py-2.5">
-          <Avatar name={user.name} seed={user.id} />
+          <Avatar name={user.name} seed={user.id} userId={user.id} version={user.avatar_version} />
           <span className="min-w-0">
             <span className="block truncate text-sm font-medium text-ink">{user.name}</span>
             <span className="block truncate text-xs">{user.email}</span>

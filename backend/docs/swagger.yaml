@@ -55,6 +55,18 @@ definitions:
     required:
     - user_id
     type: object
+  controllers.AvatarResponse:
+    properties:
+      avatar_version:
+        example: 3f2a9c0d1e4b5a6978879695a4b3c2d1
+        type: string
+      height:
+        example: 512
+        type: integer
+      width:
+        example: 512
+        type: integer
+    type: object
   controllers.ChangePasswordRequest:
     properties:
       current_password:
@@ -507,7 +519,11 @@ definitions:
     type: object
   models.User:
     properties:
-      avatar_url:
+      avatar_version:
+        description: |-
+          AvatarVersion profil fotoğrafının sürümüdür (user_avatars.etag); fotoğraf yoksa boştur.
+          Görsel GET /users/:id/avatar ile alınır. Eski, hiç kullanılmamış avatar_url sütunu
+          veritabanında durur (AutoMigrate sütun silmez); modelde yer almaz.
         type: string
       created_at:
         type: string
@@ -520,6 +536,10 @@ definitions:
     type: object
   repository.Contributor:
     properties:
+      avatar_version:
+        description: AvatarVersion profil fotoğrafının sürümüdür; fotoğraf yoksa alan
+          yer almaz.
+        type: string
       contributing:
         example: true
         type: boolean
@@ -607,6 +627,9 @@ definitions:
     type: object
   services.AccountSummary:
     properties:
+      avatar_version:
+        example: 3f2a9c0d1e4b5a6978879695a4b3c2d1
+        type: string
       id:
         format: uuid
         type: string
@@ -3630,6 +3653,86 @@ paths:
       summary: Profili Güncelle
       tags:
       - Kimlik Doğrulama (Auth)
+  /api/v1/me/avatar:
+    delete:
+      description: Fotoğrafı siler; fotoğraf yoksa da 200 döner (idempotent).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Fotoğraf kaldırıldı
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.MessageData'
+              type: object
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Profil Fotoğrafını Kaldır
+      tags:
+      - Kimlik Doğrulama (Auth)
+    put:
+      consumes:
+      - multipart/form-data
+      description: 'multipart/form-data ile `file` alanında JPEG, PNG veya WebP alır:
+        en fazla 2 MB, uzun kenar en çok 2000 piksel (4 megapiksel). Arayüz kare kırpılmış,
+        en çok 512x512 JPEG gönderir. Tür dosyanın baytlarına göre doğrulanır; HEIC
+        desteklenmez. Sunucu EXIF yönünü uygular, tüm metadata''yı (konum dahil) atar,
+        ortadan kare kırpar, en çok 512x512''ye küçültür ve JPEG olarak saklar. Kaynakta
+        kare kenarı en az 128 piksel olmalı.'
+      parameters:
+      - description: Profil fotoğrafı (JPEG, PNG veya WebP; en fazla 2 MB)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Fotoğraf kaydedildi
+          schema:
+            allOf:
+            - $ref: '#/definitions/controllers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/controllers.AvatarResponse'
+              type: object
+        "400":
+          description: Dosya yok, görsel bozuk, çok küçük veya çözünürlüğü çok yüksek
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "413":
+          description: Dosya 2 MB'tan büyük
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "415":
+          description: Desteklenmeyen görsel türü (ör. HEIC, GIF)
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Profil Fotoğrafı Yükle / Değiştir
+      tags:
+      - Kimlik Doğrulama (Auth)
   /api/v1/me/password:
     put:
       consumes:
@@ -3809,6 +3912,56 @@ paths:
       summary: Bildirim Olay Akışı (Server-Sent Events)
       tags:
       - Bildirimler (Notifications)
+  /api/v1/users/{id}/avatar:
+    get:
+      description: 'Fotoğrafın baytlarını `image/jpeg` olarak döner (JSON değil).
+        Yalnızca fotoğrafın sahibi ve onunla en az bir grubu paylaşanlar alabilir;
+        diğer herkes, fotoğraf yokken olduğu gibi 404 alır (hesabın varlığı sızmaz).
+        `ETag` kullanıcının `avatar_version` değeridir; `If-None-Match` eşleşirse
+        304 döner. `Cache-Control: private, max-age=0, must-revalidate`: yetki her
+        kullanımda yeniden denetlenir.'
+      parameters:
+      - description: Kullanıcı UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Önceki yanıtın ETag değeri
+        in: header
+        name: If-None-Match
+        type: string
+      produces:
+      - image/jpeg
+      - application/json
+      responses:
+        "200":
+          description: Profil fotoğrafı (JPEG)
+          schema:
+            type: file
+        "304":
+          description: Değişmedi
+        "400":
+          description: Geçersiz kullanıcı kimliği
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "401":
+          description: Oturum açılmamış
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "404":
+          description: Fotoğraf yok ya da görme yetkiniz yok
+          schema:
+            $ref: '#/definitions/controllers.Response'
+        "500":
+          description: Sunucu hatası
+          schema:
+            $ref: '#/definitions/controllers.Response'
+      security:
+      - BearerAuth: []
+      summary: Profil Fotoğrafını Getir
+      tags:
+      - Kimlik Doğrulama (Auth)
   /health:
     get:
       description: API sunucusunun ve PostgreSQL veritabanı bağlantı havuzunun durumunu

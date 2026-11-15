@@ -1,6 +1,6 @@
 // Package imageproc kullanıcıdan gelen görselleri güvenli ve küçük bir JPEG'e çevirir.
 //
-// Grup kapak fotoğrafları için kullanılır: tür bayt imzasından doğrulanır, çözünürlük
+// Grup kapak fotoğrafları (4:3) ve profil fotoğrafları (kare) için kullanılır: tür bayt imzasından doğrulanır, çözünürlük
 // çözmeden ÖNCE sınırlanır (decompression bomb), EXIF yönü uygulanır, görsel ortadan 4:3
 // kırpılır, en çok 1600x1200'e küçültülür ve yeniden JPEG kodlanır. Yeniden kodlama tüm
 // metadata'yı (EXIF, konum, renk profili, yorumlar) atar. Yalnızca saf Go; cgo yok.
@@ -37,6 +37,10 @@ const (
 	// CoverMaxWidth ve CoverMaxHeight çıktının üst sınırıdır (4:3).
 	CoverMaxWidth  = 1600
 	CoverMaxHeight = 1200
+	// AvatarMaxSize profil fotoğrafının (kare) kenar üst sınırı, AvatarMinSize kaynakta
+	// kırpılacak karenin en küçük kenarıdır (yön uygulandıktan sonra).
+	AvatarMaxSize = 512
+	AvatarMinSize = 128
 	// JPEGQuality çıktı kalitesidir.
 	JPEGQuality = 80
 	// OutputContentType çıktının içerik türüdür.
@@ -51,9 +55,10 @@ var (
 	ErrCorrupt           = errors.New("görsel okunamadı; dosya bozuk olabilir")
 	ErrDimensionsTooBig  = errors.New("Fotoğraf çok büyük. Lütfen tarayıcıda küçültülmüş (en çok 2000 piksel) bir görsel yükleyin.")
 	ErrDimensionsTooTiny = errors.New("görsel çok küçük; en az 64x48 piksel olmalı")
+	ErrAvatarTooTiny     = errors.New("görsel çok küçük; profil fotoğrafı en az 128x128 piksel olmalı")
 )
 
-// Result işlenmiş kapak görselidir.
+// Result işlenmiş görseldir.
 type Result struct {
 	Data        []byte
 	ContentType string
@@ -88,8 +93,28 @@ func Sniff(data []byte) (Format, error) {
 	return "", ErrUnsupportedType
 }
 
+// spec bir çıktı biçimidir: oran (aw:ah), çıktı genişliğinin üst sınırı ve kaynakta
+// kabul edilen en küçük boyut.
+type spec struct {
+	aw, ah     int
+	maxWidth   int
+	minW, minH int
+	tooTiny    error
+}
+
+var (
+	coverSpec  = spec{aw: 4, ah: 3, maxWidth: CoverMaxWidth, minW: MinWidth, minH: MinHeight, tooTiny: ErrDimensionsTooTiny}
+	avatarSpec = spec{aw: 1, ah: 1, maxWidth: AvatarMaxSize, minW: AvatarMinSize, minH: AvatarMinSize, tooTiny: ErrAvatarTooTiny}
+)
+
 // ProcessCover ham yüklemeyi 4:3, en çok 1600x1200, metadata'sız bir JPEG'e çevirir.
-func ProcessCover(data []byte) (*Result, error) {
+func ProcessCover(data []byte) (*Result, error) { return process(data, coverSpec) }
+
+// ProcessAvatar ham yüklemeyi kare, en çok 512x512, metadata'sız bir JPEG'e çevirir. Tarayıcı
+// zaten kare kırpar; sunucu aynı kuralı savunma olarak yeniden uygular (ortadan kare).
+func ProcessAvatar(data []byte) (*Result, error) { return process(data, avatarSpec) }
+
+func process(data []byte, sp spec) (*Result, error) {
 	if len(data) > MaxInputBytes {
 		return nil, ErrTooLarge
 	}
@@ -124,8 +149,9 @@ func ProcessCover(data []byte) (*Result, error) {
 	if transposed {
 		shownW, shownH = shownH, shownW
 	}
-	if shownW < MinWidth || shownH < MinHeight {
-		return nil, ErrDimensionsTooTiny
+	cropW, cropH := centeredCrop(shownW, shownH, sp.aw, sp.ah)
+	if shownW < sp.minW || shownH < sp.minH || cropW < sp.minW || cropH < sp.minH {
+		return nil, sp.tooTiny
 	}
 
 	src, _, err := image.Decode(bytes.NewReader(data))
@@ -137,10 +163,10 @@ func ProcessCover(data []byte) (*Result, error) {
 		return nil, ErrCorrupt
 	}
 
-	// Gösterilen (yönü uygulanmış) görselde ortadan 4:3 kırpma ve çıktı boyutu.
-	cropW, cropH := centeredCrop(shownW, shownH)
-	outW := min(cropW, CoverMaxWidth) &^ 3 // 4'ün katı: yükseklik tam 3/4 olur
-	outH := outW / 4 * 3
+	// Gösterilen (yönü uygulanmış) görselde ortadan oranlı kırpma ve çıktı boyutu. Genişlik
+	// oranın katına yuvarlanır: yükseklik tam sayı ve oran birebir kalır.
+	outW := min(cropW, sp.maxWidth) / sp.aw * sp.aw
+	outH := outW / sp.aw * sp.ah
 
 	// Ölçekleme kaynak yönünde yapılır, yön küçük çıktıya uygulanır (daha az bellek).
 	srcCropW, srcCropH, scaledW, scaledH := cropW, cropH, outW, outH
@@ -172,12 +198,12 @@ func ProcessCover(data []byte) (*Result, error) {
 	}, nil
 }
 
-// centeredCrop w x h içine sığan en büyük 4:3 alanın boyutlarını döner.
-func centeredCrop(w, h int) (int, int) {
-	if w*3 > h*4 { // fazla geniş: yüksekliği koru
-		return h * 4 / 3, h
+// centeredCrop w x h içine sığan en büyük aw:ah alanın boyutlarını döner.
+func centeredCrop(w, h, aw, ah int) (int, int) {
+	if w*ah > h*aw { // fazla geniş: yüksekliği koru
+		return h * aw / ah, h
 	}
-	return w, w * 3 / 4 // fazla uzun (ya da tam 4:3): genişliği koru
+	return w, w * ah / aw // fazla uzun (ya da tam oran): genişliği koru
 }
 
 // applyOrientation EXIF yön değerine (1–8) göre görseli döndürür/çevirir.

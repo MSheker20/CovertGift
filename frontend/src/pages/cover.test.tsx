@@ -155,7 +155,7 @@ describe('group page cover: actions', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(uploads).toHaveLength(1)
     expect(uploads[0]).toMatch(/^multipart\/form-data; boundary=/)
-    expect(coverCrop.renderCrop).toHaveBeenCalledWith(expect.any(HTMLImageElement), { sx: 240, sy: 0, sw: 1440, sh: 1080 })
+    expect(coverCrop.renderCrop).toHaveBeenCalledWith(expect.any(HTMLImageElement), { sx: 240, sy: 0, sw: 1440, sh: 1080 }, expect.objectContaining({ aspect: 4 / 3 }))
     expect(await screen.findByRole('img', { name: `“${group.title}” kapak fotoğrafı` })).toBeInTheDocument()
   })
 

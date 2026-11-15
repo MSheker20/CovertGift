@@ -16,18 +16,20 @@ import (
 // poolShowcaseTitle havuz bildirimleri vitrininin işaret grubudur; varsa vitrin bir daha eklenmez.
 const poolShowcaseTitle = "Ekip Doğum Günleri"
 
-// seedExtras temel demo verisinin üstüne vitrin senaryolarını ekler. Her senaryo kendi işaret
-// grubuyla korunur; ikisi de zaten varsa errAlreadySeeded döner.
+// seedExtras temel demo verisinin üstüne vitrin senaryolarını ekler. Her senaryo kendi işaretiyle
+// korunur (vitrin grupları, profil fotoğrafı sürümü); hepsi zaten varsa errAlreadySeeded döner.
 func seedExtras(tx *gorm.DB, users map[string]*models.User) error {
-	shown := seedShowcase(tx, users)
-	if shown != nil && !errors.Is(shown, errAlreadySeeded) {
-		return shown
+	added := false
+	for _, step := range []func(*gorm.DB, map[string]*models.User) error{seedShowcase, seedPoolNotifications, seedAvatars} {
+		err := step(tx, users)
+		switch {
+		case err == nil:
+			added = true
+		case !errors.Is(err, errAlreadySeeded):
+			return err
+		}
 	}
-	pooled := seedPoolNotifications(tx, users)
-	if pooled != nil && !errors.Is(pooled, errAlreadySeeded) {
-		return pooled
-	}
-	if shown != nil && pooled != nil {
+	if !added {
 		return errAlreadySeeded
 	}
 	return nil

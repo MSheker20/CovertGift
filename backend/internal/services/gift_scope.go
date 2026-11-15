@@ -184,7 +184,7 @@ func nextEvent(pools []models.GiftPool, viewerID uuid.UUID, today models.Date) (
 			continue
 		}
 		if p.EventDate.Equal(next.Time) {
-			recipients = append(recipients, AccountSummary{ID: p.RecipientUserID, Name: p.Recipient.Name})
+			recipients = append(recipients, memberSummary(p.RecipientUserID, p.Recipient))
 		}
 	}
 	return next, recipients
