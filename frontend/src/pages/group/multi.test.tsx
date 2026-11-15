@@ -114,7 +114,11 @@ describe('MULTI group page', () => {
 
     expect(await screen.findByText(/3 kişi için/)).toBeInTheDocument()
     const tabs = within(screen.getByRole('tablist', { name: 'Hediye alınacak kişiler' })).getAllByRole('tab')
-    expect(tabs.map((t) => t.textContent)).toEqual(['Elif Kara', 'Can Er', 'Deniz Aksoy (sen)'])
+    expect(tabs).toEqual([
+      screen.getByRole('tab', { name: 'Elif Kara' }),
+      screen.getByRole('tab', { name: 'Can Er' }),
+      screen.getByRole('tab', { name: 'Deniz Aksoy (sen)' }),
+    ])
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
     expect(tabs[0]).toHaveAttribute('tabindex', '0')
     expect(tabs[1]).toHaveAttribute('tabindex', '-1')
@@ -139,6 +143,30 @@ describe('MULTI group page', () => {
     await waitFor(() => expect(router.state.location.search).toBe('?pool=p-me'))
     expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'pool-tab-p-me')
     expect(seen.filter((p) => p.includes('p-me'))).toEqual([])
+  })
+
+  it('orders the tabs by gift date, keeps my own tab last, and opens on the nearest date', async () => {
+    multiHandlers({
+      pools: [
+        lockedPool(),
+        openPool({ id: 'p-elif', event_date: undefined }),
+        openPool({ id: 'p-can', recipient: can, event_date: '2030-06-01' }),
+      ],
+    })
+    server.use(
+      http.get(api(`${G}/pools/p-can`), () => ok(poolDetail({ id: 'p-can', recipient: can, event_date: '2030-06-01' }))),
+      http.get(api(`${G}/pools/p-can/ideas`), () => ok([])),
+    )
+    renderApp(G)
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Can Er için' })).toBeInTheDocument()
+    const tabs = within(screen.getByRole('tablist', { name: 'Hediye alınacak kişiler' })).getAllByRole('tab')
+    expect(tabs).toEqual([
+      screen.getByRole('tab', { name: 'Can Er' }),
+      screen.getByRole('tab', { name: 'Elif Kara' }),
+      screen.getByRole('tab', { name: 'Deniz Aksoy (sen)' }),
+    ])
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
   })
 
   it('shows only a locked card for my own pool and never requests anything for it', async () => {

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarDays, Check, Lock, Minus, MoreHorizontal, Plus, RotateCcw, ShieldAlert, Trophy } from 'lucide-react'
@@ -21,10 +21,15 @@ import { GiftPool } from './GiftPool'
 import { BudgetTile, EventDateDialog, InterestsTile } from './GroupManage'
 import { PANEL_ID, poolScope, tabId } from './scope'
 
-// MULTI grubun havuz sekmeleri: hediye alacak her kişi için bir sekme. WAI-ARIA sekme kalıbı,
-// elle etkinleştirme: ←/→, Home, End yalnızca odağı taşır (tabindex 0 odaktaki sekmededir);
-// Enter/Space ya da tıklama seçer. Kendi (kilitli) sekmeme ok tuşuyla gezmek hiçbir şey yüklemez. Seçim URL'deki ?pool= parametresindedir; çağıran taraf yönetir.
-// Sekmeler satır atlar (yatay kaydırma yok), uzun adlar kısaltılır: 375px'te sayfa taşmaz.
+// MULTI grubun kişi seçicisi: havuz sayfasının üst kenarını boydan boya kaplayan bitişik bir şerit.
+// Kişiler eşit genişlikte, içerik ortalı; aralarında yalnızca tek bir dikey çizgi var. Seçili kişi
+// sayfayla aynı yüzeydedir ve altında çizgi yoktur (sayfaya açılır); diğerleri gri zeminde ve alt
+// çizgiyle sayfadan ayrılır. Şeridin üst köşeleri sayfanınkiyle aynı yuvarlaklıktadır (overflow kırpar).
+// Çok kişide şerit satır atlamaz, kendi içinde yatay kayar (sayfa 375px'te taşmaz) ve seçili sekme
+// görünür alana getirilir. Tarih ve durum panel başlığındadır; sekmede yalnızca kişi, oy ve kupa.
+// WAI-ARIA sekme kalıbı, elle etkinleştirme: ←/→, Home, End yalnızca odağı taşır (tabindex 0 odaktaki
+// sekmededir); Enter/Space ya da tıklama seçer. Kendi (kilitli) sekmeme ok tuşuyla gezmek hiçbir şey
+// yüklemez. Seçim URL'deki ?pool= parametresindedir; çağıran taraf yönetir.
 export function PoolTabs({
   pools,
   selectedId,
@@ -42,6 +47,11 @@ export function PoolTabs({
   const [roving, setRoving] = useState<string | null>(null)
   const tabbable = pools.some((p) => p.id === roving) ? roving : selectedId
 
+  // Dar ekranda seçili sekme (ör. bildirimden ?pool= ile gelince) şeridin dışında kalmasın.
+  useEffect(() => {
+    refs.current.get(selectedId)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [selectedId])
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const index = pools.findIndex((p) => p.id === tabbable)
     let next = index
@@ -56,13 +66,16 @@ export function PoolTabs({
   }
 
   return (
-    <div role="tablist" aria-label={t('pools.tabsLabel')} onKeyDown={onKeyDown}
+    <div
+      role="tablist"
+      aria-label={t('pools.tabsLabel')}
+      onKeyDown={onKeyDown}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) setRoving(null)
       }}
-      className="mt-6 flex flex-wrap gap-2"
+      className="flex overflow-x-auto rounded-t-[21px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      {pools.map((p) => {
+      {pools.map((p, i) => {
         const selected = p.id === selectedId
         const open = p.locked ? null : p
         return (
@@ -83,30 +96,34 @@ export function PoolTabs({
               onSelect(p.id)
             }}
             className={cn(
-              'inline-flex h-11 max-w-full cursor-pointer items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors',
-              selected ? 'border-primary bg-primary text-on-primary' : 'border-control bg-raised text-ink hover:bg-surface',
+              'flex h-14 min-w-[140px] flex-1 basis-0 cursor-pointer items-center justify-center gap-2 px-4 text-sm transition-colors focus-visible:outline-offset-[-3px]',
+              i > 0 && 'border-l border-border',
+              selected ? 'bg-raised font-semibold text-ink' : 'border-b border-border bg-surface font-medium text-muted hover:text-ink',
             )}
           >
-            {p.locked && <Lock className="size-4 shrink-0" aria-hidden />}
+            {p.locked ? (
+              <Lock className="size-3.5 shrink-0" aria-hidden />
+            ) : (
+              <Avatar name={p.recipient.name} seed={p.recipient.id} size="xs" />
+            )}
             <span className="min-w-0 truncate">
               {p.recipient.name}
-              {p.locked && meId === p.recipient.id && <span className="font-normal"> ({t('group.you')})</span>}
+              {p.locked && meId === p.recipient.id && (
+                <>
+                  {' '}
+                  <span className="font-normal">({t('group.you')})</span>
+                </>
+              )}
             </span>
             {open?.status === 'COMPLETED' && (
               <>
-                <Trophy className="size-4 shrink-0" aria-hidden />
+                <Trophy className="size-3.5 shrink-0" aria-hidden />
                 <span className="sr-only">{t('group.completed')}</span>
               </>
             )}
             {open && open.status !== 'COMPLETED' && open.pending_votes > 0 && (
               <>
-                <span
-                  aria-hidden
-                  className={cn(
-                    'num inline-flex min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-semibold',
-                    selected ? 'bg-on-primary text-primary' : 'bg-primary text-on-primary',
-                  )}
-                >
+                <span aria-hidden className="num text-xs font-semibold text-primary">
                   {open.pending_votes}
                 </span>
                 <span className="sr-only">{t('home.pendingVotes', { count: open.pending_votes })}</span>
@@ -147,13 +164,11 @@ type SectionProps = {
   pool: OpenPool
   meId?: string
   live: boolean
-  // Sağ sütunun altına eklenen üyeler paneli.
-  aside: ReactNode
 }
 
 // Seçili (kilitli olmayan) havuz: bütçe, kişi başı tutar, ilgi alanları, tarih, fikir havuzu ve
 // katılımcılar. Yönetici denetimleri grup rolüne değil sunucunun can_manage alanına bağlıdır.
-export function PoolSection({ groupId, pool, meId, live, aside }: SectionProps) {
+export function PoolSection({ groupId, pool, meId, live }: SectionProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const detail = useQuery({
@@ -189,14 +204,11 @@ export function PoolSection({ groupId, pool, meId, live, aside }: SectionProps) 
   if (detail.isError && !detail.data) {
     const gone = detail.error instanceof ApiError && detail.error.status === 404
     return (
-      <div className="mt-6">
-        <BlockError
-          message={gone ? t('pools.notFound') : `${t('pools.loadError')} ${errorMessage(detail.error)}`}
-          onRetry={() => void detail.refetch()}
-          retryLabel={t('common.retry')}
-        />
-        <div className="mt-4 md:max-w-[33%]">{aside}</div>
-      </div>
+      <BlockError
+        message={gone ? t('pools.notFound') : `${t('pools.loadError')} ${errorMessage(detail.error)}`}
+        onRetry={() => void detail.refetch()}
+        retryLabel={t('common.retry')}
+      />
     )
   }
 
@@ -204,7 +216,7 @@ export function PoolSection({ groupId, pool, meId, live, aside }: SectionProps) 
 
   return (
     <>
-      <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h2 className="font-display min-w-0 text-[19px] leading-tight font-semibold break-words md:text-[22px]">
           {t('pools.forRecipient', { name: view.recipient.name })}
         </h2>
@@ -288,7 +300,7 @@ export function PoolSection({ groupId, pool, meId, live, aside }: SectionProps) 
       </dl>
 
       <div className="mt-4 grid grid-cols-1 items-start gap-4 md:grid-cols-12">
-        <div className="md:col-span-8">
+        <div className="md:col-span-7">
           <GiftPool
             scope={scope}
             meId={meId}
@@ -299,9 +311,8 @@ export function PoolSection({ groupId, pool, meId, live, aside }: SectionProps) 
             datePassed={days !== null && days < 0}
           />
         </div>
-        <div className="flex flex-col gap-4 md:col-span-4">
+        <div className="flex flex-col gap-4 md:col-span-5">
           <ContributorsPanel groupId={groupId} pool={pool} detail={detail.data} meId={meId} />
-          {aside}
         </div>
       </div>
 
