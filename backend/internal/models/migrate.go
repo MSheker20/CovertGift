@@ -6,5 +6,5 @@ import "gorm.io/gorm"
 // davet linklerini ve ilişkilerini AutoMigrate ile senkronize eder.
 // API ve seed komutu aynı şemayı kullanır.
 func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(&User{}, &Group{}, &GroupMember{}, &GiftPool{}, &PoolContribution{}, &GiftIdea{}, &Vote{}, &Notification{}, &GroupCover{}, &GroupInvite{})
+	return db.AutoMigrate(&User{}, &Group{}, &GroupMember{}, &GiftPool{}, &PoolContribution{}, &GiftIdea{}, &Vote{}, &Notification{}, &GroupCover{}, &GroupInvite{}, &UserAvatar{})
 }

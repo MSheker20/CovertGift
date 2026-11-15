@@ -104,7 +104,7 @@ export function PoolTabs({
             {p.locked ? (
               <Lock className="size-3.5 shrink-0" aria-hidden />
             ) : (
-              <Avatar name={p.recipient.name} seed={p.recipient.id} size="xs" />
+              <Avatar name={p.recipient.name} seed={p.recipient.id} userId={p.recipient.id} version={p.recipient.avatar_version} size="xs" />
             )}
             <span className="min-w-0 truncate">
               {p.recipient.name}
@@ -421,7 +421,7 @@ function ContributorsPanel({
             const mine = c.user_id === meId
             return (
               <li key={c.user_id} className="flex min-h-11 items-center gap-3">
-                <Avatar name={c.name} seed={c.user_id} size="sm" />
+                <Avatar name={c.name} seed={c.user_id} userId={c.user_id} version={c.avatar_version} size="sm" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm">
                     {c.name}

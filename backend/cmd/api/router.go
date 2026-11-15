@@ -46,12 +46,14 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient services.GiftIdeaGe
 	notificationRepo := repository.NewNotificationRepository(db)
 	inviteRepo := repository.NewInviteRepository(db)
 	poolRepo := repository.NewPoolRepository(db)
+	avatarRepo := repository.NewAvatarRepository(db)
 
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
 	groupService := services.NewGroupService(groupRepo, userRepo, poolRepo)
 	ideaService := services.NewIdeaService(ideaRepo, groupRepo, poolRepo, geminiClient)
 	poolService := services.NewPoolService(groupRepo, poolRepo)
 	inviteService := services.NewInviteService(inviteRepo, groupRepo, userRepo)
+	avatarService := services.NewAvatarService(avatarRepo)
 	notificationService := services.NewNotificationService(notificationRepo, groupRepo, poolRepo, userRepo, userHub)
 
 	authController := controllers.NewAuthController(authService)
@@ -59,6 +61,7 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient services.GiftIdeaGe
 	ideaController := controllers.NewIdeaController(ideaService)
 	inviteController := controllers.NewInviteController(inviteService)
 	poolController := controllers.NewPoolController(poolService)
+	avatarController := controllers.NewAvatarController(avatarService)
 	eventsController := controllers.NewEventsController(hub, userHub)
 	eventsController.PoolKeys = poolService.VisiblePoolIDs
 	notificationController := controllers.NewNotificationController(notificationService)
@@ -71,8 +74,9 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient services.GiftIdeaGe
 	logger := slog.Default()
 	r := gin.New()
 	r.Use(middleware.Recovery(logger), middleware.RequestLogger(logger), middleware.BodyLimitWithRoutes(middleware.DefaultMaxBodyBytes, map[string]middleware.RouteLimit{
-		// Yalnızca kapak yüklemesi büyük gövde kabul eder; diğer tüm rotalar 1 MiB ile sınırlı kalır.
+		// Yalnızca kapak ve profil fotoğrafı yüklemesi büyük gövde kabul eder; diğer tüm rotalar 1 MiB ile sınırlı kalır.
 		"PUT /api/v1/groups/:id/cover": {MaxBytes: middleware.CoverUploadMaxBodyBytes, Message: imageproc.ErrTooLarge.Error()},
+		"PUT /api/v1/me/avatar":        {MaxBytes: middleware.CoverUploadMaxBodyBytes, Message: imageproc.ErrTooLarge.Error()},
 	}))
 
 	// Sağlık Kontrolü (Healthcheck) Endpoint'i
@@ -108,6 +112,10 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient services.GiftIdeaGe
 			protected.PATCH("/me", authController.UpdateMe)
 			protected.PUT("/me/password", authController.ChangePassword)
 			protected.DELETE("/me", authController.DeleteMe)
+			protected.PUT("/me/avatar", avatarController.Upload)
+			protected.DELETE("/me/avatar", avatarController.Delete)
+			// Yetki serviste: sahibi ve onunla bir grubu paylaşanlar; diğerleri 404.
+			protected.GET("/users/:id/avatar", avatarController.Get)
 
 			// Bildirimler (kullanıcıya özel; Anti-Spoiler süzgeci sorguda)
 			protected.GET("/notifications", notificationController.List)

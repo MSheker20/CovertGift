@@ -4142,6 +4142,132 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/me/avatar": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "multipart/form-data ile ` + "`" + `file` + "`" + ` alanında JPEG, PNG veya WebP alır: en fazla 2 MB, uzun kenar en çok 2000 piksel (4 megapiksel). Arayüz kare kırpılmış, en çok 512x512 JPEG gönderir. Tür dosyanın baytlarına göre doğrulanır; HEIC desteklenmez. Sunucu EXIF yönünü uygular, tüm metadata'yı (konum dahil) atar, ortadan kare kırpar, en çok 512x512'ye küçültür ve JPEG olarak saklar. Kaynakta kare kenarı en az 128 piksel olmalı.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Kimlik Doğrulama (Auth)"
+                ],
+                "summary": "Profil Fotoğrafı Yükle / Değiştir",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Profil fotoğrafı (JPEG, PNG veya WebP; en fazla 2 MB)",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Fotoğraf kaydedildi",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.AvatarResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Dosya yok, görsel bozuk, çok küçük veya çözünürlüğü çok yüksek",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "413": {
+                        "description": "Dosya 2 MB'tan büyük",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "415": {
+                        "description": "Desteklenmeyen görsel türü (ör. HEIC, GIF)",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Fotoğrafı siler; fotoğraf yoksa da 200 döner (idempotent).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Kimlik Doğrulama (Auth)"
+                ],
+                "summary": "Profil Fotoğrafını Kaldır",
+                "responses": {
+                    "200": {
+                        "description": "Fotoğraf kaldırıldı",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/controllers.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/controllers.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/me/password": {
             "put": {
                 "security": [
@@ -4423,6 +4549,75 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/users/{id}/avatar": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Fotoğrafın baytlarını ` + "`" + `image/jpeg` + "`" + ` olarak döner (JSON değil). Yalnızca fotoğrafın sahibi ve onunla en az bir grubu paylaşanlar alabilir; diğer herkes, fotoğraf yokken olduğu gibi 404 alır (hesabın varlığı sızmaz). ` + "`" + `ETag` + "`" + ` kullanıcının ` + "`" + `avatar_version` + "`" + ` değeridir; ` + "`" + `If-None-Match` + "`" + ` eşleşirse 304 döner. ` + "`" + `Cache-Control: private, max-age=0, must-revalidate` + "`" + `: yetki her kullanımda yeniden denetlenir.",
+                "produces": [
+                    "image/jpeg",
+                    "application/json"
+                ],
+                "tags": [
+                    "Kimlik Doğrulama (Auth)"
+                ],
+                "summary": "Profil Fotoğrafını Getir",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Kullanıcı UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Önceki yanıtın ETag değeri",
+                        "name": "If-None-Match",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Profil fotoğrafı (JPEG)",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "304": {
+                        "description": "Değişmedi"
+                    },
+                    "400": {
+                        "description": "Geçersiz kullanıcı kimliği",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Oturum açılmamış",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Fotoğraf yok ya da görme yetkiniz yok",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Sunucu hatası",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "API sunucusunun ve PostgreSQL veritabanı bağlantı havuzunun durumunu kontrol eder.",
@@ -4536,6 +4731,23 @@ const docTemplate = `{
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "controllers.AvatarResponse": {
+            "type": "object",
+            "properties": {
+                "avatar_version": {
+                    "type": "string",
+                    "example": "3f2a9c0d1e4b5a6978879695a4b3c2d1"
+                },
+                "height": {
+                    "type": "integer",
+                    "example": 512
+                },
+                "width": {
+                    "type": "integer",
+                    "example": 512
                 }
             }
         },
@@ -5171,7 +5383,8 @@ const docTemplate = `{
         "models.User": {
             "type": "object",
             "properties": {
-                "avatar_url": {
+                "avatar_version": {
+                    "description": "AvatarVersion profil fotoğrafının sürümüdür (user_avatars.etag); fotoğraf yoksa boştur.\nGörsel GET /users/:id/avatar ile alınır. Eski, hiç kullanılmamış avatar_url sütunu\nveritabanında durur (AutoMigrate sütun silmez); modelde yer almaz.",
                     "type": "string"
                 },
                 "created_at": {
@@ -5191,6 +5404,10 @@ const docTemplate = `{
         "repository.Contributor": {
             "type": "object",
             "properties": {
+                "avatar_version": {
+                    "description": "AvatarVersion profil fotoğrafının sürümüdür; fotoğraf yoksa alan yer almaz.",
+                    "type": "string"
+                },
                 "contributing": {
                     "type": "boolean",
                     "example": true
@@ -5314,6 +5531,10 @@ const docTemplate = `{
         "services.AccountSummary": {
             "type": "object",
             "properties": {
+                "avatar_version": {
+                    "type": "string",
+                    "example": "3f2a9c0d1e4b5a6978879695a4b3c2d1"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"

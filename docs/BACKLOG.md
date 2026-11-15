@@ -8,5 +8,4 @@ Not: Bu liste henüz düzeltilmemiş bug'ları ve fikirleri toplar. Çözülenle
 
 ## Fikirler
 
-- [ ] **Profil fotoğrafı (pp).** Kişi sekmeleri ve avatarlar şu an baş harf ile kişi rengini gösteriyor. `AccountSummary`'ye `avatar_url` eklenmeli; `Avatar` bileşeni de foto varsa onu göstermeli.
-
+Şu an açık fikir yok.

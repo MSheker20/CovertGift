@@ -48,7 +48,7 @@ func openTestDB(t *testing.T) *gorm.DB {
 func counts(t *testing.T, db *gorm.DB) map[string]int64 {
 	t.Helper()
 	out := map[string]int64{}
-	for _, table := range []string{"users", "groups", "group_members", "gift_ideas", "votes", "gift_pools", "pool_contributions"} {
+	for _, table := range []string{"users", "groups", "group_members", "gift_ideas", "votes", "gift_pools", "pool_contributions", "user_avatars"} {
 		var n int64
 		if err := db.Table(table).Count(&n).Error; err != nil {
 			t.Fatal(err)
@@ -74,7 +74,8 @@ func TestSeedIsAdditiveIdempotentAndRespectsAntiSpoiler(t *testing.T) {
 	// 6 katkı satırı (her havuzda alıcı dışındaki 3 üye; biri katkı vermiyor). Vitrin: "Selin'in
 	// Mezuniyeti" (4 üye, 3 fikir, 5 oy) ve kazananı seçilmiş "Elif'in Doğum Günü" (3 üye, 1 fikir).
 	// Havuz bildirimleri vitrini: MULTI "Ekip Doğum Günleri" (4 üye, 2 havuz, 2 fikir, 6 katkı satırı).
-	want := map[string]int64{"users": 5, "groups": 5, "group_members": 18, "gift_ideas": 13, "votes": 12, "gift_pools": 4, "pool_contributions": 12}
+	// Profil fotoğrafı: Can ve Elif (2); Zeynep ve Ahmet baş harfle.
+	want := map[string]int64{"users": 5, "groups": 5, "group_members": 18, "gift_ideas": 13, "votes": 12, "gift_pools": 4, "pool_contributions": 12, "user_avatars": 2}
 	got := counts(t, db)
 	for k, v := range want {
 		if got[k] != v {

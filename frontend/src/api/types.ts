@@ -5,7 +5,8 @@ export type User = {
   id: string
   name: string
   email: string
-  avatar_url?: string
+  // Profil fotoğrafının sürümü; fotoğraf yoksa yok. Görsel GET /users/:id/avatar ile alınır.
+  avatar_version?: string
   created_at: string
 }
 
@@ -40,6 +41,8 @@ export type Group = {
 
 // PUT /groups/:id/cover yanıtı.
 export type CoverUploadResult = { cover_version: string; width: number; height: number }
+
+export type AvatarUploadResult = { avatar_version: string; width: number; height: number }
 
 export type GroupStatus = 'ACTIVE' | 'COMPLETED'
 
@@ -82,7 +85,8 @@ export type GroupDetail = {
   pools?: PoolView[]
 }
 
-export type AccountSummary = { id: string; name: string }
+// avatar_version yalnızca fotoğrafını görebildiğim kişilerde (ortak grup üyeleri) gelir.
+export type AccountSummary = { id: string; name: string; avatar_version?: string }
 
 export type LoginResponse = { token: string; user: User }
 
@@ -246,7 +250,7 @@ export type OpenPool = {
 
 export type PoolView = OpenPool | LockedPool
 
-export type Contributor = { user_id: string; name: string; contributing: boolean }
+export type Contributor = { user_id: string; name: string; contributing: boolean; avatar_version?: string }
 
 export type PoolDetail = OpenPool & { interests: string[]; contributors: Contributor[] }
 

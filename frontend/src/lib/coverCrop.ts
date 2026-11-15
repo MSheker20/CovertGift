@@ -1,4 +1,4 @@
-// Kapak fotoğrafı kırpma hesapları ve tarayıcı yardımcıları.
+// Kapak (4:3) ve profil (kare) fotoğrafı kırpma hesapları ve tarayıcı yardımcıları.
 // Büyük fotoğrafı küçültmek tarayıcının işidir: sunucu (backend/pkg/imageproc) yalnızca küçük
 // görsel kabul eder (en çok 2 MiB, uzun kenar 2000 piksel) ve aynı kuralları savunma olarak
 // yeniden uygular. Buradan her zaman 4:3, en çok 1600x1200 ve 2 MiB altında bir JPEG çıkar.
@@ -22,6 +22,19 @@ export const COVER_JPEG_QUALITY = 0.85
 const FALLBACK_QUALITIES = [0.75, 0.65, 0.5]
 const WORK_JPEG_QUALITY = 0.92
 const MAX_ZOOM = 4
+
+// Kırpma biçimi: oran, çıktı genişliğinin üst sınırı, genişliğin yuvarlandığı adım (oran tam
+// kalsın diye) ve kaynakta kabul edilen en küçük boyut. Sunucudaki imageproc biçimleriyle aynıdır.
+export type CropShape = { aspect: number; maxWidth: number; widthStep: number; minWidth: number; minHeight: number }
+export const COVER_SHAPE: CropShape = {
+  aspect: COVER_ASPECT,
+  maxWidth: COVER_MAX_WIDTH,
+  widthStep: 4,
+  minWidth: COVER_MIN_WIDTH,
+  minHeight: COVER_MIN_HEIGHT,
+}
+// Profil fotoğrafı: kare, en çok 512x512, en az 128 piksel (backend imageproc.AvatarMaxSize/AvatarMinSize).
+export const AVATAR_SHAPE: CropShape = { aspect: 1, maxWidth: 512, widthStep: 1, minWidth: 128, minHeight: 128 }
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 export const COVER_ACCEPT = ACCEPTED_TYPES.join(',')
@@ -73,14 +86,15 @@ export function workingSize(width: number, height: number): { width: number; hei
 export type CropState = { cx: number; cy: number; zoom: number }
 export type CropRect = { sx: number; sy: number; sw: number; sh: number }
 
-// Yakınlaştırma 1 iken görünen alan: görsele sığan en büyük 4:3 dikdörtgen.
-function baseView(iw: number, ih: number) {
-  return iw / ih > COVER_ASPECT ? { w: ih * COVER_ASPECT, h: ih } : { w: iw, h: iw / COVER_ASPECT }
+// Yakınlaştırma 1 iken görünen alan: görsele sığan, biçimin oranındaki en büyük dikdörtgen.
+function baseView(iw: number, ih: number, shape: CropShape) {
+  const a = shape.aspect
+  return iw / ih > a ? { w: ih * a, h: ih } : { w: iw, h: iw / a }
 }
 
 // Görünen alan en küçük çıktı genişliğinin altına inmesin diye üst sınır görsele göre kısılır.
-export function maxZoom(iw: number, ih: number): number {
-  return Math.max(1, Math.min(MAX_ZOOM, baseView(iw, ih).w / COVER_MIN_WIDTH))
+export function maxZoom(iw: number, ih: number, shape: CropShape = COVER_SHAPE): number {
+  return Math.max(1, Math.min(MAX_ZOOM, baseView(iw, ih, shape).w / shape.minWidth))
 }
 
 export function initialCrop(iw: number, ih: number): CropState {
@@ -88,9 +102,9 @@ export function initialCrop(iw: number, ih: number): CropState {
 }
 
 // Yakınlaştırmayı sınırlar ve çerçeveyi görselin içinde tutar.
-export function clampCrop(state: CropState, iw: number, ih: number): CropState {
-  const zoom = Math.min(maxZoom(iw, ih), Math.max(1, state.zoom))
-  const base = baseView(iw, ih)
+export function clampCrop(state: CropState, iw: number, ih: number, shape: CropShape = COVER_SHAPE): CropState {
+  const zoom = Math.min(maxZoom(iw, ih, shape), Math.max(1, state.zoom))
+  const base = baseView(iw, ih, shape)
   const w = base.w / zoom
   const h = base.h / zoom
   return {
@@ -101,22 +115,24 @@ export function clampCrop(state: CropState, iw: number, ih: number): CropState {
 }
 
 // Çerçevenin görseldeki karşılığı (kaynak dikdörtgen).
-export function cropRect(state: CropState, iw: number, ih: number): CropRect {
-  const s = clampCrop(state, iw, ih)
-  const base = baseView(iw, ih)
+export function cropRect(state: CropState, iw: number, ih: number, shape: CropShape = COVER_SHAPE): CropRect {
+  const s = clampCrop(state, iw, ih, shape)
+  const base = baseView(iw, ih, shape)
   const sw = base.w / s.zoom
   const sh = base.h / s.zoom
   return { sx: s.cx - sw / 2, sy: s.cy - sh / 2, sw, sh }
 }
 
-// Çıktı boyutu: kaynak alandan büyük olmaz (büyütme yok), en çok 1600x1200, tam 4:3.
-export function outputSize(sourceWidth: number): { width: number; height: number } {
-  const width = Math.max(4, Math.floor(Math.min(COVER_MAX_WIDTH, sourceWidth) / 4) * 4)
-  return { width, height: (width / 4) * 3 }
+// Çıktı boyutu: kaynak alandan büyük olmaz (büyütme yok), en çok biçimin üst sınırı, oran tam
+// (kapakta en çok 1600x1200 ve 4:3, profilde en çok 512x512 kare).
+export function outputSize(sourceWidth: number, shape: CropShape = COVER_SHAPE): { width: number; height: number } {
+  const step = shape.widthStep
+  const width = Math.max(step, Math.floor(Math.min(shape.maxWidth, sourceWidth) / step) * step)
+  return { width, height: Math.round(width / shape.aspect) }
 }
 
-export function isTooSmall(iw: number, ih: number): boolean {
-  return iw < COVER_MIN_WIDTH || ih < COVER_MIN_HEIGHT
+export function isTooSmall(iw: number, ih: number, shape: CropShape = COVER_SHAPE): boolean {
+  return iw < shape.minWidth || ih < shape.minHeight
 }
 
 export type LoadedImage = {
@@ -226,11 +242,11 @@ export async function prepareImage(file: File): Promise<LoadedImage> {
   }
 }
 
-// Seçilen alanı canvas'a çizer ve en çok 1600x1200 JPEG blob üretir. Şeffaf alanlar beyaz
+// Seçilen alanı canvas'a çizer ve biçimin boyutunda (kapakta en çok 1600x1200) JPEG blob üretir. Şeffaf alanlar beyaz
 // zemine oturur. Sonuç sunucu sınırını (2 MiB) aşarsa kalite düşürülerek yeniden kodlanır;
 // yine aşarsa CoverImageError('outputTooLarge').
-export async function renderCrop(image: CanvasImageSource, rect: CropRect): Promise<Blob> {
-  const { width, height } = outputSize(rect.sw)
+export async function renderCrop(image: CanvasImageSource, rect: CropRect, shape: CropShape = COVER_SHAPE): Promise<Blob> {
+  const { width, height } = outputSize(rect.sw, shape)
   const { canvas, ctx } = whiteCanvas(width, height)
   ctx.drawImage(image, rect.sx, rect.sy, rect.sw, rect.sh, 0, 0, width, height)
   for (const quality of [COVER_JPEG_QUALITY, ...FALLBACK_QUALITIES]) {

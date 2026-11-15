@@ -468,3 +468,103 @@ func TestProcessCoverAcceptsExactlyMaxInputBytes(t *testing.T) {
 		t.Fatalf("2 MiB + 1 bayt: hata %v, beklenen ErrTooLarge", err)
 	}
 }
+
+// Profil fotoğrafı: kare, en çok 512x512, en az 128 piksel; kapakla aynı güvenlik kuralları.
+func mustProcessAvatar(t *testing.T, data []byte) (*Result, image.Image) {
+	t.Helper()
+	res, err := ProcessAvatar(data)
+	if err != nil {
+		t.Fatalf("ProcessAvatar: %v", err)
+	}
+	img, format, err := image.Decode(bytes.NewReader(res.Data))
+	if err != nil || format != "jpeg" || res.ContentType != "image/jpeg" {
+		t.Fatalf("çıktı JPEG değil: %v (%s, %s)", err, format, res.ContentType)
+	}
+	if img.Bounds().Dx() != res.Width || img.Bounds().Dy() != res.Height {
+		t.Fatalf("bildirilen boyut %dx%d, gerçek %v", res.Width, res.Height, img.Bounds())
+	}
+	return res, img
+}
+
+func TestProcessAvatarSizeAndRatio(t *testing.T) {
+	cases := []struct {
+		name   string
+		w, h   int
+		wantWH int
+	}{
+		{"tarayıcı çıktısı 512 kare olduğu gibi kalır", 512, 512, 512},
+		{"büyük kare küçültülür", 2000, 2000, 512},
+		{"yatay görsel ortadan kare kırpılır", 1600, 900, 512},
+		{"dikey görsel kare kırpılır", 300, 600, 300},
+		{"küçük kare büyütülmez", 200, 200, 200},
+		{"sınırdaki en küçük", 128, 400, 128},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, _ := mustProcessAvatar(t, encodeJPEG(t, photo(tc.w, tc.h)))
+			if res.Width != tc.wantWH || res.Height != tc.wantWH {
+				t.Fatalf("%dx%d, beklenen %dx%d", res.Width, res.Height, tc.wantWH, tc.wantWH)
+			}
+		})
+	}
+}
+
+func TestProcessAvatarCropsFromCenter(t *testing.T) {
+	// 400x200: kenarlar kırmızı, orta bant (100–300) yeşil; kare kırpma tam ortadaki 200 pikseli alır.
+	src := fill(400, 200, func(x, _ int) color.RGBA {
+		if x >= 100 && x < 300 {
+			return green
+		}
+		return red
+	})
+	_, img := mustProcessAvatar(t, encodePNG(t, src))
+	b := img.Bounds()
+	for _, p := range []image.Point{{3, 3}, {b.Dx() - 4, 3}, {b.Dx() / 2, b.Dy() / 2}, {3, b.Dy() - 4}} {
+		if !near(img.At(p.X, p.Y), green) {
+			t.Fatalf("%v noktasında yeşil bekleniyordu, %v", p, img.At(p.X, p.Y))
+		}
+	}
+}
+
+func TestProcessAvatarAppliesEXIFOrientation(t *testing.T) {
+	stored := fill(400, 300, func(x, y int) color.RGBA {
+		switch {
+		case x < 200 && y < 150:
+			return red
+		case y < 150:
+			return green
+		case x < 200:
+			return blue
+		default:
+			return yellow
+		}
+	})
+	// Yön 6 (saat yönünde 90°): sol üst mavi, sağ üst kırmızı, sol alt sarı, sağ alt yeşil.
+	res, img := mustProcessAvatar(t, withEXIF(t, encodeJPEG(t, stored), 6, binary.BigEndian))
+	if res.Width != res.Height {
+		t.Fatalf("çıktı kare değil: %dx%d", res.Width, res.Height)
+	}
+	w := res.Width
+	want := [4]color.RGBA{blue, red, yellow, green}
+	for i, p := range [4]image.Point{{w / 8, w / 8}, {w - w/8, w / 8}, {w / 8, w - w/8}, {w - w/8, w - w/8}} {
+		if !near(img.At(p.X, p.Y), want[i]) {
+			t.Errorf("%d. çeyrekte %v bekleniyordu, %v", i, want[i], img.At(p.X, p.Y))
+		}
+	}
+}
+
+func TestProcessAvatarLimits(t *testing.T) {
+	if _, err := ProcessAvatar(encodeJPEG(t, photo(127, 400))); !errors.Is(err, ErrAvatarTooTiny) {
+		t.Fatalf("127 piksel genişlik reddedilmeli: %v", err)
+	}
+	if _, err := ProcessAvatar(pngWithHeaderSize(t, 3000, 3000)); !errors.Is(err, ErrDimensionsTooBig) {
+		t.Fatalf("büyük başlık çözülmeden reddedilmeli: %v", err)
+	}
+	if _, err := ProcessAvatar([]byte("GIF89a....")); !errors.Is(err, ErrUnsupportedType) {
+		t.Fatalf("GIF reddedilmeli: %v", err)
+	}
+	res, _ := mustProcessAvatar(t, withEXIF(t, encodeJPEG(t, photo(300, 300)), 1, binary.BigEndian))
+	if bytes.Contains(jpegMarkers(t, res.Data), []byte{0xE1}) {
+		t.Fatal("çıktıda EXIF (APP1) kalmış")
+	}
+}

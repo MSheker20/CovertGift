@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  AVATAR_SHAPE,
   COVER_MAX_BYTES,
   COVER_UPLOAD_MAX_BYTES,
   COVER_WORK_MAX_EDGE,
@@ -119,5 +120,34 @@ describe('workingSize', () => {
     expect(workingSize(6000, 4000)).toEqual({ width: 3200, height: 2133 })
     expect(workingSize(6000, 8000)).toEqual({ width: 2400, height: 3200 })
     expect(workingSize(8064, 6048)).toEqual({ width: 3200, height: 2400 }) // 48 MP
+  })
+})
+
+describe('avatar (square) shape', () => {
+  it('views the largest centered square at zoom 1', () => {
+    expect(cropRect(initialCrop(1600, 900), 1600, 900, AVATAR_SHAPE)).toEqual({ sx: 350, sy: 0, sw: 900, sh: 900 })
+    expect(cropRect(initialCrop(400, 1000), 400, 1000, AVATAR_SHAPE)).toEqual({ sx: 0, sy: 300, sw: 400, sh: 400 })
+  })
+
+  it('keeps the frame inside the image and never zooms below the minimum output', () => {
+    const s = clampCrop({ cx: 0, cy: 0, zoom: 99 }, 1000, 1000, AVATAR_SHAPE)
+    expect(s.zoom).toBeCloseTo(4)
+    const r = cropRect(s, 1000, 1000, AVATAR_SHAPE)
+    expect(r.sx).toBeCloseTo(0)
+    expect(r.sw).toBeCloseTo(r.sh)
+    // 300 piksellik görselde 128 sınırı yakınlaştırmayı 300/128'e kısar.
+    expect(maxZoom(300, 300, AVATAR_SHAPE)).toBeCloseTo(300 / 128)
+  })
+
+  it('outputs a square at most 512 and never upscales', () => {
+    expect(outputSize(2000, AVATAR_SHAPE)).toEqual({ width: 512, height: 512 })
+    expect(outputSize(300.7, AVATAR_SHAPE)).toEqual({ width: 300, height: 300 })
+  })
+
+  it('rejects images smaller than 128 on either side', () => {
+    expect(isTooSmall(127, 500, AVATAR_SHAPE)).toBe(true)
+    expect(isTooSmall(128, 128, AVATAR_SHAPE)).toBe(false)
+    // Kapak kuralları değişmedi.
+    expect(isTooSmall(127, 500)).toBe(false)
   })
 })

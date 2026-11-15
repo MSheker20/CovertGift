@@ -39,6 +39,8 @@ type Contributor struct {
 	UserID       uuid.UUID `json:"user_id" format:"uuid"`
 	Name         string    `json:"name" example:"Zeynep Kaya"`
 	Contributing bool      `json:"contributing" example:"true"`
+	// AvatarVersion profil fotoğrafının sürümüdür; fotoğraf yoksa alan yer almaz.
+	AvatarVersion string `json:"avatar_version,omitempty"`
 }
 
 // PoolRepository MULTI grup havuzlarının veritabanı işlemlerini tanımlar.
@@ -238,7 +240,7 @@ func (r *poolRepository) PoolStats(groupID, viewerID uuid.UUID) (map[uuid.UUID]P
 func (r *poolRepository) ListContributors(poolID uuid.UUID) ([]Contributor, error) {
 	contributors := []Contributor{}
 	err := r.db.Raw(`
-		SELECT gm.user_id, u.name, COALESCE(pc.contributing, true) AS contributing
+		SELECT gm.user_id, u.name, u.avatar_version, COALESCE(pc.contributing, true) AS contributing
 		FROM gift_pools gp
 		JOIN group_members gm ON gm.group_id = gp.group_id AND gm.user_id <> gp.recipient_user_id
 		JOIN users u ON u.id = gm.user_id
