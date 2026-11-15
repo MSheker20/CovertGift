@@ -150,11 +150,11 @@ func viewerStatus(pools []models.GiftPool, viewerID uuid.UUID) (string, *time.Ti
 	return models.GroupStatusCompleted, latest
 }
 
-// nextEventDate çağıranın alıcısı olmadığı açık (ACTIVE) havuzlardan en yakın YAKLAŞAN (bugün veya
-// sonrası) hediye tarihini döner; hiçbirinin yaklaşan tarihi yoksa en erken geçmiş tarihe düşer.
-// Böylece tarihi geçmiş tek bir havuz yaklaşan tarihleri gizlemez. "Bugün" UTC+3'e göredir
-// (today, gece yarısı UTC olarak verilir). Çağıranın kendi havuzu hiçbir zaman sayılmaz.
-func nextEventDate(pools []models.GiftPool, viewerID uuid.UUID, today models.Date) *models.Date {
+// nextEvent çağıranın alıcısı olmadığı açık havuzların en yakın yaklaşan (bugün veya sonrası) tarihini,
+// yaklaşan yoksa en erken geçmiş tarihi ve o tarihi taşıyan havuzların alıcılarını (havuz sırasıyla;
+// aynı gün birden çok kişi olabilir) döner. Çağıranın kendi havuzu hiçbir zaman sayılmaz (Anti-Spoiler).
+// Tarih yoksa ikisi de nil'dir. "Bugün" UTC+3'e göredir (today, gece yarısı UTC olarak verilir).
+func nextEvent(pools []models.GiftPool, viewerID uuid.UUID, today models.Date) (*models.Date, []AccountSummary) {
 	var upcoming, overdue *models.Date
 	for i := range pools {
 		p := &pools[i]
@@ -170,10 +170,24 @@ func nextEventDate(pools []models.GiftPool, viewerID uuid.UUID, today models.Dat
 			overdue = &d
 		}
 	}
-	if upcoming != nil {
-		return upcoming
+	next := upcoming
+	if next == nil {
+		next = overdue
 	}
-	return overdue
+	if next == nil {
+		return nil, nil
+	}
+	var recipients []AccountSummary
+	for i := range pools {
+		p := &pools[i]
+		if p.RecipientUserID == viewerID || p.Status != models.GroupStatusActive || p.EventDate == nil {
+			continue
+		}
+		if p.EventDate.Equal(next.Time) {
+			recipients = append(recipients, AccountSummary{ID: p.RecipientUserID, Name: p.Recipient.Name})
+		}
+	}
+	return next, recipients
 }
 
 // turkeyToday "bugün"ü UTC+3'e göre, gece yarısı UTC olarak döner (tarih karşılaştırmaları için).

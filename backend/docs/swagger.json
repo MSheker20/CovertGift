@@ -5447,6 +5447,13 @@
                     "format": "date",
                     "example": "2026-12-31"
                 },
+                "next_event_recipients": {
+                    "description": "NextEventRecipients yalnızca MULTI gruplarda ve NextEventDate varken: o tarihi taşıyan görünür\nhavuzların alıcıları (aynı gün birden çok kişi olabilir). Çağıranın kendi havuzu asla yer almaz.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.AccountSummary"
+                    }
+                },
                 "pending_votes": {
                     "description": "Çağıran kullanıcıya özel: açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler.\nMULTI grupta sayaçlar yalnızca çağıranın alıcısı olmadığı havuzlardan hesaplanır.",
                     "type": "integer",

@@ -58,6 +58,8 @@ const tr = {
     newGroup: 'Yeni grup',
     forPerson: '{{name}} için',
     forList: '{{list}} için',
+    nameAndOthers_one: '{{name}} ve {{count}} kişi',
+    nameAndOthers_other: '{{name}} ve {{count}} kişi',
     you: 'senin',
     noRecipients: 'Hediye alınacak kişiler henüz seçilmedi',
     admin: 'Yönetici',

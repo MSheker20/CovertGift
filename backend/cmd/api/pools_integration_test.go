@@ -1395,6 +1395,42 @@ func TestNextEventDatePrefersUpcoming(t *testing.T) {
 	if got := next(s.bob); got != day(2) {
 		t.Fatalf("bob: en yakın yaklaşan beklenir, %s", got)
 	}
+	// next_event_recipients: o tarihteki görünür alıcılar; çağıranın kendi havuzu asla listede değil.
+	recipients := func(u user) string {
+		t.Helper()
+		var rows []struct {
+			ID         string `json:"id"`
+			Recipients []struct {
+				ID string `json:"id"`
+			} `json:"next_event_recipients"`
+		}
+		if err := json.Unmarshal(api.mustOK(http.MethodGet, "/groups", u.token, nil, http.StatusOK).Data, &rows); err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range rows {
+			if r.ID == s.groupID {
+				ids := make([]string, 0, len(r.Recipients))
+				for _, x := range r.Recipients {
+					ids = append(ids, x.ID)
+				}
+				return strings.Join(ids, ",")
+			}
+		}
+		return "?"
+	}
+	if got := recipients(s.alice); got != s.carolID.String() {
+		t.Fatalf("alice: yalnızca Carol beklenir, %s", got)
+	}
+	if got := recipients(s.bob); got != s.aliceID.String() {
+		t.Fatalf("bob: yalnızca Alice beklenir, %s", got)
+	}
+	setDate(poolCarol, s.admin, day(2)) // Alice ile aynı gün
+	if got, want := recipients(s.bob), s.aliceID.String()+","+s.carolID.String(); got != want {
+		t.Fatalf("bob: aynı gün iki alıcı beklenir, %s", got)
+	}
+	if got := recipients(s.alice); got != s.carolID.String() {
+		t.Fatalf("alice: kendi havuzu aynı günde listede göründü, %s", got)
+	}
 	setDate(poolCarol, s.admin, day(-3))
 	if got := next(s.alice); got != day(-10) {
 		t.Fatalf("alice: yalnızca geçmiş → en erken geçmiş beklenir, %s", got)

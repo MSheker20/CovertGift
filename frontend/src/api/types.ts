@@ -54,6 +54,9 @@ export type GroupListItem = Group & {
   recipients?: AccountSummary[]
   // Yalnızca MULTI: görebildiğim aktif havuzların en yakın tarihi.
   next_event_date?: string
+  // Yalnızca MULTI ve next_event_date varken: o tarihi taşıyan havuzların alıcıları (aynı gün birden
+  // çok kişi olabilir). Kendi havuzum asla yer almaz (Anti-Spoiler).
+  next_event_recipients?: AccountSummary[]
 }
 
 export type GroupMember = {

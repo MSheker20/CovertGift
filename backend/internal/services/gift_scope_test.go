@@ -1,6 +1,7 @@
 package services
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -136,7 +137,7 @@ func TestViewerStatusAndNextEventDate(t *testing.T) {
 		{"no dates → none", []models.GiftPool{active(other1, nil)}, ""},
 	} {
 		got := ""
-		if d := nextEventDate(tc.pools, me, today); d != nil {
+		if d, _ := nextEvent(tc.pools, me, today); d != nil {
 			got = d.String()
 		}
 		if got != tc.want {
@@ -145,5 +146,47 @@ func TestViewerStatusAndNextEventDate(t *testing.T) {
 	}
 	if turkeyToday(time.Date(2026, 12, 4, 22, 30, 0, 0, time.UTC)).String() != "2026-12-05" {
 		t.Fatal("bugün UTC+3'e göre hesaplanmalı")
+	}
+}
+
+// next_event_recipients: en yakın tarihi taşıyan görünür açık havuzların alıcıları (aynı gün birden
+// çok kişi olabilir), havuz sırasıyla. Çağıranın kendi havuzu aynı günde olsa bile listeye girmez.
+func TestNextEventRecipients(t *testing.T) {
+	me, ali, ayse, can := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	today := models.Date{Time: time.Date(2026, 12, 5, 0, 0, 0, 0, time.UTC)}
+	soon := models.Date{Time: time.Date(2026, 12, 14, 0, 0, 0, 0, time.UTC)}
+	later := models.Date{Time: time.Date(2027, 1, 10, 0, 0, 0, 0, time.UTC)}
+	past := models.Date{Time: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
+	pool := func(r uuid.UUID, name, status string, d *models.Date) models.GiftPool {
+		return models.GiftPool{RecipientUserID: r, Recipient: models.User{ID: r, Name: name}, Status: status, EventDate: d}
+	}
+	active := models.GroupStatusActive
+	tests := []struct {
+		name  string
+		pools []models.GiftPool
+		want  []string
+	}{
+		{"single nearest", []models.GiftPool{pool(ali, "Ali", active, &later), pool(ayse, "Ayşe", active, &soon)}, []string{"Ayşe"}},
+		{"same day → both, pool order", []models.GiftPool{pool(ayse, "Ayşe", active, &soon), pool(ali, "Ali", active, &later), pool(can, "Can", active, &soon)}, []string{"Ayşe", "Can"}},
+		{"own pool on the same day is hidden", []models.GiftPool{pool(me, "Ben", active, &soon), pool(ali, "Ali", active, &soon)}, []string{"Ali"}},
+		{"completed pool on the same day is not counted", []models.GiftPool{pool(ali, "Ali", models.GroupStatusCompleted, &soon), pool(ayse, "Ayşe", active, &soon)}, []string{"Ayşe"}},
+		{"only overdue → its recipient", []models.GiftPool{pool(ali, "Ali", active, &past), pool(ayse, "Ayşe", active, nil)}, []string{"Ali"}},
+		{"only own pool → none", []models.GiftPool{pool(me, "Ben", active, &soon)}, nil},
+		{"no dates → none", []models.GiftPool{pool(ali, "Ali", active, nil)}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, got := nextEvent(tt.pools, me, today)
+			names := make([]string, 0, len(got))
+			for _, r := range got {
+				if r.ID == me {
+					t.Fatal("çağıranın kendi havuzu listede (Anti-Spoiler)")
+				}
+				names = append(names, r.Name)
+			}
+			if strings.Join(names, ",") != strings.Join(tt.want, ",") {
+				t.Errorf("got %v, want %v", names, tt.want)
+			}
+		})
 	}
 }
