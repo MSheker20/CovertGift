@@ -867,3 +867,15 @@
   - **Frontend:** Kapak kırpma ekranı (`CoverCropDialog`, `lib/coverCrop.ts`) biçime göre parametreli oldu (`kind="avatar"`): kare çerçeve ve üstünde yuvarlak maske. `Avatar` fotoğraf varsa onu, yoksa ya da alınamazsa baş harfleri gösteriyor. Profil sayfasına fotoğraf ekleme, değiştirme ve kaldırma kartı eklendi.
   - **Seed:** Can ve Elif'e kodla üretilmiş fotoğraflar eklendi; Zeynep ve Ahmet baş harfle kalıyor.
   - **Doğrulama:** `imageproc` birim testleri; entegrasyon testleri (yükleme, ETag/304, silme, ortak grup yetkisi, hedef kişi, hatalı yüklemeler, hesap silme) ve seed testi yapıldı. Vitest 235/235 geçti. Tarayıcıda test veritabanıyla bakıldı: fotoğraflar menüde, sekmede, katılımcılarda ve üyelerde görünüyor; kırpma ve yükleme 512×512 kare veriyor; 375 px ve koyu temada taşma yok.
+
+## 2026-11-15 — Azure dağıtımı `195b728` ve `avatar_url` sütununun silinmesi
+
+- **Dağıtım:** #25–#29 `main`'de. İmajlar yerel Docker ile `linux/amd64` için derlendi ve `195b728` etiketiyle gönderildi; önce API, `/health` `db: up` döndükten sonra arayüz güncellendi.
+- **Göndermeden önce:** Web imajı ölü `API_TARGET` ile yerelde denendi. `/`, `/invite/<x>` ve `/profile` 200 döndü; `/api/v1/dev/*` büyük ve küçük harfle 403; güvenlik başlıkları yerinde; davet yolu loga düşmüyor.
+- **Canlıda yalnızca okuma kontrolleri:** `/`, `/invite/x`, `/profile` ve `/health` 200. Oturumsuz `/api/v1/me`, `/notifications`, `/groups/<id>/pools`, `/invites/x` ve yeni `/users/<id>/avatar` 401 döndü; son uç yeni API'nin çalıştığını gösteriyor. İki uygulama da `Running`, 0–1 replica.
+- **`users.avatar_url` silindi:** Hiç kullanılmayan sütun modelden #29'da çıkarılmıştı; AutoMigrate sütun silmediği için elle kaldırıldı (`ALTER TABLE users DROP COLUMN IF EXISTS avatar_url`).
+  - Önce sütunun içeriği kontrol edildi: yerel, test ve Azure'da tüm satırlarda boştu.
+  - Sonra `pg_dump -Fc` ile tam yedek alındı: yerel ve test veritabanı silmeden önce; Azure dağıtımdan önce ve silmeden önce. Yedekler `~/CovertGift-backups/2026-11-15/` altında, Git dışında. Her biri `pg_restore -l` ile okunabildi.
+  - Silme sırası dağıtımdan sonraydı: eski API'nin modeli sütunu içerdiği için önce silinseydi kayıt bozulurdu.
+- **Azure bağlantısı:** Güvenlik duvarında yalnızca eski istemci IP'si açıktı. Kullanıcı onayıyla geçici tek IP kuralı (`ClaudeTemp-2026-11-15`) eklendi ve iş bitince silindi. Bağlantı bilgisi Container App secret'ından okundu, ekrana ya da dosyaya yazılmadı.
+- **Not:** `a5c65ce`'ye geri dönülürse önce sütun yeniden eklenmeli (`docs/AZURE.md`).
