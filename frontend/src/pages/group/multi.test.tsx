@@ -238,7 +238,12 @@ describe('contribution switch', () => {
       http.get(api(POOL), () => ok(current)),
       http.put(api(`${POOL}/contribution`), async ({ request }) => {
         sent = await request.json()
-        current = poolDetail({ my_contribution: false, contributor_count: 2, per_person_budget: '150' })
+        current = poolDetail({
+          my_contribution: false,
+          contributor_count: 2,
+          per_person_budget: '150',
+          contributors: poolDetail().contributors.map((c) => (c.user_id === me.id ? { ...c, contributing: false } : c)),
+        })
         return ok({ contributing: false, contributor_count: 2, per_person_budget: '150', no_contributors: false })
       }),
     )
@@ -247,9 +252,13 @@ describe('contribution switch', () => {
 
     const toggle = await screen.findByRole('switch', { name: 'Bu hediyeye ortağım' }, { timeout: 3000 })
     expect(toggle).toBeChecked()
+    // Görünen alt yazı duruma bağlıdır; anahtarın adı sabit kalır.
+    expect(screen.getByText('Bu hediyeye ortağım')).toBeInTheDocument()
     await user.click(toggle)
     await waitFor(() => expect(sent).toEqual({ contributing: false }), { timeout: 3000 })
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Bu hediyeye ortağım' })).not.toBeChecked(), { timeout: 3000 })
+    expect(screen.getByText('Bu hediyeye ortak değilim')).toBeInTheDocument()
+    expect(screen.queryByText('Bu hediyeye ortağım')).not.toBeInTheDocument()
     expect(await screen.findByText('₺150,00', {}, { timeout: 3000 })).toBeInTheDocument()
     expect(screen.getByTestId('per-person-caption')).toHaveTextContent('2 katılımcıya bölünür')
   })
