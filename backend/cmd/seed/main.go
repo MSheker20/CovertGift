@@ -122,7 +122,7 @@ func seed(db *gorm.DB, password string) error {
 				}
 				users[u.Email] = found
 			}
-			return seedShowcase(tx, users)
+			return seedExtras(tx, users)
 		}
 
 		auth := services.NewAuthService(userRepo, "seed-unused-secret")
@@ -185,7 +185,7 @@ func seed(db *gorm.DB, password string) error {
 		if err := seedMultiGroup(tx, users); err != nil {
 			return err
 		}
-		return seedShowcase(tx, users)
+		return seedExtras(tx, users)
 	})
 }
 
