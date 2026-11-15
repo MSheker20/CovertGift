@@ -237,6 +237,7 @@ const tr = {
     contributing: 'Katılıyor',
     notContributing: 'Katılmıyor',
     toggleContribution: 'Bu hediyeye ortağım',
+    notContributingCaption: 'Bu hediyeye ortak değilim',
     lockedWhileCompleted: 'Havuz tamamlandı; katkı değişikliği kapalı. Havuz yeniden açılırsa değiştirebilirsin.',
     toggleError: 'Katkı durumu kaydedilemedi.',
     announceSaved_one: 'Katkın kaydedildi. {{count}} katılımcı, kişi başı {{share}}.',

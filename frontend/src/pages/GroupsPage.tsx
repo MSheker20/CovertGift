@@ -135,7 +135,7 @@ function NextSurpriseCard({
   meId?: string
 }) {
   const { t } = useTranslation()
-  const box = 'flex min-h-[176px] flex-col rounded-[22px] p-5 md:col-span-8 md:self-stretch md:p-6'
+  const box = 'flex min-h-[176px] flex-col rounded-[22px] p-5 md:col-span-8 md:min-h-[232px] md:p-6'
 
   if (state.isPending)
     return (
@@ -268,50 +268,55 @@ function TasksPanel({
   const tasks = useMemo(() => prioritizedTasks(groups, meId), [groups, meId])
 
   return (
-    <Panel
-      title={t('home.tasks.panel')}
-      count={state.isSuccess && tasks.length > 0 ? tasks.length : undefined}
-      className="md:col-span-4"
-    >
-      {state.isPending ? (
-        <RowsSkeleton rows={3} compact />
-      ) : state.isError ? (
-        <p className="text-sm text-muted">{t('home.loadError')}</p>
-      ) : tasks.length === 0 ? (
-        <div className="flex items-start gap-3 rounded-[14px] bg-raised px-4 py-3.5">
-          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-positive" aria-hidden />
-          <div>
-            <p className="text-sm font-medium">{t('home.tasks.empty')}</p>
-            <p className="mt-0.5 text-xs text-muted">{t('home.tasks.emptyBody')}</p>
+    // Masaüstünde satırın yüksekliğini "Sıradaki sürpriz" kartı belirler: panel satıra katılmaz
+    // (mutlak konum) ve uzun görev listesi kendi içinde kayar; kart listeyle birlikte uzamaz.
+    // Telefonda normal akıştadır.
+    <div className="md:relative md:col-span-4 md:self-stretch">
+      <Panel
+        title={t('home.tasks.panel')}
+        count={state.isSuccess && tasks.length > 0 ? tasks.length : undefined}
+        className="md:absolute md:inset-0 md:flex md:flex-col"
+      >
+        {state.isPending ? (
+          <RowsSkeleton rows={3} compact />
+        ) : state.isError ? (
+          <p className="text-sm text-muted">{t('home.loadError')}</p>
+        ) : tasks.length === 0 ? (
+          <div className="flex items-start gap-3 rounded-[14px] bg-raised px-4 py-3.5">
+            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-positive" aria-hidden />
+            <div>
+              <p className="text-sm font-medium">{t('home.tasks.empty')}</p>
+              <p className="mt-0.5 text-xs text-muted">{t('home.tasks.emptyBody')}</p>
+            </div>
           </div>
-        </div>
-      ) : (
-        <ul className="-mx-2 flex flex-col">
-          {tasks.map((task) => (
-            <li key={task.group.id}>
-              <Link
-                to={`/groups/${task.group.id}`}
-                className="group flex min-h-12 items-center gap-3 rounded-[12px] px-2 py-2 transition-colors hover:bg-raised"
-              >
-                <span
-                  className={cn(
-                    'inline-flex min-w-[60px] shrink-0 justify-center rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap',
-                    LEVEL_PILL[task.level],
-                  )}
+        ) : (
+          <ul className="-mx-2 flex flex-col md:-mr-3 md:min-h-0 md:flex-1 md:overflow-y-auto md:pr-1">
+            {tasks.map((task) => (
+              <li key={task.group.id}>
+                <Link
+                  to={`/groups/${task.group.id}`}
+                  className="group flex min-h-12 items-center gap-3 rounded-[12px] px-2 py-2 transition-colors hover:bg-raised"
                 >
-                  {t(`home.tasks.level.${task.level}`)}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{task.group.title}</span>
-                  <span className="mt-0.5 block truncate text-xs text-muted">{taskText(task, t)}</span>
-                </span>
-                <ChevronRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Panel>
+                  <span
+                    className={cn(
+                      'inline-flex min-w-[60px] shrink-0 justify-center rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap',
+                      LEVEL_PILL[task.level],
+                    )}
+                  >
+                    {t(`home.tasks.level.${task.level}`)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{task.group.title}</span>
+                    <span className="mt-0.5 block truncate text-xs text-muted">{taskText(task, t)}</span>
+                  </span>
+                  <ChevronRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+    </div>
   )
 }
 

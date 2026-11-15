@@ -239,6 +239,7 @@ const en: Messages = {
     contributing: 'Contributing',
     notContributing: 'Not contributing',
     toggleContribution: 'I’m chipping in on this gift',
+    notContributingCaption: 'I’m not chipping in on this gift',
     lockedWhileCompleted: 'The pool is completed; contributions can’t be changed. You can change yours if it is reopened.',
     toggleError: 'Couldn’t save your contribution.',
     announceSaved_one: 'Your contribution was saved. {{count}} contributor, {{share}} each.',

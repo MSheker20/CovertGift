@@ -348,7 +348,6 @@ function ContributorsPanel({
   const queryClient = useQueryClient()
   const key = queryKeys.pool(groupId, pool.id)
   const completed = (detail ?? pool).status === 'COMPLETED'
-  const labelId = `contrib-label-${pool.id}`
   const noteId = `contrib-note-${pool.id}`
   // Ekran okuyucu için sonuç duyurusu (bildirimlere ek olarak).
   const [message, setMessage] = useState('')
@@ -428,9 +427,10 @@ function ContributorsPanel({
                     {c.name}
                     {mine && <span className="text-muted"> ({t('group.you')})</span>}
                   </span>
+                  {/* Görünen alt yazı katılım durumunu söyler; anahtarın adı (aria-label) sabittir. */}
                   {mine && (
-                    <span id={labelId} className="block text-xs text-muted">
-                      {t('pools.toggleContribution')}
+                    <span className="block text-xs text-muted" aria-hidden>
+                      {c.contributing ? t('pools.toggleContribution') : t('pools.notContributingCaption')}
                     </span>
                   )}
                 </span>
@@ -440,7 +440,7 @@ function ContributorsPanel({
                       {c.contributing ? t('pools.contributing') : t('pools.notContributing')}
                     </span>
                     <Switch
-                      aria-labelledby={labelId}
+                      aria-label={t('pools.toggleContribution')}
                       aria-describedby={completed ? noteId : undefined}
                       checked={c.contributing}
                       disabled={completed}
