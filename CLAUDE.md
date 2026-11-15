@@ -36,3 +36,26 @@ Oturuma başlamadan önce oku:
 - Azure dağıtımı: `docs/AZURE.md` (imajlar yerel Docker ile derlenir, commit kısa kimliğiyle etiketlenir; `az acr build` kapalı). Canlıda yalnızca okuma kontrolleri yapılır; canlı veriye yazan istek atılmaz.
 - Tarayıcıda denemek için `.claude/launch.json`'daki `api-testdb` + `frontend-testdb` geçici `test-db`'ye bağlanır (yerel veriye dokunmaz; demo verisi `go run ./cmd/seed` ile).
 - Bu projede genel ECC plugin'i kapalıdır (`.claude/settings.json`). Gerekli skill, agent ve komutlar `.claude/` altında projeye özel olarak bulunur.
+
+## Skill'ler (otomatik kullanım)
+`.claude/skills/` altındaki skill'ler bu projede her oturumda yüklüdür. İlgili işe başlamadan önce ilgili skill'i `Skill` aracıyla çağır:
+- **Frontend bileşen/sayfa yazarken veya değiştirirken:** `react-patterns`, `frontend-patterns`; görsel/UX işlerinde ayrıca `design-taste-frontend` ve `frontend-design-direction`
+- **Form, modal, sekme, klavye/odak işleri:** `frontend-a11y`
+- **Render/performans sorunları:** `react-performance`
+- **Frontend testleri (Vitest/Playwright):** `react-testing`
+- **Backend (Go) kodu:** `golang-patterns`, `backend-patterns`, `error-handling`; yeni uçlarda `api-design`; test yazarken `golang-testing`
+- **Şema/sorgu/index değişikliği:** `postgres-patterns`, `database-migrations`
+- **Auth, davet token'ı, girdi işleme, link önizleme gibi güvenlik yüzeyleri:** `security-review`
+- **Yeni özellik/bug fix:** `tdd-workflow`
+- **Docker/compose değişiklikleri:** `docker-patterns`
+- **Commit/PR/branch işleri:** `git-workflow`
+- **Playwright e2e testleri:** `e2e-testing`; tarayıcıda canlı doğrulama için `browser-qa`
+- **Vite yapılandırması/proxy/build:** `vite-patterns`
+- **TR/EN çeviri anahtarları:** `i18n-sync`
+- **Erişilebilirlik denetimi (WCAG):** `accessibility`
+- **Buton/akış bug'ı avı (state zincirini izleme):** `click-path-audit`
+- **Büyük değişiklik sonrası build+tip+lint+test doğrulaması:** `verification-loop`
+- **Yeni kütüphane/özellik eklemeden önce hazır çözüm arama:** `search-first`
+- **Azure/CI-CD/dağıtım:** `deployment-patterns`
+- **Tasarım token'ları tutarlılığı (`src/index.css`):** `design-system`
+- **Gemini çağrıları (model seçimi, maliyet, bütçe):** `cost-aware-llm-pipeline`

@@ -1,9 +1,9 @@
 import { cn } from '@/lib/utils'
 import { initials, personStyle } from '@/lib/person'
 
-type Props = { name: string; seed?: string; size?: 'sm' | 'md' | 'lg'; className?: string }
+type Props = { name: string; seed?: string; size?: 'xs' | 'sm' | 'md' | 'lg'; className?: string }
 
-const SIZES = { sm: 'size-7 text-[11px]', md: 'size-9 text-xs', lg: 'size-11 text-sm' }
+const SIZES = { xs: 'size-5 text-[9px]', sm: 'size-7 text-[11px]', md: 'size-9 text-xs', lg: 'size-11 text-sm' }
 
 export function Avatar({ name, seed, size = 'md', className }: Props) {
   return (

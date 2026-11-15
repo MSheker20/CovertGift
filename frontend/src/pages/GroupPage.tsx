@@ -14,6 +14,7 @@ import { SurpriseScreen } from '@/components/SurpriseScreen'
 import { errorMessage, isAntiSpoiler } from '@/lib/errors'
 import { countdownLabel, daysUntil, formatEventDate } from '@/lib/eventDate'
 import { formatMoney } from '@/lib/format'
+import { orderPools } from '@/lib/pools'
 import { GiftPool } from './group/GiftPool'
 import { GroupDescription, TargetStatus } from './group/GroupHeaderInfo'
 import { BudgetTile, GroupMenu, InterestsTile } from './group/GroupManage'
@@ -48,7 +49,8 @@ export function GroupPage() {
 
   const d = detail.data
   const multi = d?.group.mode === 'MULTI'
-  const pools = d?.pools ?? []
+  // Sekmeler tarihe göre sıralıdır; varsayılan seçim de bu sıradan gelir (en yakın tarihli kişi).
+  const pools = orderPools(d?.pools ?? [])
   // Seçili havuz ?pool= adresinden gelir (bildirim bağlantıları buraya iner). Geçersizse (kaldırılmış
   // ya da yazım hatası) ilk açık havuz, o da yoksa ilk havuz seçilir; adres yeniden yazılmaz.
   const requested = searchParams.get('pool')
@@ -172,27 +174,27 @@ export function GroupPage() {
 
           {multi && d ? (
             <>
-              {pools.length > 0 && selected && (
-                <PoolTabs pools={pools} selectedId={selected.id} onSelect={selectPool} meId={user?.id} />
-              )}
-              <div role={selected ? 'tabpanel' : undefined} tabIndex={selected ? 0 : undefined} id={PANEL_ID} aria-labelledby={selected ? tabId(selected.id) : undefined}>
-                {selected && !selected.locked ? (
-                  <PoolSection
-                    key={selected.id}
-                    groupId={id}
-                    pool={selected}
-                    meId={user?.id}
-                    live={live}
-                    aside={<MembersPanel groupId={id} d={d} meId={user?.id} onPoolCreated={selectPool} />}
-                  />
-                ) : (
-                  <div className="mt-6 grid grid-cols-1 items-start gap-4 md:grid-cols-12">
-                    <div className="md:col-span-8">
-                      {selected ? <LockedPoolCard /> : <NoPoolsCard isAdmin={d.my_role === 'admin'} />}
+              {/* Havuz sayfası solda; kişi seçici sayfanın ilk satırıdır (havuzun devamı). Grup geneli üyeler
+                  paneli sayfanın dışında: xl'de yanında, daha dar ekranlarda altında. */}
+              <div className="mt-6 grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+                {selected ? (
+                  <div className="min-w-0 rounded-[22px] border border-border bg-raised">
+                    <PoolTabs pools={pools} selectedId={selected.id} onSelect={selectPool} meId={user?.id} />
+                    <div role="tabpanel" tabIndex={0} id={PANEL_ID} aria-labelledby={tabId(selected.id)} className="p-4 md:p-6">
+                      {selected.locked ? (
+                        <LockedPoolCard />
+                      ) : (
+                        <PoolSection key={selected.id} groupId={id} pool={selected} meId={user?.id} live={live} />
+                      )}
                     </div>
-                    <MembersPanel groupId={id} d={d} meId={user?.id} onPoolCreated={selectPool} />
                   </div>
+                ) : (
+                  <NoPoolsCard isAdmin={d.my_role === 'admin'} />
                 )}
+                {/* Sarmalayıcı, panelin SINGLE düzenindeki md:col-span-4'ünü bu ızgaradan yalıtır. */}
+                <div className="min-w-0">
+                  <MembersPanel groupId={id} d={d} meId={user?.id} onPoolCreated={selectPool} />
+                </div>
               </div>
             </>
           ) : (
