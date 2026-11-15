@@ -714,6 +714,13 @@ definitions:
         example: "2026-12-31"
         format: date
         type: string
+      next_event_recipients:
+        description: |-
+          NextEventRecipients yalnızca MULTI gruplarda ve NextEventDate varken: o tarihi taşıyan görünür
+          havuzların alıcıları (aynı gün birden çok kişi olabilir). Çağıranın kendi havuzu asla yer almaz.
+        items:
+          $ref: '#/definitions/services.AccountSummary'
+        type: array
       pending_votes:
         description: |-
           Çağıran kullanıcıya özel: açık gruptaki, kendisinin eklemediği ve henüz oy vermediği aktif fikirler.

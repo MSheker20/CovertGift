@@ -585,6 +585,37 @@ describe('home page: MULTI cards', () => {
   })
 })
 
+describe('home page: next surprise card for MULTI', () => {
+  const row = (overrides: Partial<GroupListItem> = {}): GroupListItem => ({
+    ...multiGroup,
+    member_count: 4,
+    idea_count: 3,
+    pending_votes: 0,
+    recipients: [elif, can, { id: me.id, name: me.name }],
+    next_event_date: '2031-01-15',
+    ...overrides,
+  })
+  const card = async () => (await screen.findByText('Sıradaki sürpriz')).closest('a')!
+
+  it.each([
+    ['one recipient', [elif], 'Elif Kara için · 15 Ocak 2031'],
+    ['two on the same day', [elif, can], 'Elif Kara ve Can Er için · 15 Ocak 2031'],
+    ['three or more', [elif, can, { id: 'u-ali', name: 'Ali Su' }], 'Elif Kara ve 2 kişi için · 15 Ocak 2031'],
+  ])('names whose date it is: %s', async (_, people, text) => {
+    server.use(http.get(api('/me'), () => ok(me)), http.get(api('/groups'), () => ok([row({ next_event_recipients: people })])))
+    renderApp('/')
+    const c = await card()
+    expect(c).toHaveTextContent(text)
+    expect(c).not.toHaveTextContent('senin')
+  })
+
+  it('falls back to all recipients when the server sends no date owner', async () => {
+    server.use(http.get(api('/me'), () => ok(me)), http.get(api('/groups'), () => ok([row()])))
+    renderApp('/')
+    expect(await card()).toHaveTextContent('Elif Kara, Can Er ve senin için · 15 Ocak 2031')
+  })
+})
+
 describe('pool notifications', () => {
   const n = (overrides: Partial<AppNotification>): AppNotification => ({
     id: 'n-1',

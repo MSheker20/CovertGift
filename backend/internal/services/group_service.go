@@ -217,6 +217,9 @@ type GroupListItem struct {
 	Recipients *[]AccountSummary `json:"recipients,omitempty"`
 	// NextEventDate yalnızca MULTI gruplarda: çağıranın alıcısı olmadığı açık havuzların en yakın yaklaşan (bugün veya sonrası, UTC+3) tarihi; yaklaşan yoksa en erken geçmiş tarih.
 	NextEventDate *models.Date `json:"next_event_date,omitempty" swaggertype:"string" format:"date" example:"2026-12-31"`
+	// NextEventRecipients yalnızca MULTI gruplarda ve NextEventDate varken: o tarihi taşıyan görünür
+	// havuzların alıcıları (aynı gün birden çok kişi olabilir). Çağıranın kendi havuzu asla yer almaz.
+	NextEventRecipients []AccountSummary `json:"next_event_recipients,omitempty"`
 }
 
 // GetUserGroups kullanıcının üye olduğu grupları sayaçlarıyla listeler (hedef olduğu gruplar filtrelenir).
@@ -254,7 +257,7 @@ func (s *groupService) GetUserGroups(userID uuid.UUID) ([]GroupListItem, error) 
 			}
 			items[i].Recipients = &recipients
 			items[i].Status, items[i].CompletedAt = viewerStatus(pools, userID)
-			items[i].NextEventDate = nextEventDate(pools, userID, today)
+			items[i].NextEventDate, items[i].NextEventRecipients = nextEvent(pools, userID, today)
 		}
 	}
 	return items, nil

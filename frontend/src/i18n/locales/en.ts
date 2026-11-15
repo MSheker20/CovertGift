@@ -60,6 +60,8 @@ const en: Messages = {
     newGroup: 'New group',
     forPerson: 'For {{name}}',
     forList: 'For {{list}}',
+    nameAndOthers_one: '{{name}} and {{count}} other',
+    nameAndOthers_other: '{{name}} and {{count}} others',
     you: 'you',
     noRecipients: 'No recipients chosen yet',
     admin: 'Admin',

@@ -102,6 +102,20 @@ function forLine(g: GroupListItem, meId: string | undefined, t: ReturnType<typeo
   return g.mode === 'MULTI' ? recipientsLine(g, meId, t) : t('home.forPerson', { name: g.target_person_name })
 }
 
+// "Sıradaki sürpriz" kartının "kim için" metni: MULTI'de yalnızca en yakın tarihin sahipleri.
+// Aynı günde iki kişi "Elif ve Can için", daha fazlası "Elif ve 2 kişi için" olur. Sunucu sahipleri
+// göndermezse (eski API) tüm alıcılar yazılır. Kendi havuzum sunucudan hiç gelmez (Anti-Spoiler).
+function nextForLine(g: GroupListItem, meId: string | undefined, t: ReturnType<typeof useTranslation>['t']): string {
+  const owners = g.mode === 'MULTI' ? (g.next_event_recipients ?? []) : []
+  if (owners.length === 0) return forLine(g, meId, t)
+  const names = owners.map((r) => r.name)
+  const list =
+    names.length <= 2
+      ? new Intl.ListFormat(i18n.language === 'en' ? 'en' : 'tr', { style: 'long', type: 'conjunction' }).format(names)
+      : t('home.nameAndOthers', { name: names[0], count: names.length - 1 })
+  return t('home.forList', { list })
+}
+
 function split(groups: GroupListItem[]) {
   const open = sortByUpcoming(groups.filter((g) => g.status !== 'COMPLETED'))
   const completed = groups
@@ -204,7 +218,7 @@ function NextSurpriseCard({
               {group.title}
             </p>
             <p className={cn('mt-2 text-sm opacity-80', hasCover ? 'line-clamp-2' : 'truncate')}>
-              {forLine(group, meId, t)} · {formatEventDate(effectiveEventDate(group)!)}
+              {nextForLine(group, meId, t)} · {formatEventDate(effectiveEventDate(group)!)}
             </p>
           </div>
           <div className={cn('shrink-0 text-right', hasCover && 'md:max-lg:flex md:max-lg:items-baseline md:max-lg:gap-2 md:max-lg:text-left')}>
