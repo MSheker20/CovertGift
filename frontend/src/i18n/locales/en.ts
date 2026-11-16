@@ -104,6 +104,8 @@ const en: Messages = {
       votes_other: '{{count}} ideas need your vote',
       pickWinner: 'Time to pick the winner',
       addDate: 'Add the gift date',
+      showAll: 'Show all ({{count}})',
+      showLess: 'Show less',
     },
     history: {
       panel: 'Past surprises',

@@ -102,6 +102,8 @@ const tr = {
       votes_other: '{{count}} fikir oyunu bekliyor',
       pickWinner: 'Kazananı seçme zamanı',
       addDate: 'Hediye tarihini ekle',
+      showAll: 'Tümünü gör ({{count}})',
+      showLess: 'Daha az göster',
     },
     history: {
       panel: 'Geçmiş sürprizler',

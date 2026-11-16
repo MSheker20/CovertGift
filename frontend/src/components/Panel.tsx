@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -16,10 +16,14 @@ export function Panel({
   className?: string
   children: ReactNode
 }) {
+  // Başlık bölgenin adıdır: ekran okuyucuda "Senden bekleyenler, bölge" olarak duyurulur.
+  const titleId = useId()
   return (
-    <section className={cn('rounded-[22px] bg-surface p-4 md:p-5', className)}>
+    <section aria-labelledby={titleId} className={cn('rounded-[22px] bg-surface p-4 md:p-5', className)}>
       <header className="mb-4 flex min-h-[38px] items-center gap-2">
-        <h2 className="font-display text-[15px] font-semibold">{title}</h2>
+        <h2 id={titleId} className="font-display text-[15px] font-semibold">
+          {title}
+        </h2>
         {count !== undefined && (
           <span className="num rounded-full bg-soft px-2 py-0.5 text-xs font-semibold text-on-soft">{count}</span>
         )}

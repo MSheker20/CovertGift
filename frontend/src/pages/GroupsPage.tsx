@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
-import { CalendarDays, CalendarPlus, CheckCircle2, ChevronRight, Plus } from 'lucide-react'
+import { CalendarDays, CalendarPlus, CheckCircle2, ChevronDown, ChevronRight, Plus } from 'lucide-react'
 
 import { groupsApi, queryKeys } from '@/api/endpoints'
 import type { GroupListItem } from '@/api/types'
@@ -265,17 +265,24 @@ function TasksPanel({
   meId?: string
 }) {
   const { t } = useTranslation()
-  const tasks = useMemo(() => prioritizedTasks(groups, meId), [groups, meId])
+  // Liste açılabildiği için görev sayısı sınırlanmaz; panel hepsini sayar.
+  const tasks = useMemo(() => prioritizedTasks(groups, meId, undefined, Number.POSITIVE_INFINITY), [groups, meId])
+  const [expanded, setExpanded] = useState(false)
+  const listId = useId()
+  // Kapalıyken masaüstünde 2, telefonda 3 görev görünür. 3. satır yalnızca md ve üstünde CSS ile
+  // gizlenir; ekran genişliği değişince JS'e bağlı bir kayma olmaz.
+  const visible = expanded ? tasks : tasks.slice(0, MOBILE_TASKS)
+  const hasMore = tasks.length > DESKTOP_TASKS
 
   return (
-    // Masaüstünde satırın yüksekliğini "Sıradaki sürpriz" kartı belirler: panel satıra katılmaz
-    // (mutlak konum) ve uzun görev listesi kendi içinde kayar; kart listeyle birlikte uzamaz.
-    // Telefonda normal akıştadır.
-    <div className="md:relative md:col-span-4 md:self-stretch">
+    // Masaüstünde satırın yüksekliğini "Sıradaki sürpriz" kartı belirler: kapalı panel satıra
+    // katılmaz (mutlak konum) ve en fazla 2 görev gösterdiği için karta sığar. Açılınca normal
+    // akışa döner ve kartın altına doğru uzar; kart kendi yüksekliğinde kalır. Telefonda hep akıştadır.
+    <div className={cn('md:col-span-4', !expanded && 'md:relative md:self-stretch')}>
       <Panel
         title={t('home.tasks.panel')}
         count={state.isSuccess && tasks.length > 0 ? tasks.length : undefined}
-        className="md:absolute md:inset-0 md:flex md:flex-col"
+        className={cn(!expanded && 'md:absolute md:inset-0 md:flex md:flex-col')}
       >
         {state.isPending ? (
           <RowsSkeleton rows={3} compact />
@@ -290,35 +297,57 @@ function TasksPanel({
             </div>
           </div>
         ) : (
-          <ul className="-mx-2 flex flex-col md:-mr-3 md:min-h-0 md:flex-1 md:overflow-y-auto md:pr-1">
-            {tasks.map((task) => (
-              <li key={task.group.id}>
-                <Link
-                  to={`/groups/${task.group.id}`}
-                  className="group flex min-h-12 items-center gap-3 rounded-[12px] px-2 py-2 transition-colors hover:bg-raised"
-                >
-                  <span
-                    className={cn(
-                      'inline-flex min-w-[60px] shrink-0 justify-center rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap',
-                      LEVEL_PILL[task.level],
-                    )}
+          <>
+            <ul id={listId} className="-mx-2 flex flex-col">
+              {visible.map((task, i) => (
+                <li key={task.group.id} className={cn(!expanded && i >= DESKTOP_TASKS && 'md:hidden')}>
+                  <Link
+                    to={`/groups/${task.group.id}`}
+                    className="group flex min-h-12 items-center gap-3 rounded-[12px] px-2 py-2 transition-colors hover:bg-raised"
                   >
-                    {t(`home.tasks.level.${task.level}`)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{task.group.title}</span>
-                    <span className="mt-0.5 block truncate text-xs text-muted">{taskText(task, t)}</span>
-                  </span>
-                  <ChevronRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              </li>
-            ))}
-          </ul>
+                    <span
+                      className={cn(
+                        'inline-flex min-w-[60px] shrink-0 justify-center rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap',
+                        LEVEL_PILL[task.level],
+                      )}
+                    >
+                      {t(`home.tasks.level.${task.level}`)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{task.group.title}</span>
+                      <span className="mt-0.5 block truncate text-xs text-muted">{taskText(task, t)}</span>
+                    </span>
+                    <ChevronRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {hasMore && (
+              <button
+                type="button"
+                aria-expanded={expanded}
+                aria-controls={listId}
+                onClick={() => setExpanded((v) => !v)}
+                className={cn(
+                  '-mx-2 mt-1 flex h-8 w-fit cursor-pointer items-center gap-1 rounded-[10px] px-2 text-sm font-medium text-accent transition-colors hover:bg-raised',
+                  // Telefonda 3 görev zaten görünür: tam 3 görev varken buton yalnızca masaüstünde gerekir.
+                  !expanded && tasks.length <= MOBILE_TASKS && 'hidden md:flex',
+                )}
+              >
+                {expanded ? t('home.tasks.showLess') : t('home.tasks.showAll', { count: tasks.length })}
+                <ChevronDown className={cn('size-4 transition-transform motion-reduce:transition-none', expanded && 'rotate-180')} aria-hidden />
+              </button>
+            )}
+          </>
         )}
       </Panel>
     </div>
   )
 }
+
+// "Senden bekleyenler" kapalıyken görünen görev sayısı. Masaüstünde 2 satır karta sığar.
+const DESKTOP_TASKS = 2
+const MOBILE_TASKS = 3
 
 function taskText(task: PriorityTask, t: ReturnType<typeof useTranslation>['t']): string {
   const date = effectiveEventDate(task.group)
