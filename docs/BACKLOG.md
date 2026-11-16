@@ -4,18 +4,14 @@ Not: Bu liste henüz düzeltilmemiş bug'ları ve fikirleri toplar. Çözülenle
 
 ## Sıradaki oturum planı (2026-11-15'te hazırlandı)
 
-Öneri sırası: önce ACİL madde (0), sonra güvence (1–3), sonra küçük bir dağıtım (4–5), sonra ürün işleri arasından seçim.
+Öneri sırası (2026-11-16'da güncellendi): önce ACİL madde (0) ile 4–5 tek dağıtımda, sonra güvence (1–3), sonra ürün işleri arasından seçim.
 
-### 0. ACİL — "Senden bekleyenler" paneli (kullanıcı isteği, 2026-11-15)
-#28'den sonra panel masaüstünde kartın yüksekliğine sabitlendi ve listesi kendi içinde kayıyor. Canlıda (koyu tema) görünüm kötü:
-- Tarayıcının varsayılan, kalın gri kaydırma çubuğu ve izi görünüyor.
-- Üçüncü satır yarıdan kesiliyor ("Normal" etiketi ve başlık yarım kalıyor); kaydırılabildiğine dair başka bir ipucu yok.
+### 0. ACİL — "Senden bekleyenler" paneli ve aynı dağıtım (2026-11-16)
+Panel düzeltmesi `fix/tasks-panel` PR'ında (ayrıntı DEVLOG'da). Kalan sıra:
+1. **PR 2:** `chore/go-1.27.4-avatar-limit` (madde 4 ve 5).
+2. İki PR merge edilince tek Azure dağıtımı. Dağıtımdan önce kullanıcı onayı alınır; canlıda yalnızca okuma kontrolü yapılır ve panelin görünümüne bakılır.
 
-Ya kaydırma çubuğu değiştirilecek ya da alan baştan tasarlanacak. Seçenekler:
-- **(a) Küçük düzeltme:** İnce, token renkli bir kaydırma çubuğu; altta yumuşak bir solma ipucu; satırlar yarım kesilmeyecek şekilde yükseklik ayarı ya da scroll-snap.
-- **(b) Yeniden tasarım (önerilen):** İç kaydırma kaldırılır. Panelde en önemli 2–3 görev ve altında "Tümünü gör (4)" ile genişleyen liste ya da ayrı bir görünüm olur. Mavi kart yine kendi yüksekliğinde kalır (#28'in amacı korunur), paneldeki hiçbir satır kesilmez. Telefon düzeni de birlikte gözden geçirilir.
-
-Karar oturum başında, birkaç örnekle birlikte verilecek. Dosyalar: `frontend/src/pages/GroupsPage.tsx` (`TasksPanel`) ve `components/Panel.tsx`.
+Playwright e2e (1) ve CI (2) bu turun dışında kaldı, sonraki adımdır.
 
 ### A. Güvence ve altyapı (önce)
 1. **Playwright e2e'yi çalıştır ve düzelt.** Bu oturumda hiç çalıştırılmadı; #25 (sekme yapısı), #28 (ana sayfa düzeni) ve #29 (avatar) `multi.spec`, `profile.spec` ve `acceptance.spec`'i bozmuş olabilir. `npm --prefix frontend run test:e2e`; API ve test DB açık olmalı.
@@ -23,8 +19,8 @@ Karar oturum başında, birkaç örnekle birlikte verilecek. Dosyalar: `frontend
 3. **Test DB'yi ayır.** Açık dev sunucusu (`api-testdb`) ile entegrasyon testleri aynı `covertgift_test`'i kullanınca testler bir kez düştü, seed testi de oturumları düşürdü. Önizleme için ayrı bir veritabanı (ör. `covertgift_preview_test`) ya da ayrı bir konteyner.
 
 ### B. Küçük teknik borç (tek dağıtımda toplanabilir)
-4. **Go 1.27.4'e yükselt.** GO-2026-6859, `net/http` `MaxBytesReader`'daki bir açık; kapak ve avatar yüklemesinin gövde sınırı tam bunu kullanıyor.
-5. **nginx'te avatar yükleme sınırı.** `PUT /api/v1/me/avatar` genel 1 MB sınırına takılıyor, sunucu ise 2 MB kabul ediyor. Kapak gibi ayrı bir 3 MB bloğu ekle. Ardından Azure'a dağıt.
+4. **Go 1.27.4'e yükselt.** GO-2026-6859, `net/http` `MaxBytesReader`'daki bir açık; kapak ve avatar yüklemesinin gövde sınırı tam bunu kullanıyor. (2026-11-16: ACİL panelle aynı dağıtıma alındı, PR 2.) Güncellenecek yerler: `go.work`, `backend/go.mod`, `backend/Dockerfile` (`golang:1.27.4-bookworm`), `.claude/launch.json` (`GOTOOLCHAIN`). Doğrulama: `go vet`, `go test ./...` ve `-p 1 ./cmd/...` entegrasyon testleri.
+5. **nginx'te avatar yükleme sınırı.** `PUT /api/v1/me/avatar` genel 1 MB sınırına takılıyor, sunucu ise 2 MB kabul ediyor. (2026-11-16: PR 2'ye dahil.) `frontend/nginx.conf.template`'e `^/api/v1/me/avatar$` için `client_max_body_size 3m` bloğu eklenecek. Bu blok genel API bloğundan önce durmalı ve `proxy_*` ayarlarını kopyalamalı, çünkü miras alınmıyorlar. Yerel web imajında kontrol: ~1.5 MB avatar 413 almamalı, `/ideas`'a 2 MB gövde 413 almalı. Güncellenecek belgeler: `docs/AZURE.md` (nginx bölümü ve sürüm tablosu), `PROJECT_CONTEXT.md` (gövde sınırı satırı).
 6. **graphify grafiğini güncelle** (`/graphify --update`); grafik #25–#30'dan önceki koddan.
 
 ### C. Ürün işleri (seçilecek)

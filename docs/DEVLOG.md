@@ -879,3 +879,15 @@
   - Silme sırası dağıtımdan sonraydı: eski API'nin modeli sütunu içerdiği için önce silinseydi kayıt bozulurdu.
 - **Azure bağlantısı:** Güvenlik duvarında yalnızca eski istemci IP'si açıktı. Kullanıcı onayıyla geçici tek IP kuralı (`ClaudeTemp-2026-11-15`) eklendi ve iş bitince silindi. Bağlantı bilgisi Container App secret'ından okundu, ekrana ya da dosyaya yazılmadı.
 - **Not:** `a5c65ce`'ye geri dönülürse önce sütun yeniden eklenmeli (`docs/AZURE.md`).
+
+## 2026-11-16 — "Senden bekleyenler" paneli: iç kaydırma yerine sınırlı liste
+
+- **Sorun:** #28'den sonra panel masaüstünde "Sıradaki sürpriz" kartının yüksekliğine (232 px) sabitlenmişti ve liste panelin içinde kayıyordu. İç boşluk ve başlıktan sonra listeye ~138 px kalıyordu, satırlar 48 px. Bu yüzden 3. satır hep yarıda kesiliyordu. Koyu temada tarayıcının kalın varsayılan kaydırma çubuğu da görünüyordu.
+- **Karar:** Kaydırma çubuğunu süslemek yerine iç kaydırma kaldırıldı. Seçenekler kullanıcıyla tek tek konuşuldu (bkz. `docs/BACKLOG.md` geçmişi).
+  - Kapalıyken masaüstünde 2, telefonda 3 görev görünür. 3. satır yalnızca `md` ve üstünde CSS ile gizlenir; ekran genişliği değişince JS'e bağlı bir kayma olmaz.
+  - Görevler sınırı aşınca, tek bir görev fazla olsa bile, "Tümünü gör (n)" butonu çıkar. Telefonda tam 3 görev varken hepsi zaten göründüğü için buton yalnızca masaüstünde gösterilir.
+  - Buton listeyi yerinde açar ve "Daha az göster" olur. Açıkken panel mutlak konumdan çıkar ve kartın altına doğru uzar; kart 232 px'te kalır. Durum yalnızca bileşende tutulur; ana sayfaya her dönüşte liste kapalı başlar.
+  - Panel artık görevleri 6 ile sınırlamıyor (`prioritizedTasks` sınırsız çağrılıyor); sayaç ve buton gerçek sayıyı gösteriyor.
+  - Buton gerçek bir `<button>`, `aria-expanded` ve `aria-controls` taşıyor; odak butonda kalıyor. Ok ikonunun dönüşü azaltılmış hareket tercihinde kapalı.
+  - `Panel` bileşeni artık başlığıyla adlandırılmış bir bölge (`aria-labelledby`); ekran okuyucuda "Senden bekleyenler, bölge" diye duyuruluyor.
+- **Doğrulama:** Yeni `src/pages/tasks.test.tsx` önce kırmızı yazıldı (0, 2, 3 ve 7 görev; açma, kapama, odak). Vitest 239/239, `tsc -b` ve `oxlint` temiz. Tarayıcıda test veritabanı ve seed hesabıyla (4 görev) bakıldı: 1280 px'te panel tam 232 px ve taşma yok, açınca 4 görev görünüyor; 375 px'te 3 görev ve buton; koyu ve açık tema.
