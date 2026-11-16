@@ -169,7 +169,7 @@ az containerapp update -g covertgift-rg -n covertgift-ui --image LOGIN_SERVER/co
 - Uygulama adı `covertgift-ui` olarak kaldı; ingress external, target port 5173 (nginx bu portu dinler).
 - `API_TARGET=https://API_INTERNAL_FQDN` mevcut ortam değişkeni olarak kullanılır. `UI_HOST`/`UI_PORT` artık kullanılmaz.
 - nginx `/api/`, `/health`, `/swagger/`, `/docs` yollarını API'ye iletir; bilinmeyen yollar `index.html`'e düşer.
-- Gövde sınırı: genel API bloğunda `client_max_body_size 1m`; yalnızca `^/api/v1/groups/[^/]+/cover$` için ayrı bir regex blok `client_max_body_size 3m` kullanır (2 MiB kapak + zarf payı). Bu blok genel API bloğundan **önce** durmalıdır.
+- Gövde sınırı: genel API bloğunda `client_max_body_size 1m`; yalnızca `^/api/v1/(groups/[^/]+/cover|me/avatar)$` için ayrı bir regex blok `client_max_body_size 3m` kullanır (2 MiB kapak ya da profil fotoğrafı + zarf payı). Bu blok genel API bloğundan **önce** durmalıdır.
 - `/api/v1/dev/*` büyük/küçük harften bağımsız olarak nginx'te 403 ile engellenir. Bu kural regex olarak API kuralından **önce** durmalıdır; düz prefix location yazılırsa API regex'i önce eşleşir ve istek API'ye gider. Engeli yalnızca ölü bir hedefle (`API_TARGET=http://127.0.0.1:9`) deneyin, çalışan bir API'ye karşı denemeyin.
 - Güvenlik başlıkları (`nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`) ve `Cache-Control` sunucu düzeyindedir; parmak izli `/assets/` bir yıl, HTML ve API yanıtları `no-cache`.
 

@@ -76,7 +76,7 @@ Faz 0–8 tamamlandı; Faz 8'de yalnızca AI hata yanıtları AI bölümünün y
 
 | Katman | Teknoloji |
 |---|---|
-| Backend | Go 1.27.3 + Gin Framework, GORM; `log/slog` ile yapılandırılmış log |
+| Backend | Go 1.27.4 + Gin Framework, GORM; `log/slog` ile yapılandırılmış log |
 | Veritabanı | PostgreSQL 17 (Docker Compose) |
 | Kimlik doğrulama | JWT (HMAC-SHA256, 24 saat) + Bcrypt + Gin Middleware |
 | Link Önizleme | WhatsApp Bot UA, Cookiejar, Dial-seviyesi SSRF koruması, JSON-LD Scraper |
@@ -127,7 +127,7 @@ CovertGift/
 
 ## 🚀 Hızlı Başlangıç
 
-Ön koşullar: Go **1.27.3+**, çalışan Docker Desktop / Docker Compose, frontend için Node.js **22+**. Ayrıntılı ortam kurulumu: [docs/SETUP.md](docs/SETUP.md).
+Ön koşullar: Go **1.27.4+**, çalışan Docker Desktop / Docker Compose, frontend için Node.js **22+**. Ayrıntılı ortam kurulumu: [docs/SETUP.md](docs/SETUP.md).
 
 ```bash
 # İlk kurulum: depoyu indir ve proje köküne geç
