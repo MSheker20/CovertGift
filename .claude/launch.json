@@ -39,7 +39,7 @@
         "JWT_SECRET": "preview-test-secret",
         "GEMINI_API_KEY": "",
         "ALLOW_DB_RESET": "false",
-        "GOTOOLCHAIN": "go1.27.3"
+        "GOTOOLCHAIN": "go1.27.4"
       }
     },
     {

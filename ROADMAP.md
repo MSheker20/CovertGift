@@ -218,4 +218,4 @@ Ayrıntılar [docs/DEVLOG.md](docs/DEVLOG.md) içinde; hepsi 2026-11-13'te Azure
 **Bilinen sınırlar (açık):**
 - [ ] Eski bildirimler silinmiyor (liste en yeni 50'yi gösterir); tablo büyürse temizlik işi.
 - [ ] API birden çok replica'ya çıkarsa grup/bildirim SSE'si için PostgreSQL LISTEN/NOTIFY gerekir (şimdilik en fazla 1 replica).
-- [ ] Go 1.27.3 standart kütüphanesinde GO-2026-6859 (`net/http` MaxBytesReader; 1.27.4'te düzeltilmiş) raporlanıyor; Go sürümü yükseltilmedi.
+- [x] Go 1.27.3 → **1.27.4** (`go.work`, `backend/go.mod`, `backend/Dockerfile`): GO-2026-6859 (`net/http` MaxBytesReader; kapak ve avatar yüklemesinin gövde sınırı bunu kullanıyor).
