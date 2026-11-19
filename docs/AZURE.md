@@ -10,9 +10,11 @@
 
 Go API ve kalıcı React frontend ayrı imajlar olarak paketlenir. PostgreSQL ayrı bir yönetilen serviste çalışır.
 
-## Güncel durum (2026-11-15)
+## Güncel durum (2026-11-19)
 
-- **Açık.** API `covertgift-api:195b728`, arayüz `covertgift-web:195b728` (`main`, #25–#29). Adres: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
+- **Açık.** Standart ortam `covertgift-apps` (WorkloadProfiles, yalnızca Consumption profili). API `covertgift-server` (`covertgift-api:1c0e188`, internal), arayüz `covertgift-web` (`covertgift-web:1c0e188`, external, `API_TARGET=http://covertgift-server`). `main` #33–#34. Adres: https://covertgift-web.gentlegrass-4f326f37.polandcentral.azurecontainerapps.io
+- **Express ortamından çıkıldı (2026-11-19).** Eski Express ortamı `covertgift-env` ve uygulamaları (`covertgift-api`, `covertgift-ui`, `covertgift-backend`) silindi. Eski adres (`covertgift-ui.yellowplant-0f3e00f1…`) artık çalışmıyor. Sebep aşağıda, "Olay: Express ortamında internal ingress" bölümünde.
+- **Dağıtımdan önce** canlıda `/health`'e bakılır ve sonucu not edilir. Böylece bir sorun çıkarsa dağıtımdan önce de var olup olmadığı bilinir.
 - Önceki canlı sürüm `a5c65ce` idi. Bu sürümde `users.avatar_url` sütunu elle silindi (aşağıda). Eski API'nin modeli bu sütunu içerdiği için `a5c65ce`'ye dönmek kullanıcı kaydını bozar. Geri dönmeden önce sütun yeniden eklenmeli: `ALTER TABLE users ADD COLUMN avatar_url varchar(255);`.
 - 2026-11-15'te `users.avatar_url` (hiç kullanılmamıştı; 7 kullanıcının hepsinde boştu) dağıtımdan sonra elle silindi. Silmeden önce `pg_dump -Fc` ile iki tam yedek alındı (dağıtım öncesi ve silme öncesi); yedekler `~/CovertGift-backups/2026-11-15/` altında, Git dışında. Bağlantı için güvenlik duvarına geçici tek IP kuralı eklendi ve iş bitince silindi.
 - `a5c65ce`'den önceki canlı sürüm `f883801` idi. Ona dönülürse davet linki ve MULTI gruplar kaybolur; eski API yeni tabloları ve sütunları yok sayar, ama o sırada kurulmuş MULTI gruplar eski arayüzde hedefsiz tekli grup gibi görünür ve havuzdaki fikirler (`pool_id` dolu) grup listesine karışır. Geri dönmeden önce bu gruplar değerlendirilmelidir.
@@ -21,7 +23,9 @@ Go API ve kalıcı React frontend ayrı imajlar olarak paketlenir. PostgreSQL ay
 - API başlarken AutoMigrate şemayı günceller. 2026-11-15 dağıtımında yeni tablo `user_avatars` (profil fotoğrafı, bytea) ve yeni sütun `users.avatar_version` eklendi. 2026-11-14 dağıtımında yeni tablolar `group_invites`, `gift_pools`, `pool_contributions`; yeni sütunlar `groups.mode` (varsayılan `SINGLE`, mevcut grupların hepsi tekli kaldı), `gift_ideas.pool_id`, `notifications.pool_id` eklendi. 2026-11-13 dağıtımında yeni tablolar `notifications` ve `group_covers`, `groups` tablosuna `cover_version` ve `cover_admin_only` sütunları eklendi (2026-11-09'da `groups.status`, `completed_at`, `event_date` eklenmişti).
 - Hatırlatma zamanlayıcısı API içinde, açılışta bir kez ve sonra saatlik çalışır. API 0 replikaya inip uyanınca kaçan hatırlatmaları yakalar; `dedupe_key` her hatırlatmanın kullanıcı başına bir kez üretilmesini sağlar. İlk dağıtımda tarihi geçmiş her açık grup için yöneticilere birer "süre doldu" bildirimi üretilir.
 - Bu CLI sürümünde `az containerapp logs show` `KeyError: 'eventStreamEndpoint'` verir; loglar portaldan okunur. Production'da loglar JSON'dur, her satırda `request_id` vardır.
-- Express ortamında `--revision-suffix` desteklenmez; `az containerapp update` yalnızca `--image` ile çalıştırılır.
+- `az containerapp update` yalnızca `--image` ile çalıştırılır (revizyon soneki kullanılmıyor).
+- **Yeni ortam kurarken modu açıkça verin:** `az containerapp env create … --environment-mode WorkloadProfiles`. Bu bölgede CLI, `--enable-workload-profiles` verilse bile sessizce **Express** ortamı kurar.
+- Abonelik Poland Central'da yalnızca **1 standart ortama** izin verir (`MaxNumberOfRegionalEnvironmentsInSubExceeded`). Silinmekte olan (`ScheduledForDelete`) bir ortam da sınırı doldurur.
 
 ## Durdurma ve yeniden açma
 
@@ -29,14 +33,14 @@ Bu CLI sürümünde `az containerapp stop/start` yok; Container App'ler REST API
 
 ```sh
 # Durdurma
-for a in covertgift-ui covertgift-api; do
+for a in covertgift-web covertgift-server; do
   az rest --method post --url "https://management.azure.com$(az containerapp show -g covertgift-rg -n $a --query id -o tsv)/stop?api-version=2024-03-01"
 done
 az postgres flexible-server stop -g covertgift-rg -n covertgift-db-msheker
 
 # Yeniden açma (sıra önemli: önce veritabanı)
 az postgres flexible-server start -g covertgift-rg -n covertgift-db-msheker
-for a in covertgift-api covertgift-ui; do
+for a in covertgift-server covertgift-web; do
   az rest --method post --url "https://management.azure.com$(az containerapp show -g covertgift-rg -n $a --query id -o tsv)/start?api-version=2024-03-01"
 done
 ```
@@ -49,6 +53,8 @@ Eski etiketler geri dönüş için registry'de durur.
 
 | Tarih | API | Arayüz | Not |
 |---|---|---|---|
+| 2026-11-19 | `covertgift-api:1c0e188` (`covertgift-server`) | `covertgift-web:1c0e188` (`covertgift-web`) | Yeni standart ortam `covertgift-apps`; Express ortamı silindi. Şema değişikliği yok |
+| 2026-11-16 | `covertgift-api:1c0e188` | `covertgift-web:1c0e188` | #33 görev paneli, #34 Go 1.27.4 + nginx avatar 3 MB. Express ortamında API'ye erişim kesildi, geri alma çözmedi (aşağıdaki olay) |
 | 2026-11-15 | `covertgift-api:195b728` | `covertgift-web:195b728` | #25–#29: MULTI kişi sekmeleri (tarihe göre, havuz sayfasına bitişik), "Sıradaki sürpriz" kartında tarihin sahibi (`next_event_recipients`), havuz bildirimleri seed'i ve TR metin düzeltmesi, iki küçük bug, profil fotoğrafı (`user_avatars`, `users.avatar_version`; `PUT/DELETE /me/avatar`, `GET /users/:id/avatar`). Dağıtımdan sonra `users.avatar_url` elle silindi (yedekli) |
 | 2026-11-14 | `covertgift-api:a5c65ce` | `covertgift-web:a5c65ce` | #23: davet linki (`group_invites`; `/groups/:id/invite`, `/invites/:token`) ve birden çok kişi için gruplar (`groups.mode`, `gift_pools`, `pool_contributions`, `gift_ideas.pool_id`, `notifications.pool_id`); web imajında davet yolları erişim/hata logundan çıkarıldı (`map $request_uri $loggable`) |
 | 2026-11-13 | `covertgift-api:f883801` | `covertgift-web:f883801` | `24f64a2`'nin üzerine: #18 bildirimler, #19 grup kapak fotoğrafı, #20 açıklama + hesap durumu (`target_user` sızıntısı düzeltmesi), #21 küçük kapak yüklemesi; yeni tablolar `notifications`, `group_covers`, yeni sütunlar `groups.cover_version`, `cover_admin_only`; web imajında kapak rotası için `client_max_body_size 3m`. Önceki canlı sürüm `24f64a2` (#17 AI model geçişi: `gemini-3.6-flash`, yedek `gemini-3.5-flash-lite`, aşırı yükte 503) |
@@ -63,9 +69,9 @@ Eski etiketler geri dönüş için registry'de durur.
 ## Mevcut demo ortamı
 
 - Bölge: Poland Central; kaynak grubu: `covertgift-rg`.
-- Ortam: `covertgift-env`, Express modu.
-- API: `covertgift-api`, yalnızca ortam içinden erişim, port 8080.
-- Arayüz: https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io
+- Ortam: `covertgift-apps`, WorkloadProfiles modu, yalnızca Consumption profili; loglar Log Analytics'e gider.
+- API: `covertgift-server`, internal ingress (yalnızca ortam içinden erişim), port 8080. İç adres: `covertgift-server.internal.gentlegrass-4f326f37…`; arayüz kısa adı `http://covertgift-server` kullanır.
+- Arayüz: `covertgift-web`, https://covertgift-web.gentlegrass-4f326f37.polandcentral.azurecontainerapps.io
 - Registry: `covertgiftmsheker.azurecr.io`; imajlar commit kısa kimliğiyle etiketlenir (ör. `f883801`). `demo` etiketi ilk dağıtımın imajıdır.
 - PostgreSQL: `covertgift-db-msheker`, sürüm 17, B1ms, 32 GiB.
 - İmaj çekme kimliği: `covertgift-acr-pull` (kullanıcı atanmış), registry kapsamında AcrPull.
@@ -118,8 +124,8 @@ Login server değerini kullanın; adresi kayıt defteri adından türetmeyin:
 az acr login --name KAYIT_DEFTERI_ADI
 docker push LOGIN_SERVER/covertgift-api:$TAG
 docker push LOGIN_SERVER/covertgift-web:$TAG
-az containerapp update -g covertgift-rg -n covertgift-api --image LOGIN_SERVER/covertgift-api:$TAG
-az containerapp update -g covertgift-rg -n covertgift-ui --image LOGIN_SERVER/covertgift-web:$TAG
+az containerapp update -g covertgift-rg -n covertgift-server --image LOGIN_SERVER/covertgift-api:$TAG
+az containerapp update -g covertgift-rg -n covertgift-web --image LOGIN_SERVER/covertgift-web:$TAG
 ```
 
 Yerelde smoke test yaparken frontend imajını `API_TARGET=http://127.0.0.1:9` gibi ölü bir hedefle çalıştırın;
@@ -163,11 +169,11 @@ API imajı yalnızca derlenen programı içerir ve ayrıcalıksız kullanıcıyl
 ```sh
 docker build --platform linux/amd64 -t LOGIN_SERVER/covertgift-web:KISA_COMMIT ./frontend
 docker push LOGIN_SERVER/covertgift-web:KISA_COMMIT
-az containerapp update -g covertgift-rg -n covertgift-ui --image LOGIN_SERVER/covertgift-web:KISA_COMMIT
+az containerapp update -g covertgift-rg -n covertgift-web --image LOGIN_SERVER/covertgift-web:KISA_COMMIT
 ```
 
-- Uygulama adı `covertgift-ui` olarak kaldı; ingress external, target port 5173 (nginx bu portu dinler).
-- `API_TARGET=https://API_INTERNAL_FQDN` mevcut ortam değişkeni olarak kullanılır. `UI_HOST`/`UI_PORT` artık kullanılmaz.
+- Uygulama adı `covertgift-web`; ingress external, target port 5173 (nginx bu portu dinler).
+- `API_TARGET=http://covertgift-server`: API'ye ortamın içinden kısa adla gidilir (standart ortamın servis keşfi). `UI_HOST`/`UI_PORT` artık kullanılmaz.
 - nginx `/api/`, `/health`, `/swagger/`, `/docs` yollarını API'ye iletir; bilinmeyen yollar `index.html`'e düşer.
 - Gövde sınırı: genel API bloğunda `client_max_body_size 1m`; yalnızca `^/api/v1/(groups/[^/]+/cover|me/avatar)$` için ayrı bir regex blok `client_max_body_size 3m` kullanır (2 MiB kapak ya da profil fotoğrafı + zarf payı). Bu blok genel API bloğundan **önce** durmalıdır.
 - `/api/v1/dev/*` büyük/küçük harften bağımsız olarak nginx'te 403 ile engellenir. Bu kural regex olarak API kuralından **önce** durmalıdır; düz prefix location yazılırsa API regex'i önce eşleşir ve istek API'ye gider. Engeli yalnızca ölü bir hedefle (`API_TARGET=http://127.0.0.1:9`) deneyin, çalışan bir API'ye karşı denemeyin.
@@ -202,3 +208,13 @@ Swagger şemasındaki localhost host değeri düzeltilmeden bulutta Try it out
 Ücretsiz servis uygunluğunu ve registry/log/depolama maliyetlerini portalda kontrol edin.
 
 `GEMINI_THINKING_LEVEL=low` Search kapalı önerilerde düşünme süresini azaltmak için seçilir. Boş bırakılırsa modelin varsayılanı kullanılır; model değiştirilirken desteklenen seviyeler kontrol edilmelidir.
+
+## Olay: Express ortamında internal ingress (2026-11-16 – 2026-11-19)
+
+- **Belirti:** 2026-11-16 13:46 UTC'de API'ye yeni revizyon geldiği andan itibaren arayüzden API'ye giden her istek ağ geçidinden 404 `{"error":"Not found"}` aldı. Aynı yanıtı var olmayan bir uygulama adı da alıyordu. API sağlıklıydı ama hiç istek almadı (`ScaledToZero`).
+- **Etkisi olmayanlar:** Eski imaja dönmek, yeniden başlatmak, ingress'i yeniden uygulamak ya da kapatıp açmak, `.internal.` adresi ve aynı ayarlarla yeni bir internal uygulama (`covertgift-backend`). Bunların hiçbiri sonucu değiştirmedi.
+- **Ayırt edici test:** Sıfırdan kurulan bir Express ortamında Microsoft'un örnek imajı (`mcr.microsoft.com/k8se/quickstart`) internal ingress ile kuruldu. Diğer uygulamadan 404 aldı; hedef external yapılınca istek hemen ulaştı. Aynı test standart (WorkloadProfiles) ortamda internal ingress ile çalıştı.
+- **Açıklama (tahmin, changelog ile doğrulanmadı):** Express belgesine göre uygulamalar birbirine "herkese açık adresleri üzerinden" ulaşır ve iç servis keşfi yoktur. Internal ingress'li bir uygulamanın ortamın giriş kapısında yolu olmadığı için bu çağrılar 404'e düşüyor. Kurulum iki gün çalıştı; büyük ihtimalle uygulama revizyon değişikliğiyle yeni Express davranışına geçti. Benzer kayıt: `microsoft/azure-container-apps#1714`.
+- **Microsoft desteği:** Talep 2611160050004048. Yanıtlar yapay zekâ tarafından üretildi ("yönlendirme kaydı koptu, yeni uygulama kurun"), talebe mühendis atanmadı ve talep zaman aşımıyla kapatıldı.
+- **Çözüm:** Standart ortam `covertgift-apps`'e taşındı. Kod ve imajlar değişmedi.
+- **Ders:** Arayüz → internal API düzeni Express'te çalışmıyor; Express kullanılmaz. Dağıtımdan önce canlıda `/health` kontrol edilir.
