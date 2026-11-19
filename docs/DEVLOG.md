@@ -891,3 +891,24 @@
   - Buton gerçek bir `<button>`, `aria-expanded` ve `aria-controls` taşıyor; odak butonda kalıyor. Ok ikonunun dönüşü azaltılmış hareket tercihinde kapalı.
   - `Panel` bileşeni artık başlığıyla adlandırılmış bir bölge (`aria-labelledby`); ekran okuyucuda "Senden bekleyenler, bölge" diye duyuruluyor.
 - **Doğrulama:** Yeni `src/pages/tasks.test.tsx` önce kırmızı yazıldı (0, 2, 3 ve 7 görev; açma, kapama, odak). Vitest 239/239, `tsc -b` ve `oxlint` temiz. Tarayıcıda test veritabanı ve seed hesabıyla (4 görev) bakıldı: 1280 px'te panel tam 232 px ve taşma yok, açınca 4 görev görünüyor; 375 px'te 3 görev ve buton; koyu ve açık tema.
+
+## 2026-11-16 — Go 1.27.4, nginx avatar sınırı ve Azure dağıtımı `1c0e188`
+
+- **#34:** Go 1.27.3 → 1.27.4 (`go.work`, `backend/go.mod`, `backend/Dockerfile`, `.claude/launch.json`). Sebep GO-2026-6859 (`net/http` `MaxBytesReader`); kapak ve avatar yüklemesinin gövde sınırı bunu kullanıyor. nginx'te kapak bloğunun regex'i `^/api/v1/(groups/[^/]+/cover|me/avatar)$` olarak genişletildi (`client_max_body_size 3m`). Böylece canlıda 1 MB üstü profil fotoğrafı artık 413 almıyor.
+- **Doğrulama:** `go vet`, `go test ./...` ve entegrasyon testleri (go1.27.4) geçti. nginx şablonu ölü `API_TARGET` ile `nginx-unprivileged:1.30-alpine` içinde denendi: 1.5 MB avatar ve kapak geçti (502), 3.5 MB olanlar 413 aldı, `/ideas`'a 2 MB gövde 413 aldı, `/me/avatar/x` ve `/me/avatarx` yeni kurala girmedi.
+- **Dağıtım:** #33 ve #34 merge edildi. `1c0e188` imajları yerelde `linux/amd64` için derlendi; web imajı ölü hedefle denendi (sayfalar 200, `/api/v1/dev/*` 403). İmajlar ACR'ye gönderildi ve 13:46 UTC'de API güncellendi.
+- **Olay:** Güncellemeden hemen sonra arayüzden API'ye giden her istek Express ağ geçidinden 404 `{"error":"Not found"}` aldı. Geri alma, yeniden başlatma, ingress'i yeniden uygulama, `.internal.` adresi ve aynı ayarlarla yeni bir internal uygulama sonucu değiştirmedi. Temiz bir Express ortamında Microsoft'un örnek imajıyla da tekrarlandı; hedef external olunca çalıştı. Microsoft destek talebi (2611160050004048) yapay zekâ yanıtlarıyla ilerledi ve mühendis atanmadan kapandı. Ayrıntı ve açıklama: `docs/AZURE.md`, "Olay: Express ortamında internal ingress".
+- **Hata:** Dağıtımdan önce canlıda `/health` kontrol edilmedi; bu yüzden sorunun dağıtımdan önce var olup olmadığı kesin bilinmiyor. Kural olarak `docs/AZURE.md`'ye eklendi.
+- Kesinti boyunca PostgreSQL 16 Kasım 18:34 UTC'de tasarruf için durduruldu, 19 Kasım'da taşıma için yeniden açıldı.
+
+## 2026-11-19 — Express'ten standart Container Apps ortamına geçiş
+
+- **Karar:** Express'te arayüz → internal API düzeni çalışmıyor. API'yi external yapmak (gizli başlık ya da IP kısıtlamasıyla) ve İlkbyte'a geçmek değerlendirildi. Kod değiştirmeden, API'yi dışarıya kapalı tutarak ve Azure for Students kredisiyle çözdüğü için standart ortam seçildi. İlkbyte (Cloud II) yedek plan olarak kaldı.
+- **Test:** Geçici bir WorkloadProfiles ortamında Microsoft'un örnek imajı internal olarak kuruldu. Bizim arayüz imajımız `http://probe-target` kısa adıyla ona ulaştı, dışarıdan doğrudan erişim ise 404 aldı. Test ortamı silindi.
+- **Kurulum:** Yeni ortam `covertgift-apps` (WorkloadProfiles, Consumption, Log Analytics). `covertgift-server` (API, internal, `1c0e188`; ayarlar ve secret'lar eskisiyle aynı, secret değerleri yazdırılmadan aktarıldı) ve `covertgift-web` (arayüz, external, `1c0e188`, `API_TARGET=http://covertgift-server`). Adres: https://covertgift-web.gentlegrass-4f326f37.polandcentral.azurecontainerapps.io
+- **Kontrol (yalnızca okuma):** `/health` `db: up`; `/`, `/invite/x`, `/profile` 200; oturumsuz `/api/v1/me`, `/notifications`, `/invites/x` 401; API'ye dışarıdan doğrudan istek 404; güvenlik başlıkları yerinde. Yazma akışlarını kullanıcı denedi.
+- **Temizlik:** Kullanıcı onayıyla Express ortamı `covertgift-env` ve `covertgift-api`, `covertgift-ui`, `covertgift-backend` silindi.
+- **Öğrenilenler:**
+  - Bu bölgede `az containerapp env create` `--enable-workload-profiles` verilse bile Express kuruyor; `--environment-mode WorkloadProfiles` şart.
+  - Abonelik bölge başına yalnızca 1 standart ortama izin veriyor; `ScheduledForDelete` durumundaki ortam da sınırı dolduruyor.
+- **Açık kalanlar:** BACKLOG'da kalıcı alan adı (15), mobil uygulama fikri (16) ve güvenlik duvarındaki eski Express çıkış IP'si kuralı (12).
