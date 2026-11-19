@@ -1,209 +1,204 @@
+<div align="center">
+
 # 🎁 CovertGift
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+**Arkadaşlarınla ortak hediye seç. Hediye alacağın kişi hiçbir şey görmesin.**
 
-> **Güncel AI modu (2026-11-10'dan beri):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
-> `GEMINI_MODEL=gemini-3.6-flash` (yedek `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite`) ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
-> Model kimlikleri uygulama kodunda sabit değildir. `GEMINI_MODEL` anahtar varsa zorunludur.
-> `GEMINI_FALLBACK_MODEL` boşsa otomatik model geçişi yapılmaz; doluysa yalnızca 503'te denenir.
-> `GEMINI_RESEARCH_MODEL` yalnızca Search açıkken kullanılır; boşsa ana model kullanılır.
-> Yerelde `backend/.env`, Azure'da Container App ortam değişkenleri düzenlenir ve uygulama yeniden başlatılır/yeni revision oluşur.
-> Aşağıdaki eski Search araştırması açıklamaları yalnızca Search modu tekrar açılırsa geçerlidir.
+[![Canlı demo](https://img.shields.io/badge/Canl%C4%B1%20demo-covertgift.msheker.dev-2f5bff?style=flat-square)](https://covertgift.msheker.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-ffc93c?style=flat-square)](LICENSE)
+![Go](https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Azure](https://img.shields.io/badge/Azure-Container%20Apps-0078D4?style=flat-square&logo=microsoftazure&logoColor=white)
 
-Arkadaş gruplarının **ortak hediye** organize ettiği, bütçeyi birleştirdiği, **Gemini 3 Flash** ile yapay zekâ destekli hediye önerileri aldığı, önerileri **oyladığı** (+1 / -1) ve tüm süreci hediye alınacak kişiden **gizlediği** (Anti-Spoiler) işbirlikçi web platformu.
+[**Canlı demo**](https://covertgift.msheker.dev) · [Teknik şartname](PROJECT_CONTEXT.md) · [Yol haritası](ROADMAP.md) · [Geliştirme günlüğü](docs/DEVLOG.md)
 
-**Neler yapılabilir?**
-- Hediye alınacak kişi için grup kur; kayıtlıysa e-postasıyla bağla — o kişi grubu hiç göremez.
-- Üyeleri e-postayla ekle; toplam bütçe ve kişi başı tutar anlık hesaplanır.
-- Ürün linki yapıştırarak (Trendyol, Amazon TR, Hepsiburada) ya da Gemini'den öneri isteyerek hediye havuzunu doldur.
-- Önerileri oyla, oyunu geri al; admin veto edebilir, çoğunluk istemediği öneriyi eler.
-- Hediye tarihini ekle, geri sayımı takip et; kazananı seçip grubu tamamla.
-- Başka üyelerin oyları ve yeni öneriler sayfa yenilenmeden anında görünür (SSE).
-- Birden çok kazanan seç; seçilenlerin toplamı bütçeyle karşılaştırılır.
-- Üst bardaki zilden kalıcı bildirimleri takip et: yeni fikir, gruba eklenme, kazanan, tarih/bütçe değişikliği ve hediye tarihi hatırlatmaları (hedef kişiye hiçbir bildirim gitmez).
-- Gruba kapak fotoğrafı ekle: tarayıcıda 4:3 kırp, büyük fotoğraf tarayıcıda küçültülür; admin, kapağı yalnızca yöneticinin değiştirmesine kısıtlayabilir.
-- Grup açıklamasını gör (uzunsa "Devamını gör"), admin düzenler; başlıkta hedef kişinin hesabının bağlı olup olmadığı yazılı görünür.
-- Profil sayfasında ad, e-posta ve şifreni değiştir; hesabını sil.
+<img src="docs/screenshots/home-dark.png" alt="CovertGift ana ekranı: sıradaki sürpriz, senden bekleyen görevler ve gruplar" width="900">
 
-> Eski adı: *GiftlyAI* — telif riski nedeniyle 2026-10-06'da **CovertGift** olarak değiştirildi. Bkz. [DEVLOG](docs/DEVLOG.md).
+</div>
+
+> *English:* CovertGift is a collaborative web app for planning group gifts. Friends pool a budget, collect ideas from product links or Gemini AI suggestions, vote, and pick a winner, while the person receiving the gift is kept out of everything (Anti-Spoiler). Go + Gin + PostgreSQL backend, React 19 + TypeScript frontend, deployed on Azure Container Apps. The UI is available in Turkish and English.
 
 ---
 
-## 📍 Mevcut Durum
+## ✨ Neler yapabilirsin?
 
-Doküman güncellemesi: **2026-11-13**. Azure demo dağıtımı ve işletim notları: [Azure rehberi](docs/AZURE.md).
+**Grubu kur**
+- Hediye alınacak kişi için bir grup aç. Kişi kayıtlıysa e-postasıyla bağla; o kişi grubu **hiçbir zaman** göremez.
+- Arkadaşlarını e-postayla ya da davet linkiyle ekle. Toplam bütçe ve kişi başı tutar anında hesaplanır.
+- Birden çok kişiye aynı anda hediye alınacaksa (ör. "Ofis Yılbaşı") her kişi için ayrı bir havuz açılır; herkes yalnızca başkalarının havuzunu görür.
 
-Faz 0–8 tamamlandı; Faz 8'de yalnızca AI hata yanıtları AI bölümünün yeniden tasarımına ertelendi. Backlog'dan kazanan seçimi (birden çok kazanan dahil), oyu geri alma, hediye tarihi, canlı güncellemeler (SSE), yeni ana ekran, profil sayfası, bildirimler, grup kapak fotoğrafı ve grup açıklaması eklendi. [Canlı demo](https://covertgift-ui.yellowplant-0f3e00f1.polandcentral.azurecontainerapps.io) `main`'in `f883801` sürümünü çalıştırır (2026-11-13).
+**Fikir topla ve oyla**
+- Trendyol, Amazon TR ya da Hepsiburada linki yapıştır; başlık, görsel ve fiyat otomatik gelir.
+- Ya da **Gemini**'den ilgi alanlarına ve bütçeye göre öneri iste.
+- Fikirleri oyla (+1 / −1), oyunu geri al. Yönetici veto edebilir.
+- Başkalarının oyları ve yeni fikirler sayfa yenilenmeden anında görünür (SSE).
 
-| Alan | Durum |
-|---|---|
-| Teknik şartname | ✅ Hazır — [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) |
-| Yol haritası | ✅ Hazır — [ROADMAP.md](ROADMAP.md) |
-| Link önizleme prototipi | ✅ Çalışıyor — [prototypes/linkpreview](prototypes/linkpreview/) |
-| Geliştirme ortamı (Go, Docker) | ✅ Kurulu |
-| **Faz 0 — Proje iskeleti** | ✅ Tamamlandı (`/health` 200 OK) |
-| **Faz 1 — Veritabanı Modelleri** | ✅ Tamamlandı (AutoMigrate 5 tablo aktif) |
-| **Faz 2 — Kimlik Doğrulama (Auth)** | ✅ Tamamlandı (JWT, bcrypt, `GET /me`, `DELETE /me` profil silme) |
-| **Faz 3 — Gruplar & Anti-Spoiler** | ✅ Tamamlandı (Üyeler ilgi alanı ekler; admin ilgi alanı siler, bütçeyi günceller ve grubu siler) |
-| **Faz 4 — Hediye Havuzu & Oylama** | ✅ Tamamlandı (Upsert oylama, yetkili silme) |
-| **Faz 5 — Link Önizleme** | ✅ Tamamlandı (`pkg/linkpreview`, Trendyol, Amazon TR, Hepsiburada, SSRF Kalkanı) |
-| **Faz 6 — Gemini AI Hediye Önerileri** | ✅ Tamamlandı (Search kapalı tek çağrı modu; veto, tekrar ve bütçe filtreleri; 429 kota yanıtı) |
-| **API Dokümantasyonu (Swagger / OpenAPI)** | ✅ Tamamlandı (Canlı UI: `/swagger/index.html` veya `/docs`) |
-| **Faz 7 — Frontend** | ✅ Tamamlandı (`frontend/`: React 19 + Vite + TypeScript, TR/EN, hediye havuzu, oylama, Gemini, link önizleme, grup yönetimi, hedef kişiyi e-postayla bağlama; Vitest + Playwright) |
-| **Faz 8 — Test, güvenlik ve cila** | ✅ Tamamlandı (güvenlik güncellemeleri, Anti-Spoiler entegrasyon testleri, istek limitleri ve doğrulama, yapılandırılmış log, seed, Compose; AI hata yanıtları AI yeniden tasarımına ertelendi) |
-| **Backlog (2026-11-09)** | ✅ Kazanan seçimi ve grubu kapatma, birden çok kazanan, oyu geri alma, hediye tarihi ve geri sayım, SSE ile canlı güncellemeler |
-| **Backlog (2026-11-10)** | ✅ Ana ekran yeniden tasarımı ("Sıradaki sürpriz", "Senden bekleyenler"), profil sayfası (`PATCH /me`, `PUT /me/password`), AI model geçişi ve aşırı yükte 503 |
-| **Backlog (2026-11-12)** | ✅ Bildirim sistemi: kalıcı bildirimler, kullanıcı bazlı SSE, üst bar zili, hediye tarihi hatırlatmaları |
-| **Backlog (2026-11-13)** | ✅ Grup kapak fotoğrafı (kırpma, tarayıcıda küçültme, yalnızca admin seçeneği), grup açıklaması, hedef hesap durumu ve `target_user` sızıntısı düzeltmesi |
-| Geçici test paneli | 🗄️ Eski (`prototypes/test-ui/`; React frontend yerini aldı) |
+**Sonuçlandır**
+- Hediye tarihini ekle, geri sayımı takip et. "Senden bekleyenler" paneli o an ne yapman gerektiğini öncelik sırasıyla gösterir.
+- Bir ya da birden çok kazanan seç; toplam tutar bütçeyle karşılaştırılır.
+- Yeni fikir, kazanan ve yaklaşan tarih gibi olaylar için bildirim al. Hediye alınan kişiye hiçbir bildirim gitmez.
+
+**Kişiselleştir**
+- Gruba kapak fotoğrafı ve açıklama ekle, profil fotoğrafını yükle (tarayıcıda kırpılır ve küçültülür).
+- Türkçe / İngilizce, açık / koyu tema. Telefon için de tasarlandı.
+
+<table>
+  <tr>
+    <td width="62%"><img src="docs/screenshots/group-dark.png" alt="Grup sayfası: bütçe, kişi başı tutar, ilgi alanları ve oylanan hediye fikirleri"></td>
+    <td width="38%"><img src="docs/screenshots/home-mobile.png" alt="Telefonda ana ekran"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Grup sayfası: bütçe, ilgi alanları ve oylanan fikirler</sub></td>
+    <td align="center"><sub>Telefonda ana ekran</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/home-light.png" alt="Açık temada ana ekran"></td>
+    <td><img src="docs/screenshots/login-dark.png" alt="Giriş ekranı"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Açık tema</sub></td>
+    <td align="center"><sub>Giriş ekranı</sub></td>
+  </tr>
+</table>
+
+<sub>Ekran görüntüleri demo verisiyle alınmıştır (`go run ./cmd/seed`).</sub>
 
 ---
 
-## 📚 Dokümantasyon Rehberi
+## 🛡️ Anti-Spoiler: sürpriz nasıl korunuyor?
 
-| Dosya | Ne işe yarar? | Ne zaman bakılır? |
-|---|---|---|
-| [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) | **Tek doğruluk kaynağı.** Veri modelleri, iş kuralları, API sözleşmesi, mimari standartlar. Yapay zekâ asistanına da proje bağlamı olarak verilir. | Bir özelliği kodlamadan önce, "bu nasıl çalışmalı?" sorusunda |
-| [ROADMAP.md](ROADMAP.md) | Faz faz, işaretlenebilir görev listesi ve her fazın kabul kriterleri. | Her çalışma oturumunun başında / sonunda |
-| [docs/SETUP.md](docs/SETUP.md) | Faz 0 kurulum rehberi — her adımın **ne yaptığı ve neden yapıldığı** açıklamalı. | Ortamı kurarken / yeni makinede |
-| [docs/AZURE.md](docs/AZURE.md) | API ve frontend Docker imajları, Azure demo dağıtımı, geri dönüş imajları ve işletim notları. | Bulut ortamını kurarken / güncellerken |
-| [frontend/README.md](frontend/README.md) | React frontend'in çalıştırılması, testleri, yapısı ve tasarım token'ları. | Arayüz üzerinde çalışırken |
-| [docs/DEVLOG.md](docs/DEVLOG.md) | Geliştirme günlüğü + **alınan kararlar ve gerekçeleri**. | "Bunu neden böyle yaptık?" sorusunda |
-| [prototypes/linkpreview/README.md](prototypes/linkpreview/README.md) | Ürün linki önizleme prototip bulguları, pazar yeri testleri ve mimari kararlar. | Pazar yeri ayrıştırıcılarını incelerken |
-| [prototypes/test-ui/README.md](prototypes/test-ui/README.md) | Eski geçici test paneli, API proxy'si ve Cloudflare tüneli. | Yalnızca eski paneli çalıştırmak gerekirse |
+Sürprizi korumak arayüzde bir şeyleri gizlemekle değil, **sunucuda** yapılıyor:
+
+- `/groups/:id/*` ve `/ideas/:id/*` altındaki her uç, isteği yapanın grubun hedef kişisi olup olmadığını kontrol eder. Hedef kişiyse **403** ve bir sürpriz mesajı döner.
+- Birden çok kişilik gruplarda hediye alınan kişi kendi havuzu için yalnızca kilitli bir kart görür; havuz uçlarının hepsi ayrı bir erişim katmanından geçer.
+- Davet linkleri de hedef kişiye 403 döner; token loglara yazılmaz.
+- Bu kurallar gerçek router ve PostgreSQL ile çalışan entegrasyon testleriyle korunur.
+
+Ayrıntılar: [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
 
 ---
 
-## 🧱 Teknoloji Yığını
+## 🏗️ Mimari
+
+```mermaid
+flowchart LR
+    U[Tarayıcı] -->|HTTPS| W["covertgift-web<br/>nginx + React (external)"]
+    W -->|"/api, /health<br/>(ortam içi)"| A["covertgift-server<br/>Go + Gin API (internal)"]
+    A --> D[(PostgreSQL 17)]
+    A -->|öneri| G[Gemini API]
+    A -->|link önizleme| M[Trendyol / Amazon TR / Hepsiburada]
+```
+
+- **Tek giriş kapısı:** Dışarıya yalnızca nginx açık. API ortamın içinde kalır ve internetten doğrudan erişilemez. nginx, `/api/v1/dev/*` uçlarını kapatır, istek boyutlarını sınırlar ve güvenlik başlıklarını ekler.
+- **Canlı güncellemeler:** Server-Sent Events. Olaylar veri taşımaz; istemci korumalı uçlardan yeniden çeker, böylece Anti-Spoiler kuralları burada da geçerli kalır.
+- **Barındırma:** Azure Container Apps (standart ortam, Consumption profili; boştayken sıfıra ölçeklenir) ve Azure Database for PostgreSQL. Ayrıntılar: [docs/AZURE.md](docs/AZURE.md).
+
+---
+
+## 🧱 Teknoloji yığını
 
 | Katman | Teknoloji |
 |---|---|
-| Backend | Go 1.27.4 + Gin Framework, GORM; `log/slog` ile yapılandırılmış log |
-| Veritabanı | PostgreSQL 17 (Docker Compose) |
-| Kimlik doğrulama | JWT (HMAC-SHA256, 24 saat) + Bcrypt + Gin Middleware |
-| Link Önizleme | WhatsApp Bot UA, Cookiejar, Dial-seviyesi SSRF koruması, JSON-LD Scraper |
-| Yapay zekâ | `google.golang.org/genai`; model adları ortam değişkenlerinden (`GEMINI_MODEL=gemini-3.6-flash`, Search kapalı, tek yapılandırılmış JSON çağrısı). Yedek model (`gemini-3.5-flash-lite`) yalnızca `GEMINI_FALLBACK_MODEL` doluysa 503'te denenir |
-| Canlı güncellemeler | Server-Sent Events: grup akışı (`GET /groups/:id/events`) ve kullanıcı bazlı bildirim akışı (`GET /notifications/stream`); olaylar veri taşımaz, bellek içi hub (tek API kopyası). Bağlantı yoksa periyodik yenileme |
-| Bildirimler | `notifications` tablosu (kalıcı, okundu/okunmadı), API içinde saatlik hatırlatma zamanlayıcısı; metin istemcide TR/EN üretilir |
-| Görsel işleme | `pkg/imageproc` (saf Go, `golang.org/x/image`): bayt imzasıyla tür, EXIF yönü, 4:3 kırpma, en çok 1600x1200 JPEG; kapaklar PostgreSQL'de `bytea` (`group_covers`) |
-| API Dokümantasyonu | Swagger / OpenAPI 2.0 (`swaggo/swag`, `swaggo/gin-swagger`) |
-| Frontend | React 19 + Vite + TypeScript, Tailwind CSS v4, shadcn tarzı bileşenler (`radix-ui`), Lucide, React Router, TanStack Query, i18next (TR/EN); üretimde nginx |
-| Frontend testleri | Vitest + Testing Library + MSW; Playwright (gerçek API'ye karşı) |
-| Tasarım | Unbounded + Onest; ana renk kobalt `#2f5bff`, para alanları hardal `#ffc93c`; koyu tema "Nötr grafit" (sistem ayarını izler) |
-| Eski geçici panel | HTML/CSS/JavaScript + Node.js 22+ (ek paket gerektirmez) |
+| Backend | Go 1.27 · Gin · GORM · `log/slog` ile yapılandırılmış log · Swagger / OpenAPI |
+| Veritabanı | PostgreSQL 17 (yerelde Docker Compose) |
+| Kimlik doğrulama | JWT (HMAC-SHA256) · bcrypt |
+| Yapay zekâ | `google.golang.org/genai`. Model adları ortam değişkenlerinden gelir (`GEMINI_MODEL`, isteğe bağlı `GEMINI_FALLBACK_MODEL`). Güncel modda Google Search kapalı; fiyatlar "tahmini" olarak etiketlenir. |
+| Link önizleme | `pkg/linkpreview`: alan adı izin listesi, özel IP engeli (SSRF koruması), 2 MB ve 10 yönlendirme sınırı, JSON-LD ayrıştırma |
+| Görsel işleme | `pkg/imageproc` (saf Go): tür tespiti, EXIF yönü, kırpma ve küçültme; görseller PostgreSQL'de |
+| Canlı güncellemeler | Server-Sent Events: grup akışı ve kullanıcı bazlı bildirim akışı |
+| Frontend | React 19 · Vite · TypeScript · Tailwind CSS v4 · Radix UI · TanStack Query · React Router · i18next (TR/EN) |
+| Testler | `go test` (birim + Anti-Spoiler entegrasyon) · Vitest + Testing Library + MSW · Playwright |
+| Dağıtım | Docker (çok aşamalı imajlar, ayrıcalıksız kullanıcı) · nginx · Azure Container Apps · Azure Container Registry |
 
 ---
 
-## 🗂️ Klasör Yapısı
+## 🚀 Hızlı başlangıç
 
-```
-CovertGift/
-├── README.md               ← Bu dosya (giriş noktası)
-├── PROJECT_CONTEXT.md      ← Teknik şartname
-├── ROADMAP.md              ← Yol haritası
-├── docs/
-│   ├── SETUP.md            ← Kurulum rehberi
-│   ├── AZURE.md            ← Azure demo dağıtımı
-│   └── DEVLOG.md           ← Geliştirme günlüğü & mimarî karar kaydı
-├── scripts/
-│   └── demo_presentation.sh← 🎓 Hocaya canlı sunum & interaktif API test script'i (ANSI HTTP kutuları)
-├── prototypes/
-│   ├── linkpreview/        ← Link önizleme prototip ve inceleme laboratuvarı
-│   └── test-ui/            ← Eski geçici tarayıcı paneli + sınırlı API proxy'si
-├── backend/
-│   ├── cmd/api/            ← HTTP sunucu giriş noktası, router ve entegrasyon testleri
-│   ├── cmd/seed/           ← Demo verisi ekleyen güvenli seed komutu
-│   ├── docs/               ← Swagger / OpenAPI 2.0 şemaları (docs.go, swagger.json, yaml)
-│   ├── internal/           ← Controllers, services, repository, models, middleware, logging, realtime (SSE hub)
-│   │   ├── services/       ← iş kuralları; bildirimler (notification_service.go), hatırlatmalar (reminder_scheduler.go), kapak (group_cover.go)
-│   │   └── realtime/       ← grup ve kullanıcı akışları için bellek içi SSE hub'ı
-│   ├── pkg/
-│   │   ├── gemini/         ← Gemini istemcisi (model adı ortamdan) & 503'te yedek model
-│   │   ├── imageproc/      ← Kapak görseli işleme (tür, EXIF yönü, 4:3 kırpma, küçültme, JPEG)
-│   │   └── linkpreview/    ← Ürün linki önizleme & SSRF kalkanı (Trendyol, Amazon, HB)
-│   └── bin/api             ← Yerel derleme çıktısı (Git'e dahil edilmez)
-└── frontend/               ← Kalıcı React arayüzü (Vite), Vitest/Playwright testleri, Dockerfile + nginx
-```
-
----
-
-## 🚀 Hızlı Başlangıç
-
-Ön koşullar: Go **1.27.4+**, çalışan Docker Desktop / Docker Compose, frontend için Node.js **22+**. Ayrıntılı ortam kurulumu: [docs/SETUP.md](docs/SETUP.md).
+Ön koşullar: Go **1.27.4+**, Docker Desktop / Docker Compose, Node.js **22+**. Ayrıntılı kurulum: [docs/SETUP.md](docs/SETUP.md).
 
 ```bash
-# İlk kurulum: depoyu indir ve proje köküne geç
 git clone https://github.com/MSheker20/CovertGift.git
 cd CovertGift
-
-# Yalnızca ilk kurulumda: yerel ayar dosyasını oluştur
 cp backend/.env.example backend/.env
-openssl rand -hex 32
+openssl rand -hex 32   # çıktıyı backend/.env içindeki JWT_SECRET alanına yaz
 ```
 
-Üretilen değeri `backend/.env` içindeki `JWT_SECRET` alanına yazın. AI önerilerini kullanmak için `GEMINI_API_KEY` ekleyin; `GEMINI_MODEL=gemini-3.6-flash` ve `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite` şablonda hazırdır, `GEMINI_SEARCH_ENABLED=false` güncel moddur. `.env` dosyası Git'e dahil edilmez. Anahtar yokken AI dışındaki özellikler çalışır.
-
-**Terminal 1 — veritabanı ve backend (proje kökünden):**
+AI önerileri için `backend/.env`'e `GEMINI_API_KEY` ekle. Anahtar yoksa AI dışındaki her şey çalışır.
 
 ```bash
+# Terminal 1: veritabanı ve API
 docker compose up -d --wait
-cd backend
-go run ./cmd/api
-```
+cd backend && go run ./cmd/api
 
-**Terminal 2 — frontend (proje kökünden):**
-
-```bash
+# Terminal 2: frontend
 npm --prefix frontend install
 npm --prefix frontend run dev
 ```
 
-[Uygulama](http://localhost:5174), [sağlık kontrolü](http://localhost:5174/health), [Swagger](http://localhost:8080/swagger/index.html). Vite, `/api` ve `/health` isteklerini `127.0.0.1:8080`'deki API'ye iletir. Sağlık kontrolü `{"success":true,"data":{"db":"up","status":"ok"}}` döndürmelidir.
+Uygulama http://localhost:5174 adresinde açılır; Vite, `/api` ve `/health` isteklerini API'ye (`:8080`) iletir. Swagger: http://localhost:8080/swagger/index.html
 
-> ⚠️ `POST /api/v1/dev/reset-db` **tüm tabloları siler**. Uç varsayılan olarak kapalıdır (403); yalnızca API `ALLOW_DB_RESET=true` ile başlatılırsa ve istek gövdesinde `{"confirm": "RESET"}` gönderilirse çalışır. Üretimde (`APP_ENV=production`) her durumda kapalıdır ve frontend'in nginx'i ayrıca 403 döner. Yerel veriniz için yine de düzenli `pg_dump` yedeği alın.
+**Demo verisi:** `(cd backend && go run ./cmd/seed)` dört demo kullanıcı ve örnek gruplar ekler (parola: `Demo1234!`, `SEED_PASSWORD` ile değiştirilebilir). Yalnızca ekleme yapar ve `APP_ENV=production` iken çalışmaz.
 
-Eski geçici paneli ve Cloudflare tünelini çalıştırmak gerekirse: [test paneli rehberi](prototypes/test-ui/README.md).
+**Her şey konteynerde:** `docker compose --profile app up -d --build` ile arayüz http://localhost:8081 adresinde açılır.
 
-## 🧪 Doğrulama ve Demo
+> ⚠️ `POST /api/v1/dev/reset-db` **tüm tabloları siler**. Varsayılan olarak kapalıdır; yalnızca `ALLOW_DB_RESET=true` ve gövdede `{"confirm": "RESET"}` ile çalışır, üretimde her durumda kapalıdır.
+
+---
+
+## 🧪 Testler
 
 ```bash
-# Proje kökünden; normal testler gerçek Gemini API'sini çağırmaz
-go test ./backend/...
-npm --prefix frontend test
-npm --prefix frontend run build
-npm --prefix frontend run test:e2e   # API ve DB çalışırken; geçici kullanıcıları kendisi siler
-curl --fail http://localhost:5174/health
-
-# API çalışırken, veritabanına demo verileri yazan sunum script'i
-./scripts/demo_presentation.sh
-./scripts/demo_presentation.sh --auto
+go test ./backend/...                 # birim testleri (gerçek Gemini çağrılmaz)
+npm --prefix frontend test            # Vitest
+npm --prefix frontend run build       # tip kontrolü + üretim derlemesi
+npm --prefix frontend run test:e2e    # Playwright (API ve DB çalışırken)
 ```
 
-Anti-Spoiler entegrasyon testleri gerçek router ve PostgreSQL ile çalışır. Ayrı ve geçici (tmpfs) bir test veritabanı kullanır; `TEST_DATABASE_URL` yoksa atlanır, veritabanı adı `_test` ile bitmiyorsa çalışmayı reddeder:
+Anti-Spoiler entegrasyon testleri ayrı ve geçici bir test veritabanı kullanır. Veritabanı adı `_test` ile bitmiyorsa çalışmayı reddeder:
 
 ```bash
 docker compose --profile test up -d --wait test-db
-TEST_DATABASE_URL='postgres://covertgift:covertgift_test@localhost:55432/covertgift_test?sslmode=disable' go test -p 1 -count=1 ./backend/cmd/...   # -p 1: paketler aynı test DB'sini paylaşır
-docker compose --profile test stop test-db
+TEST_DATABASE_URL='postgres://covertgift:covertgift_test@localhost:55432/covertgift_test?sslmode=disable' \
+  go test -p 1 -count=1 ./backend/cmd/...
 ```
 
-Seed (demo verisi) ve tüm uygulamayı konteynerde çalıştırma:
+---
 
-```bash
-# backend/ içinden: yerel DB'ye 4 demo kullanıcı, hedefi bağlı bir grup, 3 fikir ve oylar ekler.
-# Yalnızca ekler; demo yöneticisi varsa hiçbir şey yapmaz; APP_ENV=production iken çalışmaz.
-(cd backend && go run ./cmd/seed)          # parola: Demo1234! (SEED_PASSWORD ile değiştirilebilir)
+## 🗂️ Proje yapısı
 
-# API + React frontend + DB konteynerde (ayarlar backend/.env'den; JWT_SECRET zorunlu)
-docker compose --profile app up -d --build  # arayüz: http://localhost:8081
-docker compose --profile app stop api web
+```
+CovertGift/
+├── backend/
+│   ├── cmd/api/          ← HTTP sunucusu, router, Anti-Spoiler entegrasyon testleri
+│   ├── cmd/seed/         ← Demo verisi
+│   ├── internal/         ← controllers, services, repository, models, middleware, realtime (SSE)
+│   └── pkg/              ← gemini, imageproc, linkpreview
+├── frontend/             ← React uygulaması, testler, Dockerfile + nginx şablonu
+├── docs/                 ← SETUP, AZURE, DEVLOG, BACKLOG, ekran görüntüleri
+├── prototypes/           ← Link önizleme laboratuvarı ve eski test paneli
+├── PROJECT_CONTEXT.md    ← Teknik şartname (tek doğruluk kaynağı)
+└── ROADMAP.md            ← Fazlar ve kabul kriterleri
 ```
 
-Güncel AI modunda Google Search kapalıdır: tek yapılandırılmış çağrı en fazla 5 öneri üretir, fiyatlar doğrulanmamış tahmindir ve arayüzde "Tahmini fiyat" olarak etiketlenir. Search yeniden açılırsa `ai_sources` kaynak listesi ve `ai_search_suggestions` HTML'i frontend'de (kaynaklar katlanır listede, öneri HTML'i betiksiz sandbox iframe'de) gösterilir.
+## 📚 Dokümantasyon
 
-## 🔗 Bağlantılar
-- GitHub: https://github.com/MSheker20/CovertGift
+| Dosya | İçerik |
+|---|---|
+| [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) | Veri modelleri, iş kuralları, API sözleşmesi, mimari standartlar |
+| [ROADMAP.md](ROADMAP.md) | Faz faz görev listesi ve kabul kriterleri |
+| [docs/SETUP.md](docs/SETUP.md) | Adım adım kurulum; her adımın ne yaptığı ve neden yapıldığı |
+| [docs/AZURE.md](docs/AZURE.md) | Docker imajları, Azure dağıtımı, işletim notları ve olay kayıtları |
+| [docs/DEVLOG.md](docs/DEVLOG.md) | Geliştirme günlüğü ve alınan kararların gerekçeleri |
+| [docs/BACKLOG.md](docs/BACKLOG.md) | Sıradaki işler, açık fikirler |
+| [frontend/README.md](frontend/README.md) | Frontend'in yapısı, testleri ve tasarım token'ları |
+
+## 📍 Durum
+
+Faz 0–8 tamamlandı. Kimlik doğrulama, gruplar ve Anti-Spoiler, hediye havuzu ve oylama, link önizleme, Gemini önerileri, React frontend, bildirimler, canlı güncellemeler, kapak ve profil fotoğrafları, davet linkleri ve birden çok kişilik gruplar canlıda. Sıradaki işler [docs/BACKLOG.md](docs/BACKLOG.md)'de: e2e testlerinin güncellenmesi, CI, bireysel katkı takibi ve mobil uygulama fikri.
+
+> Projenin eski adı *GiftlyAI* idi; telif riski nedeniyle 2026-10-06'da **CovertGift** olarak değiştirildi.
 
 ## 📄 Lisans
 
-[MIT](LICENSE) © 2026 Mustafa Şeker. `.claude/` altındaki agent, komut ve skill dosyalarının çoğu [ECC](https://github.com/affaan-m/ECC) projesinden uyarlanmıştır (MIT); bkz. [.claude/THIRD_PARTY_NOTICES.md](.claude/THIRD_PARTY_NOTICES.md). Güvenlik açığı bildirimi için: [SECURITY.md](SECURITY.md).
+[MIT](LICENSE) © 2026 Mustafa Şeker. `.claude/` altındaki agent, komut ve skill dosyalarının çoğu [ECC](https://github.com/affaan-m/ECC) projesinden uyarlanmıştır (MIT); bkz. [.claude/THIRD_PARTY_NOTICES.md](.claude/THIRD_PARTY_NOTICES.md). Güvenlik açığı bildirmek için: [SECURITY.md](SECURITY.md).
