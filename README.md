@@ -45,16 +45,16 @@
 
 <table>
   <tr>
-    <td width="62%"><img src="docs/screenshots/group-dark.png" alt="Grup sayfası: bütçe, kişi başı tutar, ilgi alanları ve oylanan hediye fikirleri"></td>
-    <td width="38%"><img src="docs/screenshots/home-mobile.png" alt="Telefonda ana ekran"></td>
+    <td width="50%"><img src="docs/screenshots/group-dark.png" alt="Grup sayfası: bütçe, kişi başı tutar, ilgi alanları ve oylanan hediye fikirleri"></td>
+    <td width="50%"><img src="docs/screenshots/mobile-dark.png" alt="Telefonda giriş, ana ekran ve grup sayfası"></td>
   </tr>
   <tr>
     <td align="center"><sub>Grup sayfası: bütçe, ilgi alanları ve oylanan fikirler</sub></td>
-    <td align="center"><sub>Telefonda ana ekran</sub></td>
+    <td align="center"><sub>Telefonda: giriş, ana ekran ve grup sayfası</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/home-light.png" alt="Açık temada ana ekran"></td>
-    <td><img src="docs/screenshots/login-dark.png" alt="Giriş ekranı"></td>
+    <td width="50%"><img src="docs/screenshots/home-light.png" alt="Açık temada ana ekran"></td>
+    <td width="50%"><img src="docs/screenshots/login-dark.png" alt="Masaüstünde giriş ekranı"></td>
   </tr>
   <tr>
     <td align="center"><sub>Açık tema</sub></td>
