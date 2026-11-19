@@ -26,8 +26,7 @@ Görev paneli (#33), Go 1.27.4 ve nginx avatar sınırı (#34) canlıda. Canlı 
 13. **Eski bildirim temizliği** (tablo büyürse) ve `~/CovertGift-backups/2026-11-15/` yedeklerinin ne kadar saklanacağı.
 14. **Maliyet.** Kullanılmayacaksa ortamı durdur (belge: `docs/AZURE.md`, "Durdurma ve yeniden açma"); PostgreSQL 7 gün sonra kendiliğinden açılır.
 
-15. **Kalıcı alan adı.** Canlı adres taşımayla değişti (`covertgift-web.gentlegrass-…`). Standart ortam özel alan adını ve ücretsiz yönetilen sertifikayı destekliyor. Kalıcı bir alan adı, bir sonraki taşımada adresin değişmemesini sağlar; mobil uygulama için de ön koşul.
-16. **Mobil uygulama (fikir).** Önerilen yol Capacitor: mevcut React uygulaması iOS ve Android kabuğuna konur; push bildirimleri ve kamera eklentilerle eklenir. Ön koşullar: kalıcı alan adı (15), API'de Capacitor kökeni için CORS izni, JWT için güvenli depolama, APNs/FCM kurulumu, Apple (yıllık 99 $) ve Google Play (tek seferlik 25 $) hesapları.
+16. **Mobil uygulama (fikir).** Önerilen yol Capacitor: mevcut React uygulaması iOS ve Android kabuğuna konur; push bildirimleri ve kamera eklentilerle eklenir. Ön koşullar: kalıcı alan adı artık var (`covertgift.msheker.dev`); API'de Capacitor kökeni için CORS izni, JWT için güvenli depolama, APNs/FCM kurulumu, Apple (yıllık 99 $) ve Google Play (tek seferlik 25 $) hesapları.
 
 ## Bug'lar
 
