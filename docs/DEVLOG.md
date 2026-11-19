@@ -912,3 +912,11 @@
   - Bu bölgede `az containerapp env create` `--enable-workload-profiles` verilse bile Express kuruyor; `--environment-mode WorkloadProfiles` şart.
   - Abonelik bölge başına yalnızca 1 standart ortama izin veriyor; `ScheduledForDelete` durumundaki ortam da sınırı dolduruyor.
 - **Açık kalanlar:** BACKLOG'da kalıcı alan adı (15), mobil uygulama fikri (16) ve güvenlik duvarındaki eski Express çıkış IP'si kuralı (12).
+
+## 2026-11-19 — Özel alan adı: `covertgift.msheker.dev`
+
+- Kullanıcı Cloudflare Registrar'dan `msheker.dev` alan adını aldı (3 yıl, otomatik yenileme açık). Projeler bu alan adının alt adlarında yayınlanacak.
+- DNS: `CNAME covertgift` → `covertgift-web` FQDN'i (DNS only) ve `TXT asuid.covertgift` → ortam doğrulama kodu. İlk girişte CNAME hedefinin sonundaki `.io` eksik kalmıştı; `dig` ile fark edilip düzeltildi.
+- Azure: `covertgift-web`'e `covertgift.msheker.dev` eklendi ve ücretsiz yönetilen sertifikayla bağlandı (`SniEnabled`; GeoTrust/DigiCert, bitiş 2027-05-19, Azure yeniler).
+- Kontrol (yalnızca okuma): `/health` `db: up`; `/`, `/invite/x`, `/profile` 200; oturumsuz `/api/v1/me` 401; HTTP isteği 301 ile HTTPS'e yönleniyor. Davet linkleri `window.location.origin` ile üretildiği için yeni adreste kendiliğinden doğru.
+- Neden: Bir sonraki taşımada adres değişmesin; mobil uygulama da bu adrese bağlanacak.

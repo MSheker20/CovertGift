@@ -12,7 +12,7 @@ Go API ve kalıcı React frontend ayrı imajlar olarak paketlenir. PostgreSQL ay
 
 ## Güncel durum (2026-11-19)
 
-- **Açık.** Standart ortam `covertgift-apps` (WorkloadProfiles, yalnızca Consumption profili). API `covertgift-server` (`covertgift-api:1c0e188`, internal), arayüz `covertgift-web` (`covertgift-web:1c0e188`, external, `API_TARGET=http://covertgift-server`). `main` #33–#34. Adres: https://covertgift-web.gentlegrass-4f326f37.polandcentral.azurecontainerapps.io
+- **Açık.** Standart ortam `covertgift-apps` (WorkloadProfiles, yalnızca Consumption profili). API `covertgift-server` (`covertgift-api:1c0e188`, internal), arayüz `covertgift-web` (`covertgift-web:1c0e188`, external, `API_TARGET=http://covertgift-server`). `main` #33–#34. **Adres: https://covertgift.msheker.dev** (Azure'un kendi adresi `covertgift-web.gentlegrass-4f326f37.polandcentral.azurecontainerapps.io` da çalışır).
 - **Express ortamından çıkıldı (2026-11-19).** Eski Express ortamı `covertgift-env` ve uygulamaları (`covertgift-api`, `covertgift-ui`, `covertgift-backend`) silindi. Eski adres (`covertgift-ui.yellowplant-0f3e00f1…`) artık çalışmıyor. Sebep aşağıda, "Olay: Express ortamında internal ingress" bölümünde.
 - **Dağıtımdan önce** canlıda `/health`'e bakılır ve sonucu not edilir. Böylece bir sorun çıkarsa dağıtımdan önce de var olup olmadığı bilinir.
 - Önceki canlı sürüm `a5c65ce` idi. Bu sürümde `users.avatar_url` sütunu elle silindi (aşağıda). Eski API'nin modeli bu sütunu içerdiği için `a5c65ce`'ye dönmek kullanıcı kaydını bozar. Geri dönmeden önce sütun yeniden eklenmeli: `ALTER TABLE users ADD COLUMN avatar_url varchar(255);`.
@@ -72,6 +72,11 @@ Eski etiketler geri dönüş için registry'de durur.
 - Ortam: `covertgift-apps`, WorkloadProfiles modu, yalnızca Consumption profili; loglar Log Analytics'e gider.
 - API: `covertgift-server`, internal ingress (yalnızca ortam içinden erişim), port 8080. İç adres: `covertgift-server.internal.gentlegrass-4f326f37…`; arayüz kısa adı `http://covertgift-server` kullanır.
 - Arayüz: `covertgift-web`, https://covertgift-web.gentlegrass-4f326f37.polandcentral.azurecontainerapps.io
+- Özel alan adı: `covertgift.msheker.dev`. Alan adı kullanıcının Cloudflare hesabında (Cloudflare Registrar ve DNS). Kayıtlar:
+  - `CNAME covertgift` → `covertgift-web.gentlegrass-4f326f37.polandcentral.azurecontainerapps.io`, **DNS only (gri bulut)**. Proxy (turuncu bulut) açılırsa Azure'un sertifika doğrulaması bozulabilir.
+  - `TXT asuid.covertgift` → ortamın `customDomainVerificationId` değeri (`az containerapp env show … --query properties.customDomainConfiguration.customDomainVerificationId`).
+  - Sertifika Azure'un ücretsiz yönetilen sertifikası (`mc-covertgift-app-covertgift-mshek-5237`, `SniEnabled`). Azure kendiliğinden yeniler; CNAME kaydı yerinde kalmalı.
+  - Uygulama ya da ortam yeniden kurulursa: `az containerapp hostname add` ve ardından `az containerapp hostname bind --environment covertgift-apps --validation-method CNAME`. Yeni ortamın doğrulama kodu farklıysa TXT kaydı güncellenir.
 - Registry: `covertgiftmsheker.azurecr.io`; imajlar commit kısa kimliğiyle etiketlenir (ör. `f883801`). `demo` etiketi ilk dağıtımın imajıdır.
 - PostgreSQL: `covertgift-db-msheker`, sürüm 17, B1ms, 32 GiB.
 - İmaj çekme kimliği: `covertgift-acr-pull` (kullanıcı atanmış), registry kapsamında AcrPull.
