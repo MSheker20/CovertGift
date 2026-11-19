@@ -36,10 +36,10 @@ Bu CLI sürümünde `az containerapp stop/start` yok; Container App'ler REST API
 for a in covertgift-web covertgift-server; do
   az rest --method post --url "https://management.azure.com$(az containerapp show -g covertgift-rg -n $a --query id -o tsv)/stop?api-version=2024-03-01"
 done
-az postgres flexible-server stop -g covertgift-rg -n covertgift-db-msheker
+az postgres flexible-server stop -g covertgift-rg -n <db-sunucusu>
 
 # Yeniden açma (sıra önemli: önce veritabanı)
-az postgres flexible-server start -g covertgift-rg -n covertgift-db-msheker
+az postgres flexible-server start -g covertgift-rg -n <db-sunucusu>
 for a in covertgift-server covertgift-web; do
   az rest --method post --url "https://management.azure.com$(az containerapp show -g covertgift-rg -n $a --query id -o tsv)/start?api-version=2024-03-01"
 done
@@ -78,7 +78,7 @@ Eski etiketler geri dönüş için registry'de durur.
   - Sertifika Azure'un ücretsiz yönetilen sertifikası (`mc-covertgift-app-covertgift-mshek-5237`, `SniEnabled`). Azure kendiliğinden yeniler; CNAME kaydı yerinde kalmalı.
   - Uygulama ya da ortam yeniden kurulursa: `az containerapp hostname add` ve ardından `az containerapp hostname bind --environment covertgift-apps --validation-method CNAME`. Yeni ortamın doğrulama kodu farklıysa TXT kaydı güncellenir.
 - Registry: `covertgiftmsheker.azurecr.io`; imajlar commit kısa kimliğiyle etiketlenir (ör. `f883801`). `demo` etiketi ilk dağıtımın imajıdır.
-- PostgreSQL: `covertgift-db-msheker`, sürüm 17, B1ms, 32 GiB.
+- PostgreSQL: `<db-sunucusu>` (gerçek ad Azure portalında, `covertgift-rg` içinde), sürüm 17, B1ms, 32 GiB.
 - İmaj çekme kimliği: `covertgift-acr-pull` (kullanıcı atanmış), registry kapsamında AcrPull.
 - API: 0.5 vCPU / 1 GiB; arayüz: 0.25 vCPU / 0.5 GiB. İkisi de 0–1 replica (API için 1'in üstüne çıkmayın; grup ve bildirim SSE hub'ları bellek içi).
 - DATABASE_URL, JWT_SECRET ve mevcut GEMINI_API_KEY, API'de secret olarak tanımlıdır.
@@ -92,7 +92,7 @@ kimliği yerine yukarıdaki kullanıcı atanmış kimliği kullanın. Kaynak olu
 formu yerine Azure CLI ve ARM şablonu ile dağıtım yapıldı.
 
 İlk dağıtımda PostgreSQL güvenlik duvarına yerel istemci IP'si ve panel içinden
-ölçülen tek çıkış IP'si (74.248.18.123) eklendi. Daha sonra yeni API kopyası
+ölçülen tek çıkış IP'si eklendi. Daha sonra yeni API kopyası
 PostgreSQL bağlantısında zaman aşımına uğradı ve backend 503 vermeye başladı.
 Panelin ölçülen IP'si değişmemişti; bu IP, diğer Express kopyalarının tüm çıkış
 adreslerini kapsama garantisi sağlamaz.

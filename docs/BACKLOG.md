@@ -22,7 +22,7 @@ Görev paneli (#33), Go 1.27.4 ve nginx avatar sınırı (#34) canlıda. Canlı 
 11. **AI tarafı (ertelendi):** manuel ve beğenilen önerilerden tercih çıkarımı, kalan AI hata yanıtları (422/503).
 
 ### D. Operasyon ve güvenlik
-12. **Azure güvenlik duvarı.** `ClientIPAddress_2026-10-19` kuralındaki IP (212.154.121.233) artık senin IP'n değil; kaldırılmalı mı karar ver. `CovertGiftExpressEgress` (74.248.18.123) eski Express ortamının ölçülmüş çıkış IP'siydi; ortam silindiği için bu kural da büyük ihtimalle gereksiz. `AllowAzureServices` tüm Azure IP'lerine açık; daha dar bir yalıtım ileride düşünülebilir.
+12. **Azure güvenlik duvarı.** `ClientIPAddress_2026-10-19` kuralındaki IP artık kullanıcının IP'si değil; kaldırılmalı mı karar ver. `CovertGiftExpressEgress` eski Express ortamının ölçülmüş çıkış IP'siydi; ortam silindiği için bu kural da büyük ihtimalle gereksiz. `AllowAzureServices` tüm Azure IP'lerine açık; daha dar bir yalıtım ileride düşünülebilir.
 13. **Eski bildirim temizliği** (tablo büyürse) ve `~/CovertGift-backups/2026-11-15/` yedeklerinin ne kadar saklanacağı.
 14. **Maliyet.** Kullanılmayacaksa ortamı durdur (belge: `docs/AZURE.md`, "Durdurma ve yeniden açma"); PostgreSQL 7 gün sonra kendiliğinden açılır.
 

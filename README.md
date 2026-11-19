@@ -1,5 +1,7 @@
 # 🎁 CovertGift
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > **Güncel AI modu (2026-11-10'dan beri):** Google Search kapalıdır (`GEMINI_SEARCH_ENABLED=false`).
 > `GEMINI_MODEL=gemini-3.6-flash` (yedek `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite`) ile tek çağrıda öneri üretilir; fiyatlar doğrulanmamış tahmindir.
 > Model kimlikleri uygulama kodunda sabit değildir. `GEMINI_MODEL` anahtar varsa zorunludur.
@@ -201,3 +203,7 @@ Güncel AI modunda Google Search kapalıdır: tek yapılandırılmış çağrı 
 
 ## 🔗 Bağlantılar
 - GitHub: https://github.com/MSheker20/CovertGift
+
+## 📄 Lisans
+
+[MIT](LICENSE) © 2026 Mustafa Şeker. `.claude/` altındaki agent, komut ve skill dosyalarının çoğu [ECC](https://github.com/affaan-m/ECC) projesinden uyarlanmıştır (MIT); bkz. [.claude/THIRD_PARTY_NOTICES.md](.claude/THIRD_PARTY_NOTICES.md). Güvenlik açığı bildirimi için: [SECURITY.md](SECURITY.md).
