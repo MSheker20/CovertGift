@@ -637,7 +637,7 @@
 
 - Kullanıcı isteğiyle projenin son hali dağıtıldı, ardından ortam bir süreliğine kapatıldı.
 - Dağıtım: yalnızca frontend değişmişti (Nötr grafit, giriş ekranı, favicon); `covertgift-web:2e0d1e7` derlendi, ölü hedefle yerelde denendi (sayfa ve SPA 200, `/api/v1/DEV/...` 403, CSS'te `#2f5bff`), ACR'ye gönderildi ve `covertgift-ui` güncellendi. Backend kodu `ff8bb3c` ile aynı olduğu için API yeniden dağıtılmadı. Canlıda CSS'te yeni ana renk, `/health` 200 (`db: up`), oturumsuz `/me` 401, `/api/v1/dev/x` 403 ve koyu temada giriş ekranı görüntüsüyle doğrulandı.
-- Kapatma: `covertgift-ui` ve `covertgift-api` REST API `stop` ucuyla (CLI'de `containerapp stop` yok), `covertgift-db-msheker` `az postgres flexible-server stop` ile durduruldu; üçü de `Stopped`, canlı adres 502. Hiçbir kaynak, imaj veya veri silinmedi.
+- Kapatma: `covertgift-ui` ve `covertgift-api` REST API `stop` ucuyla (CLI'de `containerapp stop` yok), PostgreSQL sunucusu `az postgres flexible-server stop` ile durduruldu; üçü de `Stopped`, canlı adres 502. Hiçbir kaynak, imaj veya veri silinmedi.
 - Dikkat: Azure durdurulmuş PostgreSQL esnek sunucusunu 7 gün sonra kendiliğinden başlatır; kapalı tutmak için haftalık `stop` gerekir. Depolama, yedek ve ACR ücretleri sürer. Yeniden açma adımları `docs/AZURE.md` başında.
 
 ---
