@@ -4,6 +4,7 @@ const tr = {
     retry: 'Tekrar dene',
     back: 'Geri',
     loading: 'Yükleniyor',
+    serverWaking: 'Sunucu uyanıyor, birkaç saniye sürebilir…',
     language: 'Dil',
     networkError: 'Sunucuya ulaşılamadı. API çalışıyor mu?',
     unknownError: 'Bir şeyler ters gitti.',

@@ -920,3 +920,20 @@
 - Azure: `covertgift-web`'e `covertgift.msheker.dev` eklendi ve ücretsiz yönetilen sertifikayla bağlandı (`SniEnabled`; GeoTrust/DigiCert, bitiş 2027-05-19, Azure yeniler).
 - Kontrol (yalnızca okuma): `/health` `db: up`; `/`, `/invite/x`, `/profile` 200; oturumsuz `/api/v1/me` 401; HTTP isteği 301 ile HTTPS'e yönleniyor. Davet linkleri `window.location.origin` ile üretildiği için yeni adreste kendiliğinden doğru.
 - Neden: Bir sonraki taşımada adres değişmesin; mobil uygulama da bu adrese bağlanacak.
+
+## 2026-11-20 — Soğuk başlangıçta açılış ekranı ve "Sunucu uyanıyor" notu
+
+- **Sorun:** Standart ortamda iki uygulama da boştayken sıfıra ölçekleniyor. İlk ziyarette ekran bir süre bomboş kalıyordu; API uyanırken de iskelet kartlar ya da tepki vermeyen giriş butonu dışında hiçbir açıklama yoktu.
+- **Açılış ekranı:** `index.html`'de saf HTML/CSS bir ekran var: logo ve üç noktalı sakin bir gösterge. JavaScript inmeden görünür; yönlendirici ilk sayfanın kodunu yükleyince (`router.state.initialized`) `src/main.tsx` onu yumuşakça kaldırır.
+  - Hızlı açılışlarda yanıp sönmesin diye içerik 250 ms gecikmeyle belirir.
+  - Sistem temasını izler. Renkler `src/index.css` token'larının kopyası (`--ground`, `--accent`), çünkü CSS henüz yüklenmemiş oluyor.
+  - Azaltılmış hareket tercihinde animasyon yok. Ekran okuyucu için `role="status"`.
+  - Koyu temanın `theme-color` değeri `#0b0c14` → `#0c0c0d` (`--ground` ile aynı) düzeltildi.
+- **"Sunucu uyanıyor" notu:** `api()` ve `apiBlob()` isteklerini sayan küçük bir izleyici eklendi (`serverActivity`, `src/api/client.ts`). Son yanıtın üzerinden 4 dakikadan fazla geçtiyse ya da hiç yanıt alınmadıysa istek "soğuk" sayılır. Soğuk bir istek 3 saniyeden uzun sürerse `ServerWakingNotice` ekranın altında "Sunucu uyanıyor, birkaç saniye sürebilir…" yazar, istek bitince kaybolur.
+  - Sunucu uyanıkken uzun süren istekler (Gemini, link önizleme) notu tetiklemez.
+  - SSE akışları izlenmez.
+- **Sınır:** Arayüz konteyneri de uyuyorsa HTML gelene kadar geçen süre tarayıcının kendi boş sayfasıdır; bunu ön yüz kapatamaz. Tamamen kaldırmak için `covertgift-web`'in en az 1 replikada tutulması gerekir; bu da küçük bir sabit ücret demek.
+- **Doğrulama:**
+  - Yeni `src/components/serverWaking.test.tsx`: uyuyan sunucuda not çıkıyor, uyanık sunucuda çıkmıyor, hızlı yanıtta yanıp sönmüyor.
+  - Vitest 242/242, `tsc -b` ve `oxlint` temiz.
+  - Playwright ile soğuk başlangıç taklit edildi (JS 2.5 sn, API 6 sn gecikmeli): açılış ekranı iki temada görünüp form gelince kalktı; not 2. saniyede yokken 3.8. saniyede çıktı, istekler bitince kayboldu.

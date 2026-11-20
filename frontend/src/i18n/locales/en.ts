@@ -6,6 +6,7 @@ const en: Messages = {
     retry: 'Try again',
     back: 'Back',
     loading: 'Loading',
+    serverWaking: 'The server is waking up. This can take a few seconds…',
     language: 'Language',
     networkError: 'Could not reach the server. Is the API running?',
     unknownError: 'Something went wrong.',
