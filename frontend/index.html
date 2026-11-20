@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0b0c14" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#0c0c0d" media="(prefers-color-scheme: dark)" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -14,8 +14,45 @@
       rel="stylesheet"
     />
     <title>CovertGift</title>
+    <style>
+      /* Açılış ekranı: JavaScript inip ilk sayfa çizilene kadar görünür (Azure soğuk başlangıcında
+         birkaç saniye sürebilir). index.css henüz yüklenmediği için renkler src/index.css'teki
+         token'ların kopyası: --ground ve --accent (açık/koyu). src/main.tsx kaldırır. */
+      #splash {
+        position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+        background: #ffffff; color: #2f5bff; transition: opacity .25s ease;
+      }
+      #splash .splash-inner { display: grid; justify-items: center; gap: 22px; opacity: 0; animation: splash-in .3s ease .25s forwards; }
+      #splash svg { width: 56px; height: 56px; }
+      #splash .splash-dots { display: flex; gap: 7px; }
+      #splash .splash-dots span { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .25; animation: splash-dot 1.2s ease-in-out infinite; }
+      #splash .splash-dots span:nth-child(2) { animation-delay: .15s; }
+      #splash .splash-dots span:nth-child(3) { animation-delay: .3s; }
+      #splash.is-done { opacity: 0; pointer-events: none; }
+      #splash .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      @keyframes splash-in { to { opacity: 1; } }
+      @keyframes splash-dot { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+      @media (prefers-color-scheme: dark) { #splash { background: #0c0c0d; color: #86a0ff; } }
+      @media (prefers-reduced-motion: reduce) {
+        #splash .splash-inner { animation: none; opacity: 1; }
+        #splash .splash-dots span { animation: none; opacity: .6; }
+        #splash { transition: none; }
+      }
+    </style>
   </head>
   <body>
+    <div id="splash" role="status">
+      <div class="splash-inner">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="3" y="11" width="26" height="18" rx="5" fill="currentColor" />
+          <rect x="1.5" y="7" width="29" height="7" rx="3.5" fill="currentColor" />
+          <rect x="14" y="7" width="4" height="22" fill="#fff" />
+          <path d="M16 7c-2-5-8-5-7-1.5C9.6 7.4 14 7 16 7Zm0 0c2-5 8-5 7-1.5C22.4 7.4 18 7 16 7Z" fill="currentColor" />
+        </svg>
+        <div class="splash-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        <span class="sr-only">CovertGift yükleniyor</span>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

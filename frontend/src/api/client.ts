@@ -43,6 +43,48 @@ export const UNAUTHORIZED_EVENT = 'covertgift:unauthorized'
 
 type Envelope<T> = { success: boolean; data?: T; error?: string }
 
+// Sunucunun uykuda olabileceği istekleri sayar. Azure'da API boştayken sıfıra ölçeklenir;
+// uyanması birkaç saniye sürer. Son yanıtın üzerinden bu süreden fazla geçtiyse (ya da hiç
+// yanıt alınmadıysa) yeni istek "soğuk" sayılır. Sunucu uyanıkken uzun süren istekler
+// (Gemini önerisi, link önizleme) böylece "sunucu uyanıyor" notunu tetiklemez.
+const IDLE_AFTER_MS = 4 * 60_000
+let lastResponseAt = 0
+let coldRequests = 0
+const coldListeners = new Set<() => void>()
+
+function setColdRequests(n: number) {
+  coldRequests = n
+  coldListeners.forEach((l) => l())
+}
+
+export const serverActivity = {
+  coldRequests: () => coldRequests,
+  subscribe(listener: () => void) {
+    coldListeners.add(listener)
+    return () => {
+      coldListeners.delete(listener)
+    }
+  },
+}
+
+// Testler arasında durumu sıfırlar.
+export function resetServerActivity() {
+  lastResponseAt = 0
+  setColdRequests(0)
+}
+
+async function tracked(input: string, init: RequestInit): Promise<Response> {
+  const cold = Date.now() - lastResponseAt > IDLE_AFTER_MS
+  if (cold) setColdRequests(coldRequests + 1)
+  try {
+    const res = await fetch(input, init)
+    lastResponseAt = Date.now()
+    return res
+  } finally {
+    if (cold) setColdRequests(coldRequests - 1)
+  }
+}
+
 export async function api<T>(
   path: string,
   init: { method?: string; body?: unknown; signal?: AbortSignal } = {},
@@ -56,7 +98,7 @@ export async function api<T>(
 
   let res: Response
   try {
-    res = await fetch(`${BASE_URL}/api/v1${path}`, {
+    res = await tracked(`${BASE_URL}/api/v1${path}`, {
       method: init.method ?? 'GET',
       headers,
       body: form ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
@@ -94,7 +136,7 @@ export async function apiBlob(path: string, signal?: AbortSignal): Promise<Blob>
 
   let res: Response
   try {
-    res = await fetch(`${BASE_URL}/api/v1${path}`, { headers, signal })
+    res = await tracked(`${BASE_URL}/api/v1${path}`, { headers, signal })
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err
     throw new ApiError(0, 'network')
