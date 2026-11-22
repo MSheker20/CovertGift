@@ -937,3 +937,16 @@
   - Yeni `src/components/serverWaking.test.tsx`: uyuyan sunucuda not çıkıyor, uyanık sunucuda çıkmıyor, hızlı yanıtta yanıp sönmüyor.
   - Vitest 242/242, `tsc -b` ve `oxlint` temiz.
   - Playwright ile soğuk başlangıç taklit edildi (JS 2.5 sn, API 6 sn gecikmeli): açılış ekranı iki temada görünüp form gelince kalktı; not 2. saniyede yokken 3.8. saniyede çıktı, istekler bitince kayboldu.
+
+## 2026-11-22 — Sayfa geçişleri, kazanan kutlaması ve canlı vurgu
+
+- **Amaç:** Site işlevsel ama durağandı: sayfalar sert değişiyor, kazanan seçimi yalnızca bir bildirimle (toast) geçiyor, canlı gelen fikirler fark edilmiyordu.
+- **Sayfa geçişleri:** Grup bağlantıları `GroupLink` üzerinden gider (`viewTransition`). İmleç gelince, odaklanınca ya da dokununca grup detayı önceden çekilir. Veri hazırsa tıklanan kartın kapağı ve başlığı grup sayfasındaki karşılıklarına büyüyerek taşınır; üst bar (`app-header`) yerinde kalır, içerik hafifçe yükselir.
+  - Aynı grup ana sayfada birden çok kartta olabildiği için `view-transition-name` yalnızca tıklanan kartın öğelerine (`data-vt`) tıklama anında verilir. Aynı ad iki öğede olursa tarayıcı geçişi iptal eder.
+- **Kazanan kutlaması:** Yeni seçilen kazanan kartı dönerek açılır (`winner-reveal`) ve `canvas-confetti` ile token renklerinde konfeti patlar. Kütüphane yalnızca o anda yüklenen ayrı bir parça (~4 KB gzip). Canlı güncellemeyle diğer üyelerde de çalışır; ilk yükleme kutlanmaz.
+- **Listeler:** Ana sayfa listeleri ve fikir kartları ilk açılışta 35 ms arayla belirir (`useIntroWindow`). Pencere kısa tutuldu, çünkü oylamada sıra değişince React düğümleri taşır ve animasyon yeniden başlardı. Sonradan gelen fikir bir kez halkayla parlar (`useNewIds`, `fresh-glow`).
+- Azaltılmış hareket tercihinde View Transitions animasyonları da kapalı; konfeti çalışmaz.
+- **Doğrulama:**
+  - Yeni `src/lib/motion.test.tsx`: `useNewIds`, `useIntroWindow` ve önden yükleme.
+  - Vitest 245/245, `tsc -b`, `oxlint` ve `vite build` temiz.
+  - Geçici `test-db` ile tarayıcıda denendi: geçiş adları (`app-header`, `group-cover`, `group-title`) hatasız tamamlandı; kazanan seçiminde konfeti ve kart dönüşü, başka üyenin eklediği fikirde vurgu görüldü.

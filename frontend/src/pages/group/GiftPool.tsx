@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarClock, ChevronDown, Link2, LoaderCircle, Sparkles, Trophy } from 'lucide-react'
@@ -10,7 +10,10 @@ import type { Idea } from '@/api/types'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Bar, BlockError } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
+import { celebrate } from '@/lib/celebrate'
 import { errorMessage } from '@/lib/errors'
+import { INTRO_CLASS, staggerStyle, useIntroWindow, useNewIds } from '@/lib/motion'
+import { cn } from '@/lib/utils'
 import { AddIdeaDialog } from './AddIdeaDialog'
 import { IdeaCard } from './IdeaCard'
 import type { Scope } from './scope'
@@ -121,10 +124,21 @@ export function GiftPool({ scope, meId, canManage, completed, totalBudget, live,
   const active = [...winners, ...candidates]
   const rejected = all.filter((i) => i.status === 'REJECTED')
 
-  const card = (idea: Idea) => (
-    <li key={idea.id}>
+  // Hareket: ilk açılışta kartlar sırayla gelir; sonradan (SSE ya da kendi işlemimizle) gelen fikir
+  // bir kez parlar; yeni seçilen kazanan dönerek açılır ve konfeti patlar. İlk yükleme kutlanmaz.
+  const ready = ideas.isSuccess
+  const intro = useIntroWindow(ready)
+  const fresh = useNewIds(all.map((i) => i.id), ready)
+  const newWinners = useNewIds(winners.map((w) => w.id), ready, 1200)
+  useEffect(() => {
+    if (newWinners.size > 0) void celebrate()
+  }, [newWinners])
+
+  const card = (idea: Idea, index: number) => (
+    <li key={idea.id} className={cn(intro && INTRO_CLASS)} style={intro ? staggerStyle(index) : undefined}>
       <IdeaCard
         idea={idea}
+        highlight={newWinners.has(idea.id) ? 'winner' : fresh.has(idea.id) ? 'fresh' : undefined}
         locked={completed}
         canReject={canManage}
         canDelete={canManage || idea.created_by === meId}

@@ -71,6 +71,7 @@ export function GroupPage() {
     <div className="mx-auto max-w-[1100px] px-4 pt-4 pb-16 md:px-8 md:pt-6 lg:box-content lg:pt-8">
       <Link
         to="/"
+        viewTransition
         className="-ml-1 inline-flex h-9 items-center gap-1 rounded-full pr-3 pl-1 text-sm text-muted transition-colors hover:text-ink"
       >
         <ChevronLeft className="size-4" />
@@ -98,12 +99,16 @@ export function GroupPage() {
               version={d?.group.cover_version}
               alt={d ? t('cover.alt', { title: d.group.title }) : ''}
               className="aspect-[4/3] w-40 rounded-[16px] sm:w-44 lg:w-52"
+              transitionName="group-cover"
             />
             {/* Metin sütunu: başlık + bilgi satırı (yanında menü), altında açıklama ve hesap durumu. */}
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
-                  <h1 className="font-display text-[26px] leading-[1.12] font-semibold break-words md:text-[40px]">
+                  <h1
+                    className="font-display text-[26px] leading-[1.12] font-semibold break-words md:text-[40px]"
+                    style={d ? { viewTransitionName: 'group-title' } : undefined}
+                  >
                     {d ? d.group.title : <Bar className="h-10 w-72" />}
                   </h1>
                   <p className="mt-2 text-[15px] text-muted">
