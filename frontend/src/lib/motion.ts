@@ -45,3 +45,32 @@ export function useNewIds(ids: string[], ready: boolean, ms = 1800): ReadonlySet
 
   return fresh
 }
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+}
+
+// Sayıyı 0'dan hedefe yumuşakça sayarak getirir (yalnızca ilk gösterimde). Azaltılmış hareket
+// tercihinde ve testlerde (requestAnimationFrame yoksa) doğrudan hedefi döndürür.
+export function useCountUp(target: number, ms = 700): number {
+  const [finished, setFinished] = useState(
+    () => target === 0 || prefersReducedMotion() || typeof requestAnimationFrame !== 'function',
+  )
+  const [value, setValue] = useState(0)
+
+  useEffect(() => {
+    if (finished) return
+    let frame = 0
+    const start = performance.now()
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - start) / ms)
+      setValue(Math.round(target * (1 - Math.pow(1 - p, 3))))
+      if (p < 1) frame = requestAnimationFrame(tick)
+      else setFinished(true)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [target, ms, finished])
+
+  return finished ? target : value
+}

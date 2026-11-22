@@ -57,6 +57,8 @@
   --avatar-s: 85%;
   --avatar-l: 88%;
   --avatar-ink-l: 24%;
+  /* Kobalt kartın gölgesi: açık temada yok, koyu temada hafif parlama. */
+  --primary-glow: none;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -100,6 +102,7 @@
     --avatar-s: 45%;
     --avatar-l: 30%;
     --avatar-ink-l: 88%;
+    --primary-glow: 0 24px 64px -28px rgb(47 91 255 / 0.55);
   }
 }
 
@@ -209,6 +212,81 @@
 @keyframes fresh-glow {
   0%, 35% { box-shadow: 0 0 0 3px var(--selection); }
   100% { box-shadow: 0 0 0 3px transparent; }
+}
+
+/* Skeleton: zemin tonunda soldan sağa geçen yumuşak parıltı. */
+.skeleton {
+  background: linear-gradient(
+      90deg,
+      var(--active) 0%,
+      color-mix(in srgb, var(--active) 45%, var(--raised)) 50%,
+      var(--active) 100%
+    )
+    0 0 / 200% 100%;
+  animation: shimmer 1.5s linear infinite;
+}
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+/* Gemini çalışırken hayalet kartların kenarında dönen kobalt ışık. */
+@property --ai-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.ai-ghost {
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(var(--raised), var(--raised)) padding-box,
+    conic-gradient(from var(--ai-angle), var(--border) 0 55%, var(--accent) 78%, var(--primary) 88%, var(--border) 100%) border-box;
+  animation: ai-spin 2.6s linear infinite;
+}
+@keyframes ai-spin {
+  to { --ai-angle: 360deg; }
+}
+/* Dönüşümlü mesajlar ve sayı değişimi: yukarı ya da aşağıdan kayarak gelir. */
+@keyframes text-in-up {
+  from { opacity: 0; translate: 0 6px; }
+}
+@keyframes text-in-down {
+  from { opacity: 0; translate: 0 -6px; }
+}
+/* Kopyalandı işareti küçükten büyür. */
+@keyframes check-in {
+  0% { scale: 0.4; opacity: 0; }
+  70% { scale: 1.15; opacity: 1; }
+  100% { scale: 1; }
+}
+/* Sürpriz ekranındaki kutunun kapağı ara ara aralanır. */
+@keyframes lid-peek {
+  0%, 55%, 100% { translate: 0 0; rotate: 0deg; }
+  65% { translate: -1px -4px; rotate: -9deg; }
+  72% { translate: -1px -3px; rotate: -6deg; }
+  82% { translate: 0 0; rotate: 0deg; }
+}
+@keyframes sparkle {
+  0%, 55%, 100% { opacity: 0; scale: 0.4; }
+  68% { opacity: 1; scale: 1; }
+  85% { opacity: 0; scale: 0.6; }
+}
+
+/* Çok hafif film grenı: renkli yüzeylere doku katar. SVG gürültüsü, ek dosya yok. */
+.grain {
+  position: relative;
+  isolation: isolate;
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.12;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* Sayfa geçişleri (View Transitions, React Router `viewTransition`). Üst bar sabit kalır,

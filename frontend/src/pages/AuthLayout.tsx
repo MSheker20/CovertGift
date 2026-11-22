@@ -36,7 +36,7 @@ function ProductGlimpse() {
   const people = ['Mustafa', 'Zeynep', 'Can', 'Elif']
   return (
     // İçerik kadar uzar ve dikeyde ortalanır; altında ve üstünde sayfa zemini görünür.
-    <aside className="hidden flex-col gap-8 self-center rounded-[28px] bg-primary p-10 text-on-primary lg:flex">
+    <aside className="grain hidden flex-col gap-8 self-center rounded-[28px] bg-primary p-10 text-on-primary shadow-[var(--primary-glow)] lg:flex">
       <div className="max-w-[440px]">
         <p className="font-display text-[30px] leading-[1.12] font-bold">{t('auth.asideTitle')}</p>
         <p className="mt-4 text-[16px] leading-6 text-on-primary">{t('auth.asideLead')}</p>

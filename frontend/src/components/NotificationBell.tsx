@@ -32,6 +32,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { EmptyArt } from '@/components/EmptyArt'
 import { formatRelativeTime } from '@/lib/format'
 import {
   badgeLabel,
@@ -215,9 +216,7 @@ export function NotificationBell() {
         <DropdownMenuSeparator className="my-0" />
         {items.length === 0 ? (
           <div className="flex flex-col items-center gap-1 px-6 py-12 text-center">
-            <span className="mb-3 inline-flex size-12 items-center justify-center rounded-[14px] bg-surface text-muted">
-              <Bell className="size-5" aria-hidden="true" />
-            </span>
+            <EmptyArt kind="bell" className="mb-2" />
             {list.isError ? (
               <p className="text-sm text-muted">{t('notifications.loadError')}</p>
             ) : list.isPending ? (

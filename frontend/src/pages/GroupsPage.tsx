@@ -8,6 +8,7 @@ import type { GroupListItem } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
 import { GroupCoverImage, GroupThumb } from '@/components/GroupCover'
+import { EmptyArt } from '@/components/EmptyArt'
 import { GroupLink } from '@/components/GroupLink'
 import { Bar, BlockError, Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
@@ -16,9 +17,20 @@ import i18n from '@/i18n'
 import { cn } from '@/lib/utils'
 import { countdownLabel, daysUntil, effectiveEventDate, formatEventDate, sortByUpcoming } from '@/lib/eventDate'
 import { formatDate } from '@/lib/format'
-import { INTRO_CLASS, staggerStyle, useIntroWindow } from '@/lib/motion'
+import { INTRO_CLASS, staggerStyle, useCountUp, useIntroWindow } from '@/lib/motion'
 import { nextSurprise, prioritizedTasks, type PriorityLevel, type PriorityTask } from '@/lib/priority'
 import { NewGroupDialog } from './NewGroupDialog'
+
+// Gün sayısı açılışta sayarak gelir; ekran okuyucu yalnızca son değeri okur.
+function CountUp({ value }: { value: number }) {
+  const shown = useCountUp(value)
+  return (
+    <>
+      <span aria-hidden="true">{shown}</span>
+      <span className="sr-only">{value}</span>
+    </>
+  )
+}
 
 // Ekranın sorusu: "Sıradaki sürpriz ne ve benden ne bekleniyor?"
 // Izgara: 1100px sütun, 12 × 77px + 11 × 16px = 1100. Üstte 8 + 4 (sıradaki sürpriz, bekleyenler),
@@ -188,7 +200,7 @@ function NextSurpriseCard({
       groupId={group.id}
       className={cn(
         box,
-        'group bg-primary text-on-primary transition-[background-color,transform] hover:bg-primary-hover active:scale-[0.995]',
+        'group grain bg-primary text-on-primary shadow-[var(--primary-glow)] transition-[background-color,transform] hover:bg-primary-hover active:scale-[0.995]',
         // Masaüstünde fotoğraf kartın sağına 8px içeriden oturur: kart ~232px, fotoğraf ~%40 genişlikte.
         hasCover && 'gap-4 md:min-h-[232px] md:flex-row md:items-stretch md:gap-6 md:py-2 md:pr-2 md:pl-6',
       )}
@@ -206,6 +218,13 @@ function NextSurpriseCard({
         <p className="flex items-center gap-1.5 text-sm font-medium opacity-80">
           <CalendarDays className="size-4" aria-hidden />
           {t('home.next.label')}
+          {/* Bugün ya da yarınsa küçük bir nabız noktası. */}
+          {soon && (
+            <span aria-hidden className="relative ml-1 inline-flex size-2">
+              <span className="absolute inset-0 animate-ping rounded-full bg-on-primary opacity-75 motion-reduce:animate-none" />
+              <span className="relative size-2 rounded-full bg-on-primary" />
+            </span>
+          )}
         </p>
         <div
           className={cn(
@@ -229,7 +248,9 @@ function NextSurpriseCard({
               </p>
             ) : (
               <>
-                <p className="font-display num text-[44px] leading-none font-semibold md:text-[56px]">{days}</p>
+                <p className="font-display num text-[44px] leading-none font-semibold md:text-[56px]">
+                  <CountUp value={days} />
+                </p>
                 <p className="mt-1 text-sm opacity-80">{t('home.next.daysLeft', { count: days })}</p>
               </>
             )}
@@ -394,8 +415,9 @@ function GroupList({
     )
   if (open.length === 0)
     return (
-      <div className="rounded-[14px] border border-dashed border-control px-4 py-6 text-sm text-muted">
-        {state.data.length === 0 ? t('home.emptyGroups') : t('home.emptyOpen')}
+      <div className="flex items-center gap-4 rounded-[14px] border border-dashed border-control px-4 py-5 text-sm text-muted">
+        <EmptyArt kind="gift" />
+        <span>{state.data.length === 0 ? t('home.emptyGroups') : t('home.emptyOpen')}</span>
       </div>
     )
   return (

@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react'
+import { useId, type CSSProperties, type ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -34,8 +34,8 @@ export function Panel({
   )
 }
 
-export function Bar({ className }: { className?: string }) {
-  return <span aria-hidden="true" className={cn('block rounded-full bg-active', className)} />
+export function Bar({ className, style }: { className?: string; style?: CSSProperties }) {
+  return <span aria-hidden="true" className={cn('skeleton block rounded-full', className)} style={style} />
 }
 
 export function BlockError({ message, onRetry, retryLabel }: { message: string; onRetry: () => void; retryLabel: string }) {
