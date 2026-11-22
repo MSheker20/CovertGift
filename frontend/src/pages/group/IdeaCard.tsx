@@ -174,6 +174,13 @@ function VoteColumn({
   const { t } = useTranslation()
   // Yalnızca az önce basılan buton zıplar; sayfa yüklenirken seçili oylar sabit durur.
   const [pop, setPop] = useState<-1 | 0 | 1>(0)
+  // Skorun değişim yönü (render sırasında önceki değerle karşılaştırılır; ilk gösterimde 0).
+  const [lastScore, setLastScore] = useState(score)
+  const [scoreMove, setScoreMove] = useState<-1 | 0 | 1>(0)
+  if (score !== lastScore) {
+    setScoreMove(score > lastScore ? 1 : -1)
+    setLastScore(score)
+  }
   // Seçili oya tekrar basmak oyu geri alır.
   const vote = (v: 1 | -1) => {
     if (myVote === v) {
@@ -206,8 +213,18 @@ function VoteColumn({
       >
         <ChevronUp className="size-6" strokeWidth={2} />
       </button>
-      <span className="font-display num text-[15px] font-semibold">
-        {score > 0 ? `+${score}` : score}
+      {/* Skor değişince yeni değer değişim yönünden kayarak gelir. */}
+      <span className="font-display num h-5 overflow-hidden text-[15px] leading-5 font-semibold">
+        <span
+          key={score}
+          className={cn(
+            'block',
+            scoreMove === 1 && 'animate-[text-in-up_220ms_ease-out]',
+            scoreMove === -1 && 'animate-[text-in-down_220ms_ease-out]',
+          )}
+        >
+          {score > 0 ? `+${score}` : score}
+        </span>
       </span>
       <button
         type="button"

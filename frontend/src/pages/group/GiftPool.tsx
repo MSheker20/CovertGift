@@ -8,6 +8,7 @@ import { ApiError } from '@/api/client'
 import { ideasApi, liveInterval, mutationKeys, queryKeys } from '@/api/endpoints'
 import type { Idea } from '@/api/types'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { EmptyArt } from '@/components/EmptyArt'
 import { Bar, BlockError } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { celebrate } from '@/lib/celebrate'
@@ -15,6 +16,7 @@ import { errorMessage } from '@/lib/errors'
 import { INTRO_CLASS, staggerStyle, useIntroWindow, useNewIds } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { AddIdeaDialog } from './AddIdeaDialog'
+import { AiThinking } from './AiThinking'
 import { IdeaCard } from './IdeaCard'
 import type { Scope } from './scope'
 import { WinnersDialog } from './WinnersDialog'
@@ -134,8 +136,16 @@ export function GiftPool({ scope, meId, canManage, completed, totalBudget, live,
     if (newWinners.size > 0) void celebrate()
   }, [newWinners])
 
+  // Sonradan gelen fikirler (ör. Gemini'nin birden çok önerisi) kendi aralarında sırayla düşer.
+  const freshOrder = all.filter((i) => fresh.has(i.id)).map((i) => i.id)
+  const entrance = (idea: Idea, index: number) => {
+    if (intro) return staggerStyle(index)
+    if (fresh.has(idea.id)) return staggerStyle(freshOrder.indexOf(idea.id))
+    return undefined
+  }
+
   const card = (idea: Idea, index: number) => (
-    <li key={idea.id} className={cn(intro && INTRO_CLASS)} style={intro ? staggerStyle(index) : undefined}>
+    <li key={idea.id} className={cn((intro || fresh.has(idea.id)) && INTRO_CLASS)} style={entrance(idea, index)}>
       <IdeaCard
         idea={idea}
         highlight={newWinners.has(idea.id) ? 'winner' : fresh.has(idea.id) ? 'fresh' : undefined}
@@ -207,12 +217,7 @@ export function GiftPool({ scope, meId, canManage, completed, totalBudget, live,
         </p>
       )}
 
-      {gemini.isPending && (
-        <p role="status" className="mb-2 flex items-center gap-3 rounded-[14px] bg-soft px-4 py-3.5 text-sm text-on-soft">
-          <Sparkles className="size-4 shrink-0" />
-          {t('pool.geminiWorkingLong')}
-        </p>
-      )}
+      {gemini.isPending && <AiThinking />}
 
       {ideas.isPending ? (
         <PoolSkeleton />
@@ -225,7 +230,10 @@ export function GiftPool({ scope, meId, canManage, completed, totalBudget, live,
       ) : (
         <>
           {active.length === 0 && !gemini.isPending ? (
-            <div className="rounded-[14px] border border-dashed border-control px-4 py-6 text-sm text-muted">{t('pool.empty')}</div>
+            <div className="flex items-center gap-4 rounded-[14px] border border-dashed border-control px-4 py-5 text-sm text-muted">
+              <EmptyArt kind="ideas" />
+              <span>{t('pool.empty')}</span>
+            </div>
           ) : (
             <ul className="flex flex-col gap-2">{active.map(card)}</ul>
           )}

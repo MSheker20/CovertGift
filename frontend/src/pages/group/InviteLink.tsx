@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Copy, Link2, TriangleAlert } from 'lucide-react'
+import { Check, Copy, Link2, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { invitesApi, queryKeys } from '@/api/endpoints'
@@ -132,7 +132,11 @@ export function InviteLink({ groupId, targetLinked, multi = false }: { groupId: 
               <div className="mt-1.5 flex gap-2">
                 <Input id={urlId} readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-describedby={`${urlId}-note`} />
                 <Button type="button" variant="outline" className="h-11 shrink-0 md:h-10" onClick={() => void copy()}>
-                  <Copy aria-hidden="true" />
+                  {copyState === 'ok' ? (
+                    <Check aria-hidden="true" className="animate-[check-in_320ms_cubic-bezier(0.2,0.8,0.2,1)] text-positive" />
+                  ) : (
+                    <Copy aria-hidden="true" />
+                  )}
                   {copyState === 'ok' ? t('invite.copiedShort') : t('invite.copy')}
                 </Button>
               </div>

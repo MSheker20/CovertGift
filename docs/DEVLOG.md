@@ -963,3 +963,19 @@
   - Yeni `src/lib/motion.test.tsx`: `useNewIds`, `useIntroWindow` ve önden yükleme.
   - Vitest 245/245, `tsc -b`, `oxlint` ve `vite build` temiz.
   - Geçici `test-db` ile tarayıcıda denendi: geçiş adları (`app-header`, `group-cover`, `group-title`) hatasız tamamlandı; kazanan seçiminde konfeti ve kart dönüşü, başka üyenin eklediği fikirde vurgu görüldü.
+
+## 2026-11-22 — Gemini bekleme durumu, gün sayacı ve küçük görsel dokunuşlar
+
+- **Gemini bekleme durumu:** Fikir üretimi 1–2 dakika sürüyor ve bu sırada yalnızca bir bilgi şeridi vardı. Artık şeridin altında 3,5 saniyede bir değişen kısa adım metni ve kenarında kobalt ışık dönen üç hayalet kart görünüyor (`AiThinking`, `.ai-ghost`; `@property --ai-angle` ile). Ekran okuyucu yalnızca sabit açıklamayı bir kez duyar. Gelen öneriler kendi aralarında sırayla düşer.
+- **Gün sayacı:** "Sıradaki sürpriz" kartındaki sayı açılışta sayarak gelir (`useCountUp`; ekran okuyucu yalnızca son değeri okur). Bugün ya da yarınsa etiketin yanında nabız noktası çıkar.
+- **Mikro etkileşimler:** Davet linki kopyalanınca simge yeşil ✓'e döner. Oy sayısı değişim yönünden kayarak gelir. Butonların basınca küçülmesi zaten vardı.
+- **Kilitli havuz kartı:** Arkada bulanık sahte satırlar (gerçek veri yok, istek yok), önde buzlu camda kilit; üzerine gelince kilit sallanır.
+- **Sürpriz ekranı:** Sallanan logo yerine kapağı ara ara aralanan hediye kutusu ve iki kıvılcım.
+- **Boş durumlar:** Gruplar, fikir havuzu ve bildirimler için küçük, token renkli çizim (`EmptyArt`).
+- **Yükleme:** `Bar` skeleton'ları parıltılı (`.skeleton`).
+- **Doku ve parlama:** Kobalt giriş paneli, "Sıradaki sürpriz" kartı ve sürpriz kartında %12 film greni (`.grain`, gömülü SVG gürültüsü). Koyu temada kobalt kartların altında hafif parlama (`--primary-glow`; açık temada `none`).
+- Azaltılmış hareket tercihinde genel kural animasyonları kapatır; sayaç doğrudan son değeri gösterir.
+- **Doğrulama:**
+  - `motion.test.tsx`'e `useCountUp` ve `AiThinking` testleri eklendi.
+  - Vitest 251/251, `tsc -b`, `oxlint` ve `vite build` temiz.
+  - Geçici `test-db` ile tarayıcıda denendi: hayalet kartlar, sayaç, kilitli kart, hediye kutusu ve doku. Kopyala ✓ ile oy kayması tarayıcıda ayrıca denenmedi.

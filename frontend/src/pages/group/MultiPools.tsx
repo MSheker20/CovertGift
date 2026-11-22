@@ -141,9 +141,29 @@ export function PoolTabs({
 export function LockedPoolCard() {
   const { t } = useTranslation()
   return (
-    <section className="flex flex-col items-center gap-3 rounded-[22px] bg-surface px-6 py-14 text-center">
-      <Lock className="size-8 text-muted" aria-hidden />
-      <h2 className="font-display text-[17px] font-semibold">{t('pools.lockedTitle')}</h2>
+    // Arkada bulanık, sahte fikir satırları (gerçek veri yok); önde buzlu camda kilit.
+    // Üzerine gelince kilit hafifçe sallanır.
+    <section className="group relative overflow-hidden rounded-[22px] bg-surface px-4 py-6">
+      <div aria-hidden="true" className="flex flex-col gap-2 opacity-70 blur-[6px] select-none">
+        {[0.66, 0.5, 0.58].map((w, i) => (
+          <div key={i} className="flex items-center gap-3 rounded-[16px] bg-raised p-3">
+            <span className="size-14 shrink-0 rounded-[12px] bg-soft" />
+            <span className="flex-1">
+              <span className="block h-3.5 rounded-full bg-active" style={{ width: `${w * 100}%` }} />
+              <span className="mt-2.5 block h-3 w-1/4 rounded-full bg-field/60" />
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+        <span className="inline-flex size-14 items-center justify-center rounded-full bg-raised/80 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-sm">
+          <Lock
+            className="size-6 origin-top text-ink group-hover:animate-[wiggle_1.2s_ease-in-out]"
+            aria-hidden
+          />
+        </span>
+        <h2 className="font-display text-[17px] font-semibold">{t('pools.lockedTitle')}</h2>
+      </div>
     </section>
   )
 }

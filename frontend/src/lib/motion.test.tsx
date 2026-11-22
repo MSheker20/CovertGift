@@ -1,8 +1,9 @@
-import { act, renderHook, screen, waitFor } from '@testing-library/react'
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { useIntroWindow, useNewIds } from '@/lib/motion'
+import { useCountUp, useIntroWindow, useNewIds } from '@/lib/motion'
+import { AiThinking } from '@/pages/group/AiThinking'
 import { renderApp } from '@/test/render'
 import { api, group, groupDetail, http, me, ok, server } from '@/test/server'
 
@@ -61,5 +62,36 @@ describe('GroupLink', () => {
     expect(detailCalls).toBe(0)
     await user.hover(links[0])
     await waitFor(() => expect(detailCalls).toBe(1))
+  })
+})
+
+describe('useCountUp', () => {
+  it('shows the target straight away when reduced motion is preferred', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('reduce') })) as typeof window.matchMedia
+    try {
+      const { result } = renderHook(() => useCountUp(12))
+      expect(result.current).toBe(12)
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
+  it('counts up to the target and stops there', async () => {
+    const { result } = renderHook(() => useCountUp(5, 50))
+    await waitFor(() => expect(result.current).toBe(5))
+  })
+})
+
+describe('AiThinking', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('announces the long explanation once and rotates the visual step text', () => {
+    vi.useFakeTimers()
+    render(<AiThinking />)
+    expect(screen.getByRole('status')).toHaveTextContent('Gemini ilgi alanlarına ve bütçeye göre ürün arıyor.')
+    expect(screen.getByText('İlgi alanlarını inceliyor…')).toBeInTheDocument()
+    act(() => vi.advanceTimersByTime(3500))
+    expect(screen.getByText('Bütçeye uyan ürünlere bakıyor…')).toBeInTheDocument()
   })
 })
