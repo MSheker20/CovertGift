@@ -199,6 +199,42 @@
 @keyframes rise-in {
   from { opacity: 0; translate: 0 10px; }
 }
+/* Kazanan seçilince kart öne doğru dönerek açılır. */
+@keyframes winner-reveal {
+  0% { transform: perspective(900px) rotateX(-70deg) scale(0.97); opacity: 0.2; }
+  60% { transform: perspective(900px) rotateX(6deg) scale(1.01); opacity: 1; }
+  100% { transform: none; }
+}
+/* Canlı gelen yeni fikir bir kez halkayla belirir. */
+@keyframes fresh-glow {
+  0%, 35% { box-shadow: 0 0 0 3px var(--selection); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
+
+/* Sayfa geçişleri (View Transitions, React Router `viewTransition`). Üst bar sabit kalır,
+   içerik hafifçe yükselerek gelir; kapak ve başlık GroupLink ile büyüyerek taşınır. */
+::view-transition-old(root) {
+  animation: 140ms ease-in both vt-fade-out;
+}
+::view-transition-new(root) {
+  animation: 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both vt-rise-in;
+}
+::view-transition-group(group-cover),
+::view-transition-group(group-title) {
+  animation-duration: 380ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+::view-transition-old(group-cover),
+::view-transition-new(group-cover) {
+  height: 100%;
+  object-fit: cover;
+}
+@keyframes vt-fade-out {
+  to { opacity: 0; }
+}
+@keyframes vt-rise-in {
+  from { opacity: 0; translate: 0 8px; }
+}
 
 .num {
   font-variant-numeric: tabular-nums;
@@ -210,5 +246,10 @@
   *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

@@ -26,7 +26,8 @@ import { LANGUAGES } from '@/i18n'
 export function AppShell() {
   return (
     <div className="min-h-dvh bg-ground">
-      <div className="sticky top-0 z-40 px-3 pt-3 md:px-6 md:pt-4">
+      {/* Sayfa geçişinde üst bar yerinde kalır; yalnızca içerik değişir. */}
+      <div className="sticky top-0 z-40 px-3 pt-3 [view-transition-name:app-header] md:px-6 md:pt-4">
         <header className="mx-auto flex h-14 max-w-[1148px] items-center gap-1 rounded-full border border-border bg-raised py-2 pr-2 pl-3 md:h-16 md:gap-2 md:pl-5">
           <Link to="/" className="mr-1 inline-flex shrink-0 items-center rounded-full md:mr-3" aria-label="CovertGift">
             <LogoMark className="size-7 sm:hidden" />

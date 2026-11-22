@@ -21,10 +21,23 @@ type Props = {
   onReject: () => void
   onDelete: () => void
   onSelectWinner: () => void
+  // Bir kez oynayan vurgu: "fresh" yeni gelen fikir, "winner" yeni seçilen kazanan.
+  highlight?: 'fresh' | 'winner'
 }
 
 // Satır kartı: 72px görsel yuvası, ortada başlık/fiyat/rozetler/linkler, sağda dikey oy sütunu.
-export function IdeaCard({ idea, canReject, canDelete, canSelectWinner, locked, onVote, onReject, onDelete, onSelectWinner }: Props) {
+export function IdeaCard({
+  idea,
+  canReject,
+  canDelete,
+  canSelectWinner,
+  locked,
+  onVote,
+  onReject,
+  onDelete,
+  onSelectWinner,
+  highlight,
+}: Props) {
   const { t } = useTranslation()
   const rejected = idea.status === 'REJECTED'
   const winner = idea.status === 'SELECTED'
@@ -42,6 +55,8 @@ export function IdeaCard({ idea, canReject, canDelete, canSelectWinner, locked, 
         'rounded-[18px] border border-border bg-raised p-3 transition-colors hover:border-control md:p-3.5',
         rejected && 'bg-transparent',
         winner && 'border-2 border-primary hover:border-primary',
+        highlight === 'fresh' && 'animate-[fresh-glow_1.8s_ease-out]',
+        highlight === 'winner' && 'origin-top animate-[winner-reveal_700ms_cubic-bezier(0.2,0.8,0.2,1)]',
       )}
     >
       <div className="flex gap-3 md:gap-4">

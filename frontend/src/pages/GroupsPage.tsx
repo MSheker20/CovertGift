@@ -1,6 +1,5 @@
 import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import { CalendarDays, CalendarPlus, CheckCircle2, ChevronDown, ChevronRight, Plus } from 'lucide-react'
 
@@ -9,6 +8,7 @@ import type { GroupListItem } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
 import { GroupCoverImage, GroupThumb } from '@/components/GroupCover'
+import { GroupLink } from '@/components/GroupLink'
 import { Bar, BlockError, Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { errorMessage } from '@/lib/errors'
@@ -16,6 +16,7 @@ import i18n from '@/i18n'
 import { cn } from '@/lib/utils'
 import { countdownLabel, daysUntil, effectiveEventDate, formatEventDate, sortByUpcoming } from '@/lib/eventDate'
 import { formatDate } from '@/lib/format'
+import { INTRO_CLASS, staggerStyle, useIntroWindow } from '@/lib/motion'
 import { nextSurprise, prioritizedTasks, type PriorityLevel, type PriorityTask } from '@/lib/priority'
 import { NewGroupDialog } from './NewGroupDialog'
 
@@ -163,13 +164,13 @@ function NextSurpriseCard({
             <p className="font-display text-[17px] font-semibold">{t('home.next.emptyTitle')}</p>
             <p className="mt-1 text-sm text-muted">{t('home.next.emptyBody')}</p>
             {undated && (
-              <Link
-                to={`/groups/${undated.id}`}
+              <GroupLink
+                groupId={undated.id}
                 className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-accent underline-offset-4 hover:underline"
               >
                 {t('home.next.addDate', { title: undated.title })}
                 <ChevronRight className="size-4" aria-hidden />
-              </Link>
+              </GroupLink>
             )}
           </div>
         </div>
@@ -183,8 +184,8 @@ function NextSurpriseCard({
   // 16:9 şerit. Fotoğraf yoksa kart aynen eski düz kobalt halidir.
   const hasCover = !!group.cover_version
   return (
-    <Link
-      to={`/groups/${group.id}`}
+    <GroupLink
+      groupId={group.id}
       className={cn(
         box,
         'group bg-primary text-on-primary transition-[background-color,transform] hover:bg-primary-hover active:scale-[0.995]',
@@ -214,7 +215,7 @@ function NextSurpriseCard({
           )}
         >
           <div className="min-w-0 flex-1">
-            <p className="font-display line-clamp-2 text-[22px] leading-tight font-semibold break-words md:text-[28px]">
+            <p data-vt="title" className="font-display line-clamp-2 text-[22px] leading-tight font-semibold break-words md:text-[28px]">
               {group.title}
             </p>
             <p className={cn('mt-2 text-sm opacity-80', hasCover ? 'line-clamp-2' : 'truncate')}>
@@ -242,7 +243,7 @@ function NextSurpriseCard({
           />
         </div>
       </div>
-    </Link>
+    </GroupLink>
   )
 }
 
@@ -269,6 +270,7 @@ function TasksPanel({
   const tasks = useMemo(() => prioritizedTasks(groups, meId, undefined, Number.POSITIVE_INFINITY), [groups, meId])
   const [expanded, setExpanded] = useState(false)
   const listId = useId()
+  const intro = useIntroWindow(state.isSuccess)
   // Kapalıyken masaüstünde 2, telefonda 3 görev görünür. 3. satır yalnızca md ve üstünde CSS ile
   // gizlenir; ekran genişliği değişince JS'e bağlı bir kayma olmaz.
   const visible = expanded ? tasks : tasks.slice(0, MOBILE_TASKS)
@@ -300,9 +302,13 @@ function TasksPanel({
           <>
             <ul id={listId} className="-mx-2 flex flex-col">
               {visible.map((task, i) => (
-                <li key={task.group.id} className={cn(!expanded && i >= DESKTOP_TASKS && 'md:hidden')}>
-                  <Link
-                    to={`/groups/${task.group.id}`}
+                <li
+                  key={task.group.id}
+                  className={cn(!expanded && i >= DESKTOP_TASKS && 'md:hidden', intro && INTRO_CLASS)}
+                  style={intro ? staggerStyle(i) : undefined}
+                >
+                  <GroupLink
+                    groupId={task.group.id}
                     className="group flex min-h-12 items-center gap-3 rounded-[12px] px-2 py-2 transition-colors hover:bg-raised"
                   >
                     <span
@@ -314,11 +320,11 @@ function TasksPanel({
                       {t(`home.tasks.level.${task.level}`)}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{task.group.title}</span>
+                      <span data-vt="title" className="block truncate text-sm font-medium">{task.group.title}</span>
                       <span className="mt-0.5 block truncate text-xs text-muted">{taskText(task, t)}</span>
                     </span>
                     <ChevronRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
-                  </Link>
+                  </GroupLink>
                 </li>
               ))}
             </ul>
@@ -376,6 +382,7 @@ function GroupList({
   meId?: string
 }) {
   const { t } = useTranslation()
+  const intro = useIntroWindow(state.isSuccess)
   if (state.isPending) return <RowsSkeleton rows={3} />
   if (state.isError)
     return (
@@ -393,7 +400,7 @@ function GroupList({
     )
   return (
     <ul className="flex flex-col gap-2">
-      {open.map((g) => {
+      {open.map((g, i) => {
         const chips = (
           <>
             {g.pending_votes > 0 && (
@@ -405,14 +412,14 @@ function GroupList({
           </>
         )
         return (
-          <li key={g.id}>
-            <Link
-              to={`/groups/${g.id}`}
+          <li key={g.id} className={cn(intro && INTRO_CLASS)} style={intro ? staggerStyle(i) : undefined}>
+            <GroupLink
+              groupId={g.id}
               className="group flex min-h-[63px] items-center gap-3 rounded-[14px] border border-border bg-raised px-3.5 py-3 transition-[border-color,transform] hover:border-accent active:scale-[0.99]"
             >
               <GroupThumb group={g} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[15px] font-medium">{g.title}</p>
+                <p data-vt="title" className="truncate text-[15px] font-medium">{g.title}</p>
                 <p className="mt-0.5 truncate text-xs text-muted">
                   {forLine(g, meId, t)} · {t('home.members', { count: g.member_count })}{' '}
                   · {t('home.ideas', { count: g.idea_count })}
@@ -427,7 +434,7 @@ function GroupList({
                 </span>
               )}
               <ChevronRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
-            </Link>
+            </GroupLink>
           </li>
         )
       })}
@@ -480,8 +487,8 @@ function HistoryPanel({
         <ul className="-mx-2 flex flex-col">
           {completed.map((g) => (
             <li key={g.id}>
-              <Link
-                to={`/groups/${g.id}`}
+              <GroupLink
+                groupId={g.id}
                 className="flex min-h-12 items-center gap-3 rounded-[12px] px-2 py-1.5 transition-colors hover:bg-raised"
               >
                 <Avatar name={g.mode === 'MULTI' ? g.title : g.target_person_name} size="sm" />
@@ -489,12 +496,12 @@ function HistoryPanel({
                   <span className="block truncate text-sm font-medium">
                     {g.mode === 'MULTI' ? recipientsLine(g, meId, t) : g.target_person_name}
                   </span>
-                  <span className="block truncate text-xs text-muted">{g.title}</span>
+                  <span data-vt="title" className="block truncate text-xs text-muted">{g.title}</span>
                 </span>
                 {g.completed_at && (
                   <span className="num shrink-0 text-xs whitespace-nowrap text-muted">{formatDate(g.completed_at)}</span>
                 )}
-              </Link>
+              </GroupLink>
             </li>
           ))}
         </ul>

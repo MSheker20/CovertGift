@@ -13,14 +13,22 @@ type CoverProps = {
   className?: string
   // Fotoğraf yoksa ya da yüklenemediyse gösterilir.
   fallback?: ReactNode
+  // Sayfa geçişinde büyüyerek taşınacak öğenin adı (yalnızca grup sayfasında, tek öğe).
+  transitionName?: string
 }
 
 // Sabit oranlı kutuda kapak görseli. Yüklenirken kutu boş yüzey olarak yer tutar (sıçrama olmaz).
-export function GroupCoverImage({ groupId, version, alt, className, fallback = null }: CoverProps) {
+export function GroupCoverImage({ groupId, version, alt, className, fallback = null, transitionName }: CoverProps) {
   const { url, isError } = useGroupCover(groupId, version)
   if (!version || isError) return <>{fallback}</>
   return (
-    <span className={cn('block shrink-0 overflow-hidden bg-surface', className)} data-cover={version}>
+    <span
+      className={cn('block shrink-0 overflow-hidden bg-surface', className)}
+      data-cover={version}
+      // GroupLink tıklanan kartın kapağını bu işaretle bulur.
+      data-vt="cover"
+      style={transitionName ? { viewTransitionName: transitionName } : undefined}
+    >
       {url && <img src={url} alt={alt} draggable={false} className="size-full object-cover" />}
     </span>
   )
@@ -40,5 +48,5 @@ export function GroupThumb({
 }) {
   const { url } = useGroupCover(group.id, group.cover_version)
   if (!url) return <Avatar name={group.mode === 'MULTI' ? (group.title ?? '') : group.target_person_name} size={size} />
-  return <img src={url} alt="" draggable={false} data-cover={group.cover_version} className={cn('shrink-0 object-cover', THUMB[size])} />
+  return <img src={url} alt="" draggable={false} data-cover={group.cover_version} data-vt="cover" className={cn('shrink-0 object-cover', THUMB[size])} />
 }
