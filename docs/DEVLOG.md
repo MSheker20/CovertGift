@@ -979,3 +979,17 @@
   - `motion.test.tsx`'e `useCountUp` ve `AiThinking` testleri eklendi.
   - Vitest 251/251, `tsc -b`, `oxlint` ve `vite build` temiz.
   - Geçici `test-db` ile tarayıcıda denendi: hayalet kartlar, sayaç, kilitli kart, hediye kutusu ve doku. Kopyala ✓ ile oy kayması tarayıcıda ayrıca denenmedi.
+
+## 2026-11-22 — Demo verisine görsel vitrin senaryosu
+
+- **Sorun:** Yeni arayüz parçaları demo verisinde görünmüyordu: bildirim panelinde altın (kazanan), nötr (yeniden açıldı) ve yeşil (gruba eklendin) türler yoktu, bütün bildirimler okunmamış ve "şimdi" tarihliydi; bugün/yarın olan bir sürpriz (nabız noktası) ve fikri olmayan bir grup (boş durum çizimi) da yoktu.
+- **Yeni seed adımı `seedVisualShowcase`** (`cmd/seed/visual_showcase.go`). İşaret grubu "Mert'in Veda Hediyesi"; varsa adım atlanır. Mevcut demo verisi olan veritabanına yalnızca bu adım eklenir.
+  - **"Mert'in Veda Hediyesi":** Zeynep yönetir. Can'ı ekler, kazananı seçer, grubu yeniden açıp tekrar tamamlar. Bu adımın ürettiği bildirimler 1–3 gün önceye tarihlenir ve okunmuş sayılır; `completed_at` dün.
+  - **"Zeynep'in Yeni Evi":** Can yönetir, kapaklı, tarihi yarın; Sıradaki sürpriz olur. Hedef Zeynep'in hesabı bağlı olduğu için Zeynep grubu da bildirimlerini de görmez. İki okunmamış fikir bildirimi ve "yarın" hatırlatması var.
+  - **"Deniz'in Doğum Günü":** fikri ve tarihi yok.
+- Bildirimler gerçek akıştan geçer (`NotificationService.Dispatch`, `ReminderScheduler`); Anti-Spoiler seed'de ayrıca yazılmaz.
+- **Doğrulama:**
+  - Yeni `TestSeedVisualShowcase`: bildirim türleri, okunmuş ve geçmiş tarihli satırlar, Zeynep'e sızıntı yok, hatırlatma, boş grup.
+  - `TestSeedIsAdditiveIdempotentAndRespectsAntiSpoiler`'ın sayıları güncellendi; Zeynep'in grup listesi kontrolü eklendi.
+  - Seed testleri ve `go test ./...` temiz.
+  - `test-db`'de tarayıcıda denendi: ana sayfa (Yarın + nabız), bildirim paneli, boş grup.
