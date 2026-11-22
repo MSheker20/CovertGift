@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { AppNotification, NotificationList } from '@/api/types'
 import i18n from '@/i18n'
-import { badgeLabel, notificationText } from '@/lib/notifications'
+import { badgeLabel, notificationText, notificationTone } from '@/lib/notifications'
 import { renderApp } from '@/test/render'
 import { api, eventStream, group, groupDetail, http, idea, me, ok, server } from '@/test/server'
 
@@ -122,12 +122,49 @@ describe('notification bell', () => {
 
     await waitFor(() => expect(state.calls).toEqual(['read-all']))
     const menu = screen.getByRole('menu')
-    await waitFor(() => expect(within(menu).queryByText('Okunmamış')).not.toBeInTheDocument())
+    // "Okunmamış" süzgeç seçeneğinde de yazar; işaret yalnızca satırlarda aranır.
+    await waitFor(() =>
+      within(menu)
+        .getAllByRole('menuitem')
+        .forEach((row) => expect(within(row).queryByText('Okunmamış')).not.toBeInTheDocument()),
+    )
     expect(within(menu).queryByRole('menuitem', { name: 'Tümünü okundu yap' })).not.toBeInTheDocument()
     expect(within(menu).getAllByRole('menuitem')).toHaveLength(3)
     // Menü açıkken arka plan aria-hidden olduğu için zil düğmesi etiketiyle aranır.
     expect(screen.getByLabelText('Bildirimler', { selector: 'button' })).toBeInTheDocument()
     expect(screen.queryByLabelText(/okunmamış/, { selector: 'button' })).not.toBeInTheDocument()
+  })
+
+  it('filters to unread notifications and keeps the menu open', async () => {
+    notificationServer(unreadItems)
+    renderApp('/')
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Bildirimler, 2 okunmamış' }))
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).getByRole('group', { name: 'Bildirimleri süz' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitemradio', { name: 'Tümü' })).toHaveAttribute('aria-checked', 'true')
+
+    await user.click(within(menu).getByRole('menuitemradio', { name: /Okunmamış/ }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitemradio', { name: /Okunmamış/ })).toHaveAttribute('aria-checked', 'true')
+    // "Tümünü okundu yap" + iki okunmamış bildirim; okunmuş hatırlatma gizlenir.
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(3)
+    expect(within(menu).queryByText(/Hediye gününe 3 gün kaldı/)).not.toBeInTheDocument()
+  })
+
+  it('shows an "all caught up" note when the unread filter is empty', async () => {
+    const state = notificationServer(unreadItems)
+    renderApp('/')
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Bildirimler, 2 okunmamış' }))
+    const menu = await screen.findByRole('menu')
+    await user.click(within(menu).getByRole('menuitemradio', { name: /Okunmamış/ }))
+    await user.click(within(menu).getByRole('menuitem', { name: 'Tümünü okundu yap' }))
+
+    await waitFor(() => expect(state.calls).toEqual(['read-all']))
+    expect(await within(menu).findByText('Hepsini okudun.')).toBeInTheDocument()
   })
 
   it('shows an empty state and no badge when there is nothing', async () => {
@@ -219,6 +256,16 @@ describe('notification text', () => {
     expect(text('event_reminder', { days_left: 2, event_date: '2026-12-24' })).toBe(
       '2 days until the gift day (24 December 2026)',
     )
+  })
+
+  it('picks a colour tone per type', () => {
+    expect(notificationTone('idea_added')).toBe('idea')
+    expect(notificationTone('budget_changed')).toBe('money')
+    expect(notificationTone('winner_selected')).toBe('winner')
+    expect(notificationTone('event_reminder')).toBe('reminder')
+    expect(notificationTone('winner_overdue')).toBe('overdue')
+    expect(notificationTone('member_joined')).toBe('member')
+    expect(notificationTone('something_new')).toBe('neutral')
   })
 
   it('caps the badge at 9+', () => {
