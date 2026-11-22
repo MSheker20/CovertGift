@@ -75,7 +75,9 @@ func TestSeedIsAdditiveIdempotentAndRespectsAntiSpoiler(t *testing.T) {
 	// Mezuniyeti" (4 üye, 3 fikir, 5 oy) ve kazananı seçilmiş "Elif'in Doğum Günü" (3 üye, 1 fikir).
 	// Havuz bildirimleri vitrini: MULTI "Ekip Doğum Günleri" (4 üye, 2 havuz, 2 fikir, 6 katkı satırı).
 	// Profil fotoğrafı: Can ve Elif (2); Zeynep ve Ahmet baş harfle.
-	want := map[string]int64{"users": 5, "groups": 5, "group_members": 18, "gift_ideas": 13, "votes": 12, "gift_pools": 4, "pool_contributions": 12, "user_avatars": 2}
+	// Görsel vitrin: "Mert'in Veda Hediyesi" (3 üye, 2 fikir, 1 oy), "Zeynep'in Yeni Evi" (3 üye,
+	// 2 fikir) ve boş "Deniz'in Doğum Günü" (2 üye).
+	want := map[string]int64{"users": 5, "groups": 8, "group_members": 26, "gift_ideas": 17, "votes": 13, "gift_pools": 4, "pool_contributions": 12, "user_avatars": 2}
 	got := counts(t, db)
 	for k, v := range want {
 		if got[k] != v {
@@ -100,18 +102,30 @@ func TestSeedIsAdditiveIdempotentAndRespectsAntiSpoiler(t *testing.T) {
 	groups := repository.NewGroupRepository(db)
 	target, _ := users.FindByEmail(demoTarget.Email)
 	admin, _ := users.FindByEmail(demoAdmin.Email)
-	// Hedef kişi "Ahmet'in 30. Yaş Sürprizi"ni görmez; diğer dört grupta (iki MULTI + vitrin) sıradan üyedir.
+	// Hedef kişi "Ahmet'in 30. Yaş Sürprizi"ni görmez; diğer beş grupta (iki MULTI, iki vitrin,
+	// "Zeynep'in Yeni Evi") sıradan üyedir.
 	list, err := groups.GetUserGroups(target.ID)
-	if err != nil || len(list) != 4 {
-		t.Fatalf("hedef kişinin grup listesi yanlış (4 grup beklenir): %v %v", err, list)
+	if err != nil || len(list) != 5 {
+		t.Fatalf("hedef kişinin grup listesi yanlış (5 grup beklenir): %v %v", err, list)
 	}
 	for _, g := range list {
 		if g.Title == "Ahmet'in 30. Yaş Sürprizi" {
 			t.Fatalf("hedef kişi kendi sürpriz grubunu görüyor: %+v", g)
 		}
 	}
-	if list, err := groups.GetUserGroups(admin.ID); err != nil || len(list) != 5 {
+	if list, err := groups.GetUserGroups(admin.ID); err != nil || len(list) != 8 {
 		t.Fatalf("yönetici demo gruplarını göremiyor: %v %v", err, list)
+	}
+	// Zeynep "Zeynep'in Yeni Evi"nin hedefidir; o grubu listesinde görmez.
+	zeynep, _ := users.FindByEmail(demoMember.Email)
+	zList, err := groups.GetUserGroups(zeynep.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, g := range zList {
+		if g.Title == houseGroupTitle {
+			t.Fatalf("hedef kişi Zeynep kendi sürpriz grubunu görüyor: %+v", g)
+		}
 	}
 
 	// MULTI grup: Zeynep'in havuzunu Can (grup yöneticisi), Can'ın havuzunu Elif yönetir; Ahmet
@@ -207,5 +221,67 @@ func TestSeedPoolNotificationsRespectAntiSpoiler(t *testing.T) {
 	var after int64
 	if err := db.Raw("SELECT count(*) FROM notifications WHERE pool_id IS NOT NULL").Scan(&after).Error; err != nil || int(after) != before {
 		t.Fatalf("ikinci seed havuz bildirimi ekledi: %v %d → %d", err, before, after)
+	}
+}
+
+// Görsel vitrin: Can'ın panelinde yeşil/altın/nötr türler okunmuş ve geçmiş tarihli; yarınki grubun
+// hedefi Zeynep o grubun hiçbir bildirimini almamış (Anti-Spoiler); boş grupta fikir ve tarih yok.
+func TestSeedVisualShowcase(t *testing.T) {
+	db := openTestDB(t)
+	if err := seed(db, "Demo1234!"); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	var can, zeynep models.User
+	if err := db.Where("email = ?", demoAdmin.Email).First(&can).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Where("email = ?", demoMember.Email).First(&zeynep).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	type row struct {
+		Type   string
+		Read   bool
+		AgeHrs float64
+	}
+	var rows []row
+	if err := db.Raw(`SELECT n.type, n.read_at IS NOT NULL AS read,
+			EXTRACT(EPOCH FROM now() - n.created_at) / 3600 AS age_hrs
+		FROM notifications n JOIN groups g ON g.id = n.group_id
+		WHERE n.user_id = ? AND g.title = ?`, can.ID, visualShowcaseTitle).Scan(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]int{}
+	for _, r := range rows {
+		seen[r.Type]++
+		if !r.Read || r.AgeHrs < 20 {
+			t.Fatalf("veda grubu bildirimi okunmuş ve geçmiş tarihli olmalı: %+v", r)
+		}
+	}
+	if seen[models.NotificationAddedToGroup] != 1 || seen[models.NotificationWinnerSelected] != 2 || seen[models.NotificationGroupReopened] != 1 {
+		t.Fatalf("Can'ın veda grubu bildirimleri eksik: %v", seen)
+	}
+
+	var leaked int64
+	if err := db.Raw(`SELECT count(*) FROM notifications n JOIN groups g ON g.id = n.group_id
+		WHERE n.user_id = ? AND g.title = ?`, zeynep.ID, houseGroupTitle).Scan(&leaked).Error; err != nil {
+		t.Fatal(err)
+	}
+	if leaked != 0 {
+		t.Fatalf("hedef kişi Zeynep yeni ev grubundan %d bildirim almış", leaked)
+	}
+	var reminders int64
+	if err := db.Raw(`SELECT count(*) FROM notifications n JOIN groups g ON g.id = n.group_id
+		WHERE n.user_id = ? AND g.title = ? AND n.type = ?`, can.ID, houseGroupTitle, models.NotificationEventReminder).Scan(&reminders).Error; err != nil || reminders != 1 {
+		t.Fatalf("yeni ev için Can'a bir hatırlatma bekleniyordu: %v %d", err, reminders)
+	}
+
+	var empty models.Group
+	if err := db.Where("title = ?", emptyGroupTitle).First(&empty).Error; err != nil {
+		t.Fatal(err)
+	}
+	var ideas int64
+	if err := db.Model(&models.GiftIdea{}).Where("group_id = ?", empty.ID).Count(&ideas).Error; err != nil || ideas != 0 || empty.EventDate != nil {
+		t.Fatalf("boş grup fikirsiz ve tarihsiz olmalı: %v ideas=%d date=%v", err, ideas, empty.EventDate)
 	}
 }
