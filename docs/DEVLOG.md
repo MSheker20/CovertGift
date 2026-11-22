@@ -938,6 +938,19 @@
   - Vitest 242/242, `tsc -b` ve `oxlint` temiz.
   - Playwright ile soğuk başlangıç taklit edildi (JS 2.5 sn, API 6 sn gecikmeli): açılış ekranı iki temada görünüp form gelince kalktı; not 2. saniyede yokken 3.8. saniyede çıktı, istekler bitince kayboldu.
 
+## 2026-11-22 — Bildirim paneli yenilendi
+
+- **Sorun:** Zilin altındaki panel çok sadeydi: bütün ikonlar aynı gri daire içindeydi, okunmamışlar yalnızca açık mavi arka planla ayrılıyordu ve okunmamışlara hızlıca bakmanın yolu yoktu.
+- **Türe göre renk:** İkon yuvarlak köşeli renkli bir kutuda. Fikir ve havuz kobalt, bütçe hardal (para), kazanan altın, hatırlatma ve tarih turuncu, gecikme kırmızı, üye olayları yeşil. Eşleme `notificationTone` (`src/lib/notifications.ts`). Yeşil için `--pill-positive-bg/ink` token'ları iki temaya eklendi. Gecikme bildirimi hatırlatmadan ayrılsın diye üstü çizili saat ikonu (`AlarmClockOff`) aldı.
+- **Okunmamış:** Mavi arka plan yerine solda ince kobalt çizgi, sağda nokta. Ekran okuyucu metni ("Okunmamış") korundu. Okunmuşlarda ikon soluklaşıyor.
+- **Metin:** Bildirim işlemi yapanın adıyla başlıyorsa ad kalın yazılıyor. Grup adı uzunsa kısaltılıyor, zaman `<time>` içinde.
+- **Tümü / Okunmamış süzgeci:** `menuitemradio` iki seçenek (`DropdownMenuRadioGroup` eklendi). Seçince menü kapanmaz. Okunmamış süzgeci boşsa "Hepsini okudun." ekranı çıkar.
+- Mobilde panel yine açılır menü.
+- **Doğrulama:**
+  - `notifications.test.tsx`: süzgeç, "Hepsini okudun" ve renk eşlemesi için yeni testler.
+  - Vitest 245/245, `tsc -b` ve `oxlint` temiz.
+  - Geçici `test-db` ve demo verisiyle tarayıcıda açık ve koyu temada denendi.
+
 ## 2026-11-22 — Sayfa geçişleri, kazanan kutlaması ve canlı vurgu
 
 - **Amaç:** Site işlevsel ama durağandı: sayfalar sert değişiyor, kazanan seçimi yalnızca bir bildirimle (toast) geçiyor, canlı gelen fikirler fark edilmiyordu.

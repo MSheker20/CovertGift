@@ -47,6 +47,9 @@
   --pill-high-ink: #8a3500;
   --pill-neutral-bg: #eceef7;
   --pill-neutral-ink: #3a3d4a;
+  /* Bildirim panelinde üye olayları (katıldı, eklendi). */
+  --pill-positive-bg: #dcf3e3;
+  --pill-positive-ink: #145a2b;
 
   --overlay: rgb(11 11 18 / 0.45);
   --selection: #c9d6ff;
@@ -89,6 +92,8 @@
     --pill-high-ink: #ffb27a;
     --pill-neutral-bg: #262629;
     --pill-neutral-ink: #cfcfd6;
+    --pill-positive-bg: #12321d;
+    --pill-positive-ink: #8fe3ad;
 
     --overlay: rgb(0 0 0 / 0.6);
     --selection: #2a3f99;
@@ -133,6 +138,8 @@
   --color-pill-high-ink: var(--pill-high-ink);
   --color-pill-neutral-bg: var(--pill-neutral-bg);
   --color-pill-neutral-ink: var(--pill-neutral-ink);
+  --color-pill-positive-bg: var(--pill-positive-bg);
+  --color-pill-positive-ink: var(--pill-positive-ink);
   --color-overlay: var(--overlay);
 }
 

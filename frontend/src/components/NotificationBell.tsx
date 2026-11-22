@@ -1,15 +1,19 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlarmClock,
+  AlarmClockOff,
   Bell,
   CalendarDays,
   CheckCheck,
+  Gift,
   Lightbulb,
   RotateCcw,
   Sparkles,
   Trophy,
+  UserCog,
   UserPlus,
   Wallet,
   type LucideIcon,
@@ -23,11 +27,19 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { formatRelativeTime } from '@/lib/format'
-import { badgeLabel, notificationPath, notificationText } from '@/lib/notifications'
+import {
+  badgeLabel,
+  notificationPath,
+  notificationText,
+  notificationTone,
+  type NotificationTone,
+} from '@/lib/notifications'
 import { cn } from '@/lib/utils'
 
 const ICONS: Record<string, LucideIcon> = {
@@ -40,16 +52,45 @@ const ICONS: Record<string, LucideIcon> = {
   event_date_changed: CalendarDays,
   budget_changed: Wallet,
   event_reminder: AlarmClock,
-  winner_overdue: AlarmClock,
+  winner_overdue: AlarmClockOff,
+  pool_added: Gift,
+  pool_manager_assigned: UserCog,
 }
 
-// Üst bardaki zil: okunmamış sayacı, açılır bildirim listesi, "tümünü okundu yap".
-// Bildirimler SSE ile anında gelir (useNotificationEvents); akış yalnızca "yeniden çek" der,
-// veri her zaman GET /notifications ucundan gelir (Anti-Spoiler süzgeci sunucuda).
+// İkon kutusunun rengi türden gelir (src/lib/notifications.ts). Renkler yalnızca token.
+const TONES: Record<NotificationTone, string> = {
+  idea: 'bg-soft text-on-soft',
+  money: 'bg-field text-on-field',
+  winner: 'bg-pill-warn-bg text-pill-warn-ink',
+  reminder: 'bg-pill-high-bg text-pill-high-ink',
+  overdue: 'bg-pill-negative-bg text-pill-negative-ink',
+  member: 'bg-pill-positive-bg text-pill-positive-ink',
+  neutral: 'bg-pill-neutral-bg text-pill-neutral-ink',
+}
+
+type Filter = 'all' | 'unread'
+
+// Metin işlemi yapanın adıyla başlıyorsa ad kalın yazılır; metnin tamamı yine tek parça okunur.
+function Message({ n }: { n: AppNotification }) {
+  const text = notificationText(n)
+  const actor = n.params?.actor_name
+  if (!actor || !text.startsWith(actor)) return text
+  return (
+    <>
+      <strong className="font-semibold text-ink">{actor}</strong>
+      {text.slice(actor.length)}
+    </>
+  )
+}
+
+// Üst bardaki zil: okunmamış sayacı, açılır bildirim listesi, Tümü/Okunmamış süzgeci,
+// "tümünü okundu yap". Bildirimler SSE ile anında gelir (useNotificationEvents); akış yalnızca
+// "yeniden çek" der, veri her zaman GET /notifications ucundan gelir (Anti-Spoiler süzgeci sunucuda).
 export function NotificationBell() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [filter, setFilter] = useState<Filter>('all')
   const live = useNotificationEvents(true)
   const list = useQuery({
     queryKey: queryKeys.notifications,
@@ -91,6 +132,7 @@ export function NotificationBell() {
 
   const items = list.data?.items ?? []
   const unread = list.data?.unread_count ?? 0
+  const visible = filter === 'unread' ? items.filter((n) => !n.read_at) : items
 
   const open = (n: AppNotification) => {
     if (!n.read_at) markRead.mutate(n.id)
@@ -120,28 +162,60 @@ export function NotificationBell() {
       <span className="sr-only" role="status" aria-live="polite">
         {unread > 0 ? t('notifications.openUnread', { count: unread }) : ''}
       </span>
-      <DropdownMenuContent align="end" collisionPadding={12} className="w-[min(380px,calc(100vw-24px))] p-0">
-        <div className="flex min-h-12 items-center justify-between gap-2 py-1.5 pr-1.5 pl-4">
-          <DropdownMenuLabel className="p-0 text-sm font-semibold text-ink">{t('notifications.title')}</DropdownMenuLabel>
-          {unread > 0 && (
-            <DropdownMenuItem
-              // Menü açık kalır; liste yerinde güncellenir.
-              onSelect={(event) => {
-                event.preventDefault()
-                markAllRead.mutate()
-              }}
-              disabled={markAllRead.isPending}
-              className="h-9 shrink-0 gap-1.5 px-2.5 text-xs font-medium text-accent [&_svg]:text-accent"
+      <DropdownMenuContent align="end" collisionPadding={12} className="w-[min(400px,calc(100vw-24px))] overflow-hidden p-0">
+        <div className="px-4 pt-3.5 pb-3">
+          <div className="flex min-h-9 items-center justify-between gap-2">
+            <DropdownMenuLabel className="font-display p-0 text-[15px] font-semibold text-ink">
+              {t('notifications.title')}
+            </DropdownMenuLabel>
+            {unread > 0 && (
+              <DropdownMenuItem
+                // Menü açık kalır; liste yerinde güncellenir.
+                onSelect={(event) => {
+                  event.preventDefault()
+                  markAllRead.mutate()
+                }}
+                disabled={markAllRead.isPending}
+                className="-mr-2 h-9 shrink-0 gap-1.5 px-2.5 text-xs font-medium text-accent [&_svg]:text-accent"
+              >
+                <CheckCheck aria-hidden="true" />
+                {t('notifications.markAllRead')}
+              </DropdownMenuItem>
+            )}
+          </div>
+          {items.length > 0 && (
+            <DropdownMenuRadioGroup
+              aria-label={t('notifications.filterLabel')}
+              value={filter}
+              onValueChange={(value) => setFilter(value as Filter)}
+              className="mt-2.5 grid grid-cols-2 gap-1 rounded-[12px] bg-surface p-1"
             >
-              <CheckCheck aria-hidden="true" />
-              {t('notifications.markAllRead')}
-            </DropdownMenuItem>
+              {(['all', 'unread'] as const).map((value) => (
+                <DropdownMenuRadioItem
+                  key={value}
+                  value={value}
+                  // Süzgeç seçilince menü kapanmaz.
+                  onSelect={(event) => event.preventDefault()}
+                  className="h-8 justify-center gap-1.5 rounded-[9px] text-[13px] font-medium text-muted transition-colors data-[highlighted]:text-ink data-[state=checked]:bg-raised data-[state=checked]:text-ink dark:data-[state=checked]:bg-active data-[state=checked]:shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                >
+                  <span>{value === 'all' ? t('notifications.filterAll') : t('notifications.filterUnread')}</span>
+                  {value === 'unread' && unread > 0 && (
+                    <span
+                      aria-hidden="true"
+                      className="num inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] leading-none font-semibold text-on-primary"
+                    >
+                      {badgeLabel(unread)}
+                    </span>
+                  )}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
           )}
         </div>
         <DropdownMenuSeparator className="my-0" />
         {items.length === 0 ? (
-          <div className="flex flex-col items-center gap-1 px-6 py-10 text-center">
-            <span className="mb-2 inline-flex size-11 items-center justify-center rounded-full bg-surface text-muted">
+          <div className="flex flex-col items-center gap-1 px-6 py-12 text-center">
+            <span className="mb-3 inline-flex size-12 items-center justify-center rounded-[14px] bg-surface text-muted">
               <Bell className="size-5" aria-hidden="true" />
             </span>
             {list.isError ? (
@@ -155,35 +229,53 @@ export function NotificationBell() {
               </>
             )}
           </div>
+        ) : visible.length === 0 ? (
+          <div className="flex flex-col items-center gap-1 px-6 py-12 text-center">
+            <span className="mb-3 inline-flex size-12 items-center justify-center rounded-[14px] bg-pill-positive-bg text-pill-positive-ink">
+              <CheckCheck className="size-5" aria-hidden="true" />
+            </span>
+            <p className="text-sm font-medium">{t('notifications.allCaughtUp')}</p>
+            <p className="text-xs text-muted">{t('notifications.allCaughtUpHint')}</p>
+          </div>
         ) : (
-          <div className="flex max-h-[min(60vh,440px)] flex-col gap-0.5 overflow-y-auto overscroll-contain p-1">
-            {items.map((n) => {
+          <div className="flex max-h-[min(60vh,460px)] flex-col gap-0.5 overflow-y-auto overscroll-contain p-1.5">
+            {visible.map((n) => {
               const Icon = ICONS[n.type] ?? Bell
               const isUnread = !n.read_at
               return (
                 <DropdownMenuItem
                   key={n.id}
                   onSelect={() => open(n)}
-                  className={cn('h-auto shrink-0 items-start gap-3 py-2.5 pr-2.5 pl-2.5', isUnread && 'bg-soft/60 data-[highlighted]:bg-soft')}
+                  className="relative h-auto shrink-0 items-start gap-3 py-2.5 pr-3 pl-3.5"
                 >
+                  {isUnread && (
+                    <span aria-hidden="true" className="absolute top-2.5 bottom-2.5 left-1 w-[3px] rounded-full bg-primary" />
+                  )}
                   <span
                     className={cn(
-                      'mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full',
-                      isUnread ? 'bg-soft text-on-soft [&_svg]:!text-on-soft' : 'bg-surface',
+                      'inline-flex size-9 shrink-0 items-center justify-center rounded-[11px] [&_svg]:!size-[18px] [&_svg]:!text-current',
+                      TONES[notificationTone(n.type)],
+                      !isUnread && 'opacity-60',
                     )}
                   >
                     <Icon aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className={cn('block text-sm leading-5 [overflow-wrap:anywhere]', isUnread ? 'font-medium text-ink' : 'text-muted')}>
-                      {notificationText(n)}
+                    <span
+                      className={cn('block text-sm leading-5 [overflow-wrap:anywhere]', isUnread ? 'text-ink' : 'text-muted')}
+                    >
+                      <Message n={n} />
                     </span>
-                    <span className="mt-0.5 block truncate text-xs leading-4 text-muted">
-                      {n.group_title} · {formatRelativeTime(n.created_at)}
+                    <span className="mt-1 flex min-w-0 items-center gap-1.5 text-xs leading-4 text-muted">
+                      <span className="truncate">{n.group_title}</span>
+                      <span aria-hidden="true">·</span>
+                      <time dateTime={n.created_at} className="shrink-0">
+                        {formatRelativeTime(n.created_at)}
+                      </time>
                     </span>
                   </span>
                   {isUnread && (
-                    <span className="mt-2 inline-flex shrink-0 items-center">
+                    <span className="mt-1.5 inline-flex shrink-0 items-center">
                       <span className="size-2 rounded-full bg-primary" aria-hidden="true" />
                       <span className="sr-only">{t('notifications.unread')}</span>
                     </span>

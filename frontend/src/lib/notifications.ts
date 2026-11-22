@@ -83,3 +83,31 @@ export function notificationPath(n: AppNotification): string {
 export function badgeLabel(count: number): string {
   return count > 9 ? '9+' : String(count)
 }
+
+// Paneldeki ikonun renk tonu: kobalt fikir, hardal para, altın kazanan, turuncu hatırlatma,
+// kırmızı gecikme, yeşil üye. Bilinmeyen türler nötr.
+export type NotificationTone = 'idea' | 'money' | 'winner' | 'reminder' | 'overdue' | 'member' | 'neutral'
+
+export function notificationTone(type: string): NotificationTone {
+  switch (type) {
+    case 'idea_added':
+    case 'ai_ideas_added':
+    case 'pool_added':
+    case 'pool_manager_assigned':
+      return 'idea'
+    case 'budget_changed':
+      return 'money'
+    case 'winner_selected':
+      return 'winner'
+    case 'event_reminder':
+    case 'event_date_changed':
+      return 'reminder'
+    case 'winner_overdue':
+      return 'overdue'
+    case 'added_to_group':
+    case 'member_joined':
+      return 'member'
+    default:
+      return 'neutral'
+  }
+}
