@@ -17,7 +17,8 @@ type AvatarRepository interface {
 	Delete(userID uuid.UUID) error
 	// Get fotoğrafı döner; yoksa nil.
 	Get(userID uuid.UUID) (*models.UserAvatar, error)
-	// SharesGroup iki kullanıcının en az bir grupta birlikte üye olduğunu söyler.
+	// SharesGroup izleyicinin (a) sahibin (b) fotoğrafını görebileceğini söyler: en az bir grupta
+	// birlikte üyeler, arkadaşlar ya da sahip izleyiciye arkadaşlık isteği göndermiş.
 	SharesGroup(a, b uuid.UUID) (bool, error)
 }
 
@@ -65,8 +66,13 @@ func (r *avatarRepository) Get(userID uuid.UUID) (*models.UserAvatar, error) {
 
 func (r *avatarRepository) SharesGroup(a, b uuid.UUID) (bool, error) {
 	var shared bool
+	low, high := models.FriendPair(a, b)
 	err := r.db.Raw(`SELECT EXISTS (
 		SELECT 1 FROM group_members x JOIN group_members y ON y.group_id = x.group_id
-		WHERE x.user_id = ? AND y.user_id = ?)`, a, b).Scan(&shared).Error
+		WHERE x.user_id = ? AND y.user_id = ?)
+		OR EXISTS (
+		SELECT 1 FROM friendships f
+		WHERE f.user_low_id = ? AND f.user_high_id = ?
+		  AND (f.status = ? OR f.requester_id = ?))`, a, b, low, high, models.FriendshipAccepted, b).Scan(&shared).Error
 	return shared, err
 }

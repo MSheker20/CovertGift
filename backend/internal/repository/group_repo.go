@@ -269,7 +269,10 @@ func (r *groupRepository) SetTargetUser(groupID, targetID uuid.UUID, guard func(
 			return err
 		}
 		// Anti-Spoiler: hedef kişinin bu gruba ait bildirimleri aynı transaction'da silinir;
-		// bağlandığı andan itibaren zilinde bu gruptan hiçbir iz kalmaz.
+		// bağlandığı andan itibaren zilinde bu gruptan hiçbir iz kalmaz. Bekleyen grup daveti de silinir.
+		if err := tx.Where("group_id = ? AND invitee_id = ?", groupID, targetID).Delete(&models.GroupMemberInvite{}).Error; err != nil {
+			return err
+		}
 		return tx.Where("group_id = ? AND user_id = ?", groupID, targetID).Delete(&models.Notification{}).Error
 	})
 }

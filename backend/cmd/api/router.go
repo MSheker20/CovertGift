@@ -47,6 +47,8 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient services.GiftIdeaGe
 	inviteRepo := repository.NewInviteRepository(db)
 	poolRepo := repository.NewPoolRepository(db)
 	avatarRepo := repository.NewAvatarRepository(db)
+	friendRepo := repository.NewFriendRepository(db)
+	memberInviteRepo := repository.NewMemberInviteRepository(db)
 
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
 	groupService := services.NewGroupService(groupRepo, userRepo, poolRepo)
@@ -55,9 +57,12 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient services.GiftIdeaGe
 	inviteService := services.NewInviteService(inviteRepo, groupRepo, userRepo)
 	avatarService := services.NewAvatarService(avatarRepo)
 	notificationService := services.NewNotificationService(notificationRepo, groupRepo, poolRepo, userRepo, userHub)
+	friendService := services.NewFriendService(friendRepo, memberInviteRepo, groupRepo, userRepo)
 
 	authController := controllers.NewAuthController(authService)
 	groupController := controllers.NewGroupController(groupService)
+	groupController.Friends = friendService
+	friendController := controllers.NewFriendController(friendService, userHub)
 	ideaController := controllers.NewIdeaController(ideaService)
 	inviteController := controllers.NewInviteController(inviteService)
 	poolController := controllers.NewPoolController(poolService)
@@ -124,7 +129,30 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient services.GiftIdeaGe
 			protected.POST("/notifications/:id/read", notificationController.MarkRead)
 
 			// Genel Grup İşlemleri
-			protected.POST("/groups", groupController.CreateGroup)
+			// Notify: member_ids ile davet edilen arkadaşlara "grup daveti" bildirimi.
+			protected.POST("/groups", middleware.Notify(notificationService), groupController.CreateGroup)
+
+			// Arkadaşlar (kullanıcıya özel; olaylar zil bildirimi üretmez, karşı tarafın akışına
+			// yalnızca yeniden çekme sinyali gider)
+			protected.GET("/friends", friendController.List)
+			protected.POST("/friends/requests", friendController.Request)
+			protected.POST("/friends/requests/:id/accept", friendController.AcceptRequest)
+			protected.DELETE("/friends/requests/:id", friendController.DeleteRequest)
+			protected.DELETE("/friends/users/:userId", friendController.Unfriend)
+			protected.GET("/friends/link", friendController.GetLink)
+			protected.POST("/friends/link/reset", friendController.ResetLink)
+			protected.GET("/friend-links/:code", friendController.PreviewLink)
+			protected.POST("/friend-links/:code/accept", friendController.AcceptLink)
+
+			// Gelen grup davetleri (grup henüz bilinmediği için /groups/:id altında değildir;
+			// Anti-Spoiler repository'de, SSE ve bildirim burada açıkça bağlanır)
+			protected.GET("/me/group-invites", friendController.MyInvites)
+			myInvites := protected.Group("/me/group-invites/:inviteId")
+			myInvites.Use(middleware.PublishRecordedGroupChanges(hub), middleware.Notify(notificationService))
+			{
+				myInvites.POST("/accept", friendController.AcceptInvite)
+				myInvites.DELETE("", friendController.DeclineInvite)
+			}
 			protected.GET("/groups", groupController.GetUserGroups)
 
 			// Belirli Bir Gruba Ait Rotalar (Anti-Spoiler + Üyelik Denetimli)
@@ -156,6 +184,11 @@ func newRouter(db *gorm.DB, cfg *config.Config, geminiClient services.GiftIdeaGe
 				groupSpecific.GET("/invite", inviteController.GetStatus)
 				groupSpecific.POST("/invite", inviteController.Create)
 				groupSpecific.DELETE("/invite", inviteController.Revoke)
+
+				// Arkadaş davetleri (listeleme tüm üyeler; davet/iptal yalnızca admin)
+				groupSpecific.GET("/member-invites", friendController.ListGroupInvites)
+				groupSpecific.POST("/member-invites", friendController.InviteToGroup)
+				groupSpecific.DELETE("/member-invites/:userId", friendController.CancelGroupInvite)
 
 				// Hediye Havuzu Rotaları (SINGLE). preview-link veritabanına yazmaz; iki türde de açık.
 				groupSpecific.POST("/ideas", single, ideaController.AddIdea)

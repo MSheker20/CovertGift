@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/MSheker20/CovertGift/backend/internal/models"
@@ -14,6 +15,8 @@ import (
 // GroupController grup HTTP isteklerini yöneten yapıdır
 type GroupController struct {
 	groupService services.GroupService
+	// Friends grup kurulurken arkadaş davetlerini doğrular ve yazar (nil ise member_ids kabul edilmez).
+	Friends services.FriendService
 }
 
 // NewGroupController yeni bir GroupController örneği oluşturur
@@ -28,15 +31,18 @@ func NewGroupController(groupService services.GroupService) *GroupController {
 // zorunludur. MULTI'de target_*, total_budget (> 0) ve event_date gönderilemez (400); alıcılar
 // sonradan POST /groups/:id/recipients ile seçilir.
 type CreateGroupRequest struct {
-	Title            string          `json:"title" binding:"required,min=2,max=150" example:"Ahmet'in 30. Yaş Sürprizi"`
-	Description      string          `json:"description" maxLength:"1000" example:"Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu"`
-	Mode             string          `json:"mode" binding:"omitempty,oneof=SINGLE MULTI" enums:"SINGLE,MULTI" example:"SINGLE"`
-	TargetPersonName string          `json:"target_person_name" binding:"omitempty,min=2,max=100" example:"Ahmet"`
-	TargetInterests  string          `json:"target_interests" binding:"max=2000" example:"Kamp, 3. nesil kahve demleme, trekking, outdoor"`
-	TargetUserID     *uuid.UUID      `json:"target_user_id,omitempty" format:"uuid" example:"b49770ed-7518-40e6-839d-5810f79bbd86"`
-	TargetEmail      string          `json:"target_email,omitempty" binding:"omitempty,email,max=150" example:"ahmet@demo.com"`
-	TotalBudget      decimal.Decimal `json:"total_budget" example:"2500.00"`
-	EventDate        *models.Date    `json:"event_date,omitempty" swaggertype:"string" format:"date" example:"2026-12-31"`
+	Title            string     `json:"title" binding:"required,min=2,max=150" example:"Ahmet'in 30. Yaş Sürprizi"`
+	Description      string     `json:"description" maxLength:"1000" example:"Yakın arkadaşlarla ortak doğum günü hediyesi organizasyonu"`
+	Mode             string     `json:"mode" binding:"omitempty,oneof=SINGLE MULTI" enums:"SINGLE,MULTI" example:"SINGLE"`
+	TargetPersonName string     `json:"target_person_name" binding:"omitempty,min=2,max=100" example:"Ahmet"`
+	TargetInterests  string     `json:"target_interests" binding:"max=2000" example:"Kamp, 3. nesil kahve demleme, trekking, outdoor"`
+	TargetUserID     *uuid.UUID `json:"target_user_id,omitempty" format:"uuid" example:"b49770ed-7518-40e6-839d-5810f79bbd86"`
+	TargetEmail      string     `json:"target_email,omitempty" binding:"omitempty,email,max=150" example:"ahmet@demo.com"`
+	// MemberIDs gruba davet edilecek arkadaşlardır (en fazla 30). Yalnızca kabul edilmiş arkadaşlar
+	// olabilir; hedef kişi olamaz. Kabul edene kadar üye sayılmazlar.
+	MemberIDs   []uuid.UUID     `json:"member_ids,omitempty" binding:"omitempty,max=30" swaggertype:"array,string"`
+	TotalBudget decimal.Decimal `json:"total_budget" example:"2500.00"`
+	EventDate   *models.Date    `json:"event_date,omitempty" swaggertype:"string" format:"date" example:"2026-12-31"`
 }
 
 // AddMemberRequest gruba üye ekleme isteği için DTO
@@ -104,6 +110,23 @@ func (ctl *GroupController) CreateGroup(c *gin.Context) {
 		return
 	}
 
+	if len(req.MemberIDs) > 0 {
+		if ctl.Friends == nil {
+			RespondErr(c, http.StatusBadRequest, services.ErrNotFriends.Error())
+			return
+		}
+		ids, err := ctl.Friends.ValidateInvitees(userID, req.MemberIDs, req.TargetUserID)
+		if err != nil {
+			if errors.Is(err, services.ErrNotFriends) || errors.Is(err, services.ErrTooManyInvitees) || errors.Is(err, services.ErrInviteeIsTarget) {
+				RespondErr(c, http.StatusBadRequest, err.Error())
+				return
+			}
+			RespondInternal(c, "Grup oluşturulurken bir hata oluştu", err)
+			return
+		}
+		req.MemberIDs = ids
+	}
+
 	if req.Mode == models.GroupModeMulti {
 		if req.TargetPersonName != "" || req.TargetInterests != "" || req.TargetUserID != nil || req.TargetEmail != "" ||
 			!req.TotalBudget.IsZero() || req.EventDate != nil {
@@ -119,6 +142,7 @@ func (ctl *GroupController) CreateGroup(c *gin.Context) {
 			RespondInternal(c, "Grup oluşturulurken bir hata oluştu", err)
 			return
 		}
+		ctl.inviteAfterCreate(c, group.ID, userID, req.MemberIDs)
 		RespondCreated(c, group)
 		return
 	}
@@ -151,7 +175,22 @@ func (ctl *GroupController) CreateGroup(c *gin.Context) {
 		return
 	}
 
+	ctl.inviteAfterCreate(c, group.ID, userID, req.MemberIDs)
 	RespondCreated(c, group)
+}
+
+// inviteAfterCreate yeni grubun davetlerini yazar. Grup zaten kurulduğu için davet hatası isteği
+// başarısız saymaz: loglanır ve grup döner (admin üyeler panelinden yeniden davet edebilir).
+func (ctl *GroupController) inviteAfterCreate(c *gin.Context, groupID, userID uuid.UUID, ids []uuid.UUID) {
+	if len(ids) == 0 || ctl.Friends == nil {
+		return
+	}
+	invited, err := ctl.Friends.InviteCreatedGroup(groupID, userID, ids)
+	if err != nil {
+		slog.Error("yeni grubun davetleri yazılamadı", "error", err, "group_id", groupID)
+		return
+	}
+	RecordInviteNotifications(c, groupID, invited)
 }
 
 // GetUserGroups kullanıcının dahil olduğu grupları listeler

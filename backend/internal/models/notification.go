@@ -22,6 +22,8 @@ const (
 	// alıcısına hiçbir zaman gönderilmez.
 	NotificationPoolAdded           = "pool_added"            // params: actor_name, recipient_name
 	NotificationPoolManagerAssigned = "pool_manager_assigned" // params: actor_name, recipient_name
+	// Grup daveti: henüz üye olmayan davetliye gider (grubun hedef kişisine asla).
+	NotificationGroupInvite = "group_invite" // params: actor_name
 )
 
 // NotificationParams bildirim metnini oluşturmak için gereken küçük, türe özel veridir.
