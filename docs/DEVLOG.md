@@ -1025,4 +1025,5 @@
 - **Doğrulama:**
   - Go: üyeliğe ihtiyaç duyan entegrasyon testleri `addMember` (davet + kabul) yardımcısına geçti; bildirim testleri yeni akışa göre güncellendi; yeni `TestEmailAddSendsInvite`. `go test ./...` temiz.
   - Vitest 259/259 (yeni e-postayla davet testi). Playwright test-db'ye karşı 17/18: e2e'ler daveti API'den kabul ediyor. `notifications.spec`'teki "Okunmamış" kontrolü #43'teki süzgeç etiketiyle hep eşleştiği için düzeltildi. `cover.spec` masaüstünde kart yüksekliği karşılaştırmasında `main`'in arayüzüyle de düşüyor; bu değişiklikle ilgisiz, ayrıca bakılmalı.
+- **Dağıtım (2026-11-24):** #49 ve #50 merge edildi (#50, #49 ile `notifications.spec.ts`'te çakıştı; iki kontrol de korundu). API ve arayüz `8e4ac41` ile canlıda ([AZURE.md](AZURE.md)); yalnızca salt-okunur kontroller yapıldı, birleşik e2e yeniden koşulmadı.
 

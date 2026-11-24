@@ -12,7 +12,7 @@ Go API ve kalıcı React frontend ayrı imajlar olarak paketlenir. PostgreSQL ay
 
 ## Güncel durum (2026-11-24)
 
-- **Açık.** Standart ortam `covertgift-apps` (WorkloadProfiles, yalnızca Consumption profili). API `covertgift-server` (`covertgift-api:0617a54`, internal), arayüz `covertgift-web` (`covertgift-web:fadbc10`, external, `API_TARGET=http://covertgift-server`). `main` #47 ve henüz merge edilmemiş `feat/friends` (#48). **Adres: https://covertgift.msheker.dev** (Azure'un kendi adresi `covertgift-web.gentlegrass-4f326f37.polandcentral.azurecontainerapps.io` da çalışır).
+- **Açık.** Standart ortam `covertgift-apps` (WorkloadProfiles, yalnızca Consumption profili). API `covertgift-server` (`covertgift-api:8e4ac41`, internal), arayüz `covertgift-web` (`covertgift-web:8e4ac41`, external, `API_TARGET=http://covertgift-server`). `main` #50'ye kadar. **Adres: https://covertgift.msheker.dev** (Azure'un kendi adresi `covertgift-web.gentlegrass-4f326f37.polandcentral.azurecontainerapps.io` da çalışır).
 - **Express ortamından çıkıldı (2026-11-19).** Eski Express ortamı `covertgift-env` ve uygulamaları (`covertgift-api`, `covertgift-ui`, `covertgift-backend`) silindi. Eski adres (`covertgift-ui.yellowplant-0f3e00f1…`) artık çalışmıyor. Sebep aşağıda, "Olay: Express ortamında internal ingress" bölümünde.
 - **Dağıtımdan önce** canlıda `/health`'e bakılır ve sonucu not edilir. Böylece bir sorun çıkarsa dağıtımdan önce de var olup olmadığı bilinir.
 - Önceki canlı sürüm `a5c65ce` idi. Bu sürümde `users.avatar_url` sütunu elle silindi (aşağıda). Eski API'nin modeli bu sütunu içerdiği için `a5c65ce`'ye dönmek kullanıcı kaydını bozar. Geri dönmeden önce sütun yeniden eklenmeli: `ALTER TABLE users ADD COLUMN avatar_url varchar(255);`.
@@ -53,6 +53,7 @@ Eski etiketler geri dönüş için registry'de durur.
 
 | Tarih | API | Arayüz | Not |
 |---|---|---|---|
+| 2026-11-24 | `covertgift-api:8e4ac41` | `covertgift-web:8e4ac41` | #49 e-postayla ekleme artık davet (kabul edince üye), "X gruba katıldı" metni; #50 e2e düzeltmeleri. Şema değişikliği yok. API revizyonu `covertgift-server--0000002`, arayüz `covertgift-web--0000004`. Dağıtımdan önce ve sonra `/health` `db: up`; yalnızca salt-okunur kontroller |
 | 2026-11-24 | `covertgift-api:0617a54` | `covertgift-web:fadbc10` | #48 (`feat/friends`, merge edilmeden dağıtıldı): arkadaşlar, kişisel arkadaşlık linki, Yeni Grup'ta arkadaş seçici, grup davetleri, üst barda Arkadaşlar popup'ı; nginx `/f/` ve `/api/v1/friend-links/` yollarını loglamaz. API revizyonu `covertgift-server--0000001`, arayüz `covertgift-web--0000003`. Dağıtımdan önce ve sonra `/health` `db: up`; yalnızca salt-okunur kontroller (yeni uçlar oturumsuz 401, SPA rotaları 200). Canlıya seed çalıştırılmadı |
 | 2026-11-22 | `covertgift-api:1c0e188` (değişmedi) | `covertgift-web:8bd7f11` | #43 bildirim paneli, #44 sayfa geçişleri + kazanan konfetisi + canlı vurgu, #45 Gemini bekleme kartları, gün sayacı, boş durum çizimleri. Yalnızca arayüz güncellendi (revizyon `covertgift-web--0000002`); dağıtımdan önce canlı `/health` `db: up` idi |
 | 2026-11-20 | `covertgift-api:1c0e188` (değişmedi) | `covertgift-web:c506e75` | #41: açılış ekranı ve "Sunucu uyanıyor" notu. Yalnızca arayüz güncellendi; dağıtımdan önce canlı `/health` `db: up` idi |
