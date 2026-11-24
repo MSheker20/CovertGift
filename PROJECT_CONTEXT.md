@@ -252,6 +252,17 @@ Bu proje; arkadaş gruplarının ortak hediye grupları kurduğu, bütçe birle�
 - `GET /api/v1/invites/:token` -> Giriş yapmış herkes. `{ group_title, inviter_name, member_count, already_member, group_id? }` (`group_id` yalnızca zaten üyeyse). Hedef kişi 403 + sürpriz mesajı; geçersiz token 404.
 - `POST /api/v1/invites/:token/accept` -> Çağıranı `member` yapar; `{ group_id }`. Zaten üyeyse 200 (idempotent, bildirim yok). Hedef kişi 403; geçersiz token 404; hesabı silinmiş oturum 401.
 
+**Arkadaşlar (2026-11-24).** Olaylar zil satırı üretmez; karşı tarafın bildirim akışına yalnızca yeniden çekme sinyali gider.
+- `GET /api/v1/friends` -> `{ friends, incoming, outgoing }` (`friendship_id, id, name, avatar_version?`; e-posta yok).
+- `POST /api/v1/friends/requests` `{ email }` -> 201 `{ status: PENDING|ACCEPTED }` (karşı taraf zaten istek attıysa kabul). Kendine 400, kayıtsız 404, zaten arkadaş/istek 409.
+- `POST /api/v1/friends/requests/:id/accept` (yalnızca alıcı), `DELETE /api/v1/friends/requests/:id` (ret ya da geri çekme), `DELETE /api/v1/friends/users/:userId`.
+- `GET /api/v1/friends/link`, `POST /api/v1/friends/link/reset` -> `{ code }` (22 karakter base64url).
+- `GET /api/v1/friend-links/:code` -> `{ user_id, name, is_self, already_friend }`; `POST .../accept` doğrudan arkadaş yapar. Geçersiz kod 404.
+
+**Grup davetleri (arkadaşlar).** `POST /groups` isteğe bağlı `member_ids` (≤ 30, yalnızca kabul edilmiş arkadaşlar, hedef olamaz) kabul eder.
+- `GET /api/v1/groups/:id/member-invites` (üyeler), `POST` `{ user_ids }` ve `DELETE .../:userId` (yalnızca admin). Davetliye `group_invite` bildirimi gider.
+- `GET /api/v1/me/group-invites`, `POST /api/v1/me/group-invites/:inviteId/accept` (`{ group_id }`; hedef 403), `DELETE /api/v1/me/group-invites/:inviteId`. Hedefi olduğum grupların davetleri hiç listelenmez.
+
 ### Bildirimler
 - `GET /api/v1/notifications` -> `{ items: Notification[], unread_count }`. Giriş yapan kullanıcının en yeni 50 bildirimi (yeniden eskiye); öğe: `{ id, group_id, group_title, type, params, read_at?, created_at }`. `unread_count` tüm okunmamışları sayar. Kullanıcının hedef kişisi olduğu gruplara ait satırlar hiçbir zaman dönmez (Anti-Spoiler).
 - `GET /api/v1/notifications/stream` -> Server-Sent Events akışı. Kullanıcıya yeni bildirim geldiğinde ya da bildirimleri okundu yapıldığında (diğer sekmeler için) `event: changed` gönderir; olay veri taşımaz. Grup akışıyla aynı çerçeve: 25 sn'de bir `: ping`, en fazla 5 dakika ömür, `X-Accel-Buffering: no`, en fazla 2000 açık akış (aşılırsa 503), token `Authorization` başlığıyla.

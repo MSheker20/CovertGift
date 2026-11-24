@@ -1,6 +1,6 @@
 # Arkadaşlar ve hızlı grup kurma — plan
 
-> Durum: planlandı (2026-11-24). Hedef: 2026-11-25 sunumu (yerelde). Canlıya kod dağıtılır, seed **eklenmez**.
+> Durum: uygulandı (2026-11-24); arkadaşlık bildirimleri zil yerine Arkadaşlar rozetinde. Hedef: 2026-11-25 sunumu (yerelde). Canlıya kod dağıtılır, seed **eklenmez**.
 
 ## Kararlar
 
@@ -20,8 +20,7 @@
   Çift başına tek satır: `LEAST/GREATEST` üzerinde benzersiz index (A→B ve B→A aynı anda olamaz). Kullanıcı silinince CASCADE.
 - `User.FriendCode`: kişisel link için rastgele token (≥128 bit, base64url). Sıfırlanabilir. Loglanmaz (davet linki kuralı).
 - `GroupMemberInvite`: `group_id`, `invitee_id`, `inviter_id`, `created_at`. (`group_id, invitee_id`) benzersiz. Grup silinince CASCADE.
-- `Notification.GroupID` nullable olur (arkadaşlık bildirimleri gruba bağlı değil). Liste/okundu sorguları ve Anti-Spoiler süzmesi `group_id IS NULL` satırları da doğru ele almalı.
-  Yeni türler: `friend_request`, `friend_accepted`, `group_invite` (params: actor_name, group_title).
+- Bildirim tablosu değişmedi: arkadaşlık olayları zil satırı üretmez (üst barda ayrı Arkadaşlar rozeti). Yalnızca `group_invite` türü eklendi (grup davetlisine, hedef hariç).
 
 ### Uçlar
 Arkadaşlık (`/api/v1/friends`, yalnızca giriş yapmış kullanıcı):
