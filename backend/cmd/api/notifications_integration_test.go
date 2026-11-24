@@ -622,29 +622,31 @@ func TestNotificationStream(t *testing.T) {
 func TestEveryMutationRouteHasANotificationDecision(t *testing.T) {
 	api := newTestAPI(t)
 	decided := map[string]bool{ // true: bildirim üretir
-		"POST /api/v1/groups/:id/members":            true,
-		"POST /api/v1/groups/:id/ideas":              true,
-		"POST /api/v1/groups/:id/ideas/generate-ai":  true,
-		"PATCH /api/v1/groups/:id/budget":            true,
-		"PATCH /api/v1/groups/:id/event-date":        true,
-		"POST /api/v1/groups/:id/winner":             true,
-		"DELETE /api/v1/groups/:id/winner":           true,
-		"PATCH /api/v1/groups/:id/target":            false, // hedefin zili yalnızca yenilenir; satır üretilmez
-		"DELETE /api/v1/groups/:id":                  false, // grup silinir; bildirimleri de CASCADE ile gider
-		"POST /api/v1/groups/:id/interests":          false,
-		"DELETE /api/v1/groups/:id/interests":        false,
-		"POST /api/v1/groups/:id/ideas/preview-link": false, // veritabanına yazmaz
-		"POST /api/v1/ideas/:id/vote":                false,
-		"DELETE /api/v1/ideas/:id/vote":              false,
-		"POST /api/v1/ideas/:id/reject":              false,
-		"DELETE /api/v1/ideas/:id":                   false,
-		"PUT /api/v1/groups/:id/cover":               false, // kapak değişimi bildirim üretmez; grup akışı görünümü yeniler
-		"DELETE /api/v1/groups/:id/cover":            false,
-		"PATCH /api/v1/groups/:id/cover-policy":      false,
-		"PATCH /api/v1/groups/:id/description":       false, // açıklama değişimi bildirim üretmez; grup akışı görünümü yeniler
-		"POST /api/v1/groups/:id/invite":             false, // davet linki oluşturma/yenileme bildirim üretmez
-		"DELETE /api/v1/groups/:id/invite":           false, // davet linkini iptal etmek bildirim üretmez
-		"POST /api/v1/invites/:token/accept":         true,  // yeni üye için diğer üyelere member_joined (alıcı seçimi Dispatch'te)
+		"POST /api/v1/groups/:id/members":                  true,
+		"POST /api/v1/groups/:id/ideas":                    true,
+		"POST /api/v1/groups/:id/ideas/generate-ai":        true,
+		"PATCH /api/v1/groups/:id/budget":                  true,
+		"PATCH /api/v1/groups/:id/event-date":              true,
+		"POST /api/v1/groups/:id/winner":                   true,
+		"DELETE /api/v1/groups/:id/winner":                 true,
+		"PATCH /api/v1/groups/:id/target":                  false, // hedefin zili yalnızca yenilenir; satır üretilmez
+		"DELETE /api/v1/groups/:id":                        false, // grup silinir; bildirimleri de CASCADE ile gider
+		"POST /api/v1/groups/:id/interests":                false,
+		"DELETE /api/v1/groups/:id/interests":              false,
+		"POST /api/v1/groups/:id/ideas/preview-link":       false, // veritabanına yazmaz
+		"POST /api/v1/ideas/:id/vote":                      false,
+		"DELETE /api/v1/ideas/:id/vote":                    false,
+		"POST /api/v1/ideas/:id/reject":                    false,
+		"DELETE /api/v1/ideas/:id":                         false,
+		"PUT /api/v1/groups/:id/cover":                     false, // kapak değişimi bildirim üretmez; grup akışı görünümü yeniler
+		"DELETE /api/v1/groups/:id/cover":                  false,
+		"PATCH /api/v1/groups/:id/cover-policy":            false,
+		"PATCH /api/v1/groups/:id/description":             false, // açıklama değişimi bildirim üretmez; grup akışı görünümü yeniler
+		"POST /api/v1/groups/:id/invite":                   false, // davet linki oluşturma/yenileme bildirim üretmez
+		"DELETE /api/v1/groups/:id/invite":                 false, // davet linkini iptal etmek bildirim üretmez
+		"POST /api/v1/invites/:token/accept":               true,  // yeni üye için diğer üyelere member_joined (alıcı seçimi Dispatch'te)
+		"POST /api/v1/groups/:id/member-invites":           true,  // group_invite: yalnızca davet edilenlere (üye değiller; hedef hariç)
+		"DELETE /api/v1/groups/:id/member-invites/:userId": false, // iptal davet bildirimini siler; davetlinin akışı yenilenir
 		// MULTI: havuz olayları pool_id taşır; havuzun alıcısı Dispatch'te her zaman dışlanır.
 		"POST /api/v1/groups/:id/recipients":                      true,  // pool_added: alıcı ve işlemi yapan hariç üyelere
 		"PATCH /api/v1/groups/:id/recipients/:userId/manager":     true,  // pool_manager_assigned: yalnızca yeni yöneticiye

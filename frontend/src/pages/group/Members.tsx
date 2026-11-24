@@ -18,6 +18,7 @@ import { Select } from '@/components/ui/select'
 import { errorMessage } from '@/lib/errors'
 import { AddMemberForm } from './AddMemberForm'
 import { InviteLink } from './InviteLink'
+import { MemberInvites } from './MemberInvites'
 
 // Üyeler paneli. SINGLE'da eskisiyle aynıdır. MULTI'de hediye alacak kişiler rozetle işaretlenir;
 // yönetici her üyede "hediye alınacak kişi yap" gibi işlemleri görür.
@@ -92,6 +93,7 @@ export function MembersPanel({
           </li>
         ))}
       </ul>
+      {d && <MemberInvites groupId={groupId} d={d} />}
       {d && <AddMemberForm groupId={groupId} multi={multi} />}
       {/* MULTI'de hedef kişi yoktur: "hedef bağlı değil" uyarısı gösterilmez. */}
       {isAdmin && d && (

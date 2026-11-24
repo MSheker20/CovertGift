@@ -20,7 +20,7 @@ const poolShowcaseTitle = "Ekip Doğum Günleri"
 // korunur (vitrin grupları, profil fotoğrafı sürümü); hepsi zaten varsa errAlreadySeeded döner.
 func seedExtras(tx *gorm.DB, users map[string]*models.User) error {
 	added := false
-	for _, step := range []func(*gorm.DB, map[string]*models.User) error{seedShowcase, seedPoolNotifications, seedAvatars, seedVisualShowcase} {
+	for _, step := range []func(*gorm.DB, map[string]*models.User) error{seedShowcase, seedPoolNotifications, seedAvatars, seedVisualShowcase, seedFriends} {
 		err := step(tx, users)
 		switch {
 		case err == nil:

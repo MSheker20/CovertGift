@@ -993,3 +993,26 @@
   - `TestSeedIsAdditiveIdempotentAndRespectsAntiSpoiler`'ın sayıları güncellendi; Zeynep'in grup listesi kontrolü eklendi.
   - Seed testleri ve `go test ./...` temiz.
   - `test-db`'de tarayıcıda denendi: ana sayfa (Yarın + nabız), bildirim paneli, boş grup.
+
+## 2026-11-24 — Arkadaşlar ve arkadaşlarla hızlı grup
+
+- **Amaç:** Üye eklemek için her seferinde e-posta yazmak yerine arkadaş listesinden hızlıca grup kurmak (sunum öncesi). Kararlar ve kapsam: [plans/arkadaslar-ve-hizli-grup.md](plans/arkadaslar-ve-hizli-grup.md).
+- **Arkadaşlık:** `friendships` tablosunda çift başına tek satır (`user_low_id < user_high_id`, benzersiz). İstek + onay; karşılıklı istek doğrudan kabul olur. Tam e-posta gerekir, kullanıcı arama açılmadı. Kişisel link (`friend_links`, 128 bit kod) açan onaylayınca doğrudan arkadaş yapar; sıfırlanabilir. Kod yolda taşındığı için loglarda yalnızca rota kalıbı yazılır.
+- **Ayrı bildirim yeri:** Arkadaşlık istekleri zile düşmez (zil gruba bağlı). Üst barda Arkadaşlar düğmesi ve gelen istek rozeti var; liste bildirim akışının sinyaliyle yenilenir.
+- **Grup davetleri:** `group_member_invites`. Yeni Grup diyaloğunda "Kime hediye?" arkadaş listesinden seçilir (e-posta alanı gizlenir), "Kimlerle?" ile arkadaşlara davet gider. Davetli kabul edince üye olur; ret ya da admin iptali daveti ve `group_invite` bildirimini siler. Üyeler panelinde bekleyenler ve "Arkadaş davet et"; ana sayfada Katıl/Reddet kartı, zil buraya (`/#invites`) götürür. Grup kurulduktan sonra davet yazılamazsa grup geri alınmaz, hata loglanır.
+- **Anti-Spoiler:** Hedef kişi davet edilemez (400). `/me/group-invites` hedefi olunan grupları süzer, kabul grup satırı kilitliyken hedefi yeniden denetler (403). `PATCH /groups/:id/target` hedefin bekleyen davetini aynı transaction'da siler. Bildirim `NonMembers` yolundan gider; hedef her zaman hariç.
+- **Profil fotoğrafı:** Arkadaşlar ve kendisine istek gönderen kişi fotoğrafı görebilir (eskiden yalnızca ortak grup).
+- **Demo verisi:** `seedFriends` — Can, Zeynep ve Elif arkadaş; Ahmet'in Can'a isteği bekliyor; Zeynep "Elif'in Mezuniyeti" grubuna (hedef Elif) Can'ı davet etmiş. Canlıda seed çalıştırılmaz.
+- **Doğrulama:**
+  - Yeni `friends_integration_test.go` (istek yaşam döngüsü, link, hızlı grup + davet, hedef bağlanınca davetin silinmesi, hedefin davet satırı) ve `TestSeedFriends`. `go test ./...` ve test-db entegrasyon testleri temiz.
+  - Yeni `friends.test.tsx` (6 test). Vitest 257/257, `tsc -b`, `oxlint` ve `vite build` temiz.
+  - Geçici `test-db` ile tarayıcıda denendi: rozet, isteği kabul, Ahmet'i hedef seçip iki arkadaşı davet ederek grup kurma, ana sayfadan davete katılma; konsol hatası yok.
+  - Playwright'a bu akış eklenmedi.
+
+### 2026-11-24 — Arkadaşlar popup'ı ve canlıya dağıtım
+
+- **Popup:** Kullanıcıyla artı/eksi tartışıldı, karma yapı seçildi. Üst bardaki Arkadaşlar düğmesi popup açar (Radix Popover; açılır menü form alanlarıyla iyi çalışmadığı için). Popup'ta gelen istekler (Kabul/Reddet), e-postayla ekleme, "Linkimi kopyala" ve arkadaş sayısı; "Tüm arkadaşlar ve istekler" `/friends` sayfasına gider (liste, giden istekler, çıkarma, linki sıfırlama). Ortak parçalar `components/FriendParts.tsx`.
+- **nginx:** `/f/<code>` ve `/api/v1/friend-links/<code>` erişim loguna yazılmaz; API rotasında yalnızca kritik hatalar loglanır (davet token'ı kuralı).
+- **Dağıtım:** API `0617a54`, arayüz `fadbc10` ([AZURE.md](AZURE.md)). İmajlar temiz bir `git archive` kopyasından derlendi.
+- **Doğrulama:** Vitest 258/258 (yeni popup testi), `tsc -b`, `oxlint`, `vite build`; yerelde popup tarayıcıda açıldı (demo verisine yazılmadı). Canlıda yalnızca salt-okunur kontroller.
+

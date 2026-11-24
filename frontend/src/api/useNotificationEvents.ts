@@ -25,6 +25,9 @@ export function useNotificationEvents(enabled: boolean): boolean {
         void queryClient.invalidateQueries({ queryKey: queryKeys.notifications })
         // exact: grup detayı ve fikirler kendi akışlarıyla yenilenir; burada yalnızca liste.
         void queryClient.invalidateQueries({ queryKey: queryKeys.groups, exact: true })
+        // Arkadaşlık olayları zil satırı üretmez; yalnızca bu sinyalle Arkadaşlar rozeti yenilenir.
+        void queryClient.invalidateQueries({ queryKey: queryKeys.friends, exact: true })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.myGroupInvites })
       }, DEBOUNCE_MS)
     }
 

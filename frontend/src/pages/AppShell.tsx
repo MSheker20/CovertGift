@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Link, Outlet, useMatch, useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Check, ChevronDown, LayoutGrid, LogOut, UserRound } from 'lucide-react'
+import { Check, ChevronDown, LayoutGrid, LogOut, UserRound, Users } from 'lucide-react'
 
 import { groupsApi, queryKeys } from '@/api/endpoints'
 import { useAuth } from '@/auth/AuthProvider'
@@ -9,6 +9,7 @@ import { Avatar } from '@/components/Avatar'
 import { GroupThumb } from '@/components/GroupCover'
 import { LanguageSwitch } from '@/components/LanguageSwitch'
 import { Logo, LogoMark } from '@/components/Logo'
+import { FriendsPopover } from '@/components/FriendsPopover'
 import { NotificationBell } from '@/components/NotificationBell'
 import {
   DropdownMenu,
@@ -36,6 +37,7 @@ export function AppShell() {
           <GroupSwitcher />
           <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
             <LanguageSwitch className="hidden md:inline-flex" />
+            <FriendsPopover />
             <NotificationBell />
             <AccountMenu />
           </div>
@@ -142,6 +144,10 @@ function AccountMenu() {
         <DropdownMenuItem onSelect={() => navigate('/profile')}>
           <UserRound />
           {t('nav.profile')}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => navigate('/friends')}>
+          <Users />
+          {t('nav.friends')}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={logout}>
           <LogOut />

@@ -14,6 +14,11 @@ export const server = setupServer(
   ),
   // Admin grup sayfasındaki davet linki bölümü her açılışta durumu sorar; varsayılan: aktif link yok.
   http.get('/api/v1/groups/:id/invite', () => HttpResponse.json({ success: true, data: { active: false } })),
+  // Üst bardaki Arkadaşlar rozeti, ana sayfadaki grup davetleri ve üyeler panelindeki bekleyen
+  // davetler her sayfada sorulur; varsayılan: boş.
+  http.get('/api/v1/friends', () => HttpResponse.json({ success: true, data: { friends: [], incoming: [], outgoing: [] } })),
+  http.get('/api/v1/me/group-invites', () => HttpResponse.json({ success: true, data: [] })),
+  http.get('/api/v1/groups/:id/member-invites', () => HttpResponse.json({ success: true, data: [] })),
 )
 
 export const ok = <T>(data: T, status = 200) => HttpResponse.json({ success: true, data }, { status })

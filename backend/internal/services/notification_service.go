@@ -42,6 +42,9 @@ type NotificationEvent struct {
 	// RefreshOnly true ise satır üretilmez; Only'deki kullanıcıların açık akışlarına yalnızca
 	// yeniden çekme sinyali gider (ör. hedef bağlanınca bildirimleri silinen kullanıcı).
 	RefreshOnly bool
+	// NonMembers true ise alıcılar üyelikten bağımsız olarak Only'deki kullanıcılardır (ör. grup
+	// daveti alan, henüz üye olmayan arkadaşlar). İşlemi yapan ve hedef kişi yine hariçtir.
+	NonMembers bool
 }
 
 // NotificationList GET /notifications yanıtıdır.
@@ -142,18 +145,29 @@ func (s *notificationService) dispatchOne(actorID uuid.UUID, actorName string, e
 		skip[pool.RecipientUserID] = true // Anti-Spoiler: havuzun alıcısına o havuzdan bildirim gitmez
 		params["recipient_name"] = pool.Recipient.Name
 	}
-	for _, m := range members {
-		if skip[m.UserID] || (len(only) > 0 && !only[m.UserID]) {
+	recipients := make([]uuid.UUID, 0, len(members))
+	if event.NonMembers {
+		recipients = append(recipients, event.Only...)
+	} else {
+		for _, m := range members {
+			if len(only) > 0 && !only[m.UserID] {
+				continue
+			}
+			recipients = append(recipients, m.UserID)
+		}
+	}
+	for _, userID := range recipients {
+		if skip[userID] {
 			continue
 		}
 		created, err := s.repo.Insert(&models.Notification{
-			UserID: m.UserID, GroupID: event.GroupID, PoolID: event.PoolID, Type: event.Type, Params: params, CreatedAt: s.now(),
+			UserID: userID, GroupID: event.GroupID, PoolID: event.PoolID, Type: event.Type, Params: params, CreatedAt: s.now(),
 		})
 		if err != nil {
 			return err
 		}
 		if created {
-			s.notifier.Publish(m.UserID)
+			s.notifier.Publish(userID)
 		}
 	}
 	return nil

@@ -19,6 +19,7 @@ import { countdownLabel, daysUntil, effectiveEventDate, formatEventDate, sortByU
 import { formatDate } from '@/lib/format'
 import { INTRO_CLASS, staggerStyle, useCountUp, useIntroWindow } from '@/lib/motion'
 import { nextSurprise, prioritizedTasks, type PriorityLevel, type PriorityTask } from '@/lib/priority'
+import { GroupInvites } from './GroupInvites'
 import { NewGroupDialog } from './NewGroupDialog'
 
 // Gün sayısı açılışta sayarak gelir; ekran okuyucu yalnızca son değeri okur.
@@ -83,6 +84,7 @@ export function GroupsPage() {
       </header>
 
       <div className="mt-8 grid grid-cols-1 items-start gap-4 md:mt-[50px] md:grid-cols-12">
+        <GroupInvites />
         <NextSurpriseCard state={groups} open={view.open} meId={user?.id} />
         <TasksPanel state={groups} groups={view.open} meId={user?.id} />
         <Panel
