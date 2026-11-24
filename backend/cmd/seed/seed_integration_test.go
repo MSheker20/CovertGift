@@ -77,7 +77,8 @@ func TestSeedIsAdditiveIdempotentAndRespectsAntiSpoiler(t *testing.T) {
 	// Profil fotoğrafı: Can ve Elif (2); Zeynep ve Ahmet baş harfle.
 	// Görsel vitrin: "Mert'in Veda Hediyesi" (3 üye, 2 fikir, 1 oy), "Zeynep'in Yeni Evi" (3 üye,
 	// 2 fikir) ve boş "Deniz'in Doğum Günü" (2 üye).
-	want := map[string]int64{"users": 5, "groups": 8, "group_members": 26, "gift_ideas": 17, "votes": 13, "gift_pools": 4, "pool_contributions": 12, "user_avatars": 2}
+	// Arkadaşlar: "Elif'in Mezuniyeti" (yalnızca kuran Zeynep üye; Can davetli, hedef Elif).
+	want := map[string]int64{"users": 5, "groups": 9, "group_members": 27, "gift_ideas": 17, "votes": 13, "gift_pools": 4, "pool_contributions": 12, "user_avatars": 2}
 	got := counts(t, db)
 	for k, v := range want {
 		if got[k] != v {
