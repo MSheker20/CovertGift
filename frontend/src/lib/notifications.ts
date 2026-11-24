@@ -25,6 +25,8 @@ export function notificationText(n: AppNotification): string {
     case 'added_to_group':
       return i18n.t('notifications.addedToGroup', { actor })
     case 'member_joined':
+      // Davet ya da linkle katılan kişi işlemi kendisi yapar: "Elif gruba katıldı".
+      if (p.member_name && p.member_name === p.actor_name) return i18n.t('notifications.memberJoinedSelf', { member: p.member_name })
       return i18n.t('notifications.memberJoined', { actor, member: p.member_name ?? i18n.t('notifications.someone') })
     case 'winner_selected':
       return recipient

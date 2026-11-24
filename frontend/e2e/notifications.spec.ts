@@ -1,5 +1,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 
+import { acceptGroupInvite } from './invites'
+
 // Bildirim zili: başka bir üyenin işlemi sayfa yenilenmeden zile düşer (SSE), tıklanınca
 // okundu olur ve gruba gidilir; "Tümünü okundu yap" rozeti temizler.
 // Gerçek API'ye karşı koşar ve kendi geçici kullanıcılarını oluşturup sonunda siler.
@@ -44,8 +46,17 @@ test('notifications: live bell, mark read on click and mark all read', async ({ 
     const groupId = (await created.json()).data.id as string
     const added = await request.post(`${API}/groups/${groupId}/members`, { headers: admin, data: { email: viewerEmail } })
     expect(added.status(), await added.text()).toBe(201)
-    await expect(page.getByRole('button', { name: 'Bildirimler, 1 okunmamış' })).toBeVisible()
+    // E-postayla ekleme davettir: zile "seni davet etti" düşer; kabul edince bu bildirim silinir.
+    const invited = page.getByRole('button', { name: 'Bildirimler, 1 okunmamış' })
+    await expect(invited).toBeVisible()
+    await invited.click()
+    await expect(page.getByRole('menu').getByRole('menuitem', { name: /Zil Yönetici seni bu gruba davet etti/ })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await acceptGroupInvite(request, API, viewer.Authorization, groupId)
+    await expect(page.getByRole('button', { name: 'Bildirimler', exact: true })).toBeVisible()
 
+    const budget = await request.patch(`${API}/groups/${groupId}/budget`, { headers: admin, data: { total_budget: '2000' } })
+    expect(budget.status(), await budget.text()).toBe(200)
     const idea = await request.post(`${API}/groups/${groupId}/ideas`, {
       headers: admin,
       data: { title: 'Zil termosu', estimated_price: '500', search_query: 'termos' },
@@ -58,7 +69,7 @@ test('notifications: live bell, mark read on click and mark all read', async ({ 
     await unread.click()
     const menu = page.getByRole('menu')
     await expect(menu.getByRole('menuitem', { name: /Zil Yönetici yeni bir fikir ekledi: Zil termosu/ })).toBeVisible()
-    await expect(menu.getByRole('menuitem', { name: /Zil Yönetici seni bu gruba ekledi/ })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /Zil Yönetici bütçeyi/ })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 
     // Tıklama: okundu olur ve gruba gider.
@@ -70,7 +81,8 @@ test('notifications: live bell, mark read on click and mark all read', async ({ 
     // Tümünü okundu yap: rozet kalkar, liste açık kalır.
     await one.click()
     await page.getByRole('menuitem', { name: 'Tümünü okundu yap' }).click()
-    await expect(page.getByRole('menu').getByText('Okunmamış')).toHaveCount(0)
+    // Okunmamış kalmayınca "Tümünü okundu yap" kaybolur ("Okunmamış" süzgeç etiketi her zaman görünür).
+    await expect(page.getByRole('menuitem', { name: 'Tümünü okundu yap' })).toHaveCount(0)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: 'Bildirimler', exact: true })).toBeVisible()
   } finally {
