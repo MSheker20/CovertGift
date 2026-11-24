@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Link, Outlet, useMatch, useNavigate } from 'react-router'
+import { Link, Outlet, ScrollRestoration, useMatch, useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Check, ChevronDown, LayoutGrid, LogOut, UserRound, Users } from 'lucide-react'
 
@@ -46,6 +46,8 @@ export function AppShell() {
       <main className="min-w-0">
         <Outlet />
       </main>
+      {/* Yeni sayfa en üstten açılır; geri/ileri dönüşte önceki kaydırma konumu geri gelir. */}
+      <ScrollRestoration />
     </div>
   )
 }
