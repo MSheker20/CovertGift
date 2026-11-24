@@ -104,6 +104,10 @@ export type CreateGroupInput = {
   target_interests?: string
   // Sunucu kayıtlı kullanıcıyı bulur; bulamazsa 404 döner.
   target_email?: string
+  // Arkadaş listesinden seçilen hedef (target_email ile birlikte gönderilmez).
+  target_user_id?: string
+  // Gruba davet edilecek arkadaşlar (en fazla 30). Kabul edene kadar üye sayılmazlar.
+  member_ids?: string[]
   event_date?: string
 }
 
@@ -172,6 +176,7 @@ export type NotificationType =
   | 'winner_overdue'
   | 'pool_added'
   | 'pool_manager_assigned'
+  | 'group_invite'
 
 export type NotificationParams = {
   // İşlemi yapan üyenin adı (hatırlatmalarda yok).
@@ -260,4 +265,48 @@ export type ContributionResult = {
   contributor_count: number
   per_person_budget: string | null
   no_contributors: boolean
+}
+
+// Arkadaşlar. E-posta hiçbir zaman gelmez.
+export type Friend = {
+  // İstek kabul/ret/geri çekme uçlarında kullanılır.
+  friendship_id: string
+  id: string
+  name: string
+  avatar_version?: string
+  since: string
+  accepted_at?: string
+}
+
+// GET /friends
+export type FriendList = { friends: Friend[]; incoming: Friend[]; outgoing: Friend[] }
+
+export type FriendRequestResult = { status: 'PENDING' | 'ACCEPTED' }
+export type FriendLink = { code: string }
+export type FriendLinkPreview = {
+  user_id: string
+  name: string
+  avatar_version?: string
+  is_self: boolean
+  already_friend: boolean
+}
+
+// Kullanıcıya gelen grup daveti. Hedefi olduğum grupların davetleri hiç gelmez.
+export type MyGroupInvite = {
+  id: string
+  group_id: string
+  group_title: string
+  group_mode: GroupMode
+  inviter_name: string
+  member_count: number
+  created_at: string
+}
+
+// Grubun bekleyen davetlerinden biri (grup sayfası).
+export type PendingGroupInvite = {
+  user_id: string
+  name: string
+  avatar_version?: string
+  inviter_name: string
+  created_at: string
 }

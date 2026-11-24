@@ -1,20 +1,22 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ImagePlus } from 'lucide-react'
+import { Link, useNavigate } from 'react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Check, ImagePlus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
-import { groupsApi, queryKeys } from '@/api/endpoints'
+import { friendsApi, groupsApi, queryKeys } from '@/api/endpoints'
 import { useObjectUrl } from '@/api/useGroupCover'
 import { useAuth } from '@/auth/AuthProvider'
+import { Avatar } from '@/components/Avatar'
 import { CoverCropDialog } from '@/components/CoverCropDialog'
 import { FormError, FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input, Textarea } from '@/components/ui/input'
-import type { GroupMode } from '@/api/types'
+import { Select } from '@/components/ui/select'
+import type { Friend, GroupMode } from '@/api/types'
 import { cn } from '@/lib/utils'
 import { MAX_GROUP_DESCRIPTION } from '@/lib/description'
 import { errorMessage } from '@/lib/errors'
@@ -39,6 +41,17 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
   const [pickingCover, setPickingCover] = useState(false)
   const coverPreview = useObjectUrl(cover)
   const bounds = eventDateBounds()
+  // Arkadaşlar: hedef kişi listeden seçilebilir, seçilenlere grup daveti gider.
+  const friends = useQuery({
+    queryKey: queryKeys.friends,
+    queryFn: ({ signal }) => friendsApi.list(signal),
+    enabled: open,
+  })
+  const friendList: Friend[] = friends.data?.friends ?? []
+  const [targetFriend, setTargetFriend] = useState('')
+  const [memberIds, setMemberIds] = useState<string[]>([])
+  const useFriendTarget = !multi && targetFriend !== ''
+  const invitees = memberIds.filter((id) => id !== targetFriend || multi)
 
   const set = (key: keyof typeof EMPTY) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }))
@@ -49,11 +62,18 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
       // havuzunda, alıcılar seçildikten sonra ayarlanır.
       const group = await groupsApi.create(
         multi
-          ? { title: form.title.trim(), mode: 'MULTI', description: form.notes.trim() || undefined }
+          ? {
+              title: form.title.trim(),
+              mode: 'MULTI',
+              description: form.notes.trim() || undefined,
+              member_ids: invitees.length > 0 ? invitees : undefined,
+            }
           : {
+              member_ids: invitees.length > 0 ? invitees : undefined,
               title: form.title.trim(),
               target_person_name: form.target.trim(),
-              target_email: form.targetEmail.trim() || undefined,
+              target_email: useFriendTarget ? undefined : form.targetEmail.trim() || undefined,
+              target_user_id: useFriendTarget ? targetFriend : undefined,
               total_budget: (form.budget.trim() || '0').replace(',', '.'),
               description: form.notes.trim() || undefined,
               // Backend virgül ve satır sonu ayrımlı metni listeye ayrıştırır.
@@ -70,23 +90,26 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
           coverFailed = true
         }
       }
-      return { group, coverFailed }
+      return { group, coverFailed, invited: invitees.length }
     },
-    onSuccess: ({ group, coverFailed }) => {
+    onSuccess: ({ group, coverFailed, invited }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
       toast.success(t('newGroup.created', { title: group.title }))
+      if (invited > 0) toast.success(t('newGroup.friends.invited', { count: invited }))
       if (coverFailed) toast.error(t('newGroup.coverFailed'))
       setOpen(false)
       setForm(EMPTY)
       setMode('SINGLE')
       setCover(null)
+      setTargetFriend('')
+      setMemberIds([])
       navigate(`/groups/${group.id}`)
     },
   })
 
   // Kayıtlı olmayan e-posta alanın altında gösterilir; grup kurulmaz, isim yedeği için alan boşaltılabilir.
   const emailNotFound = mutation.error instanceof ApiError && mutation.error.status === 404
-  const emailSelf = !!user && form.targetEmail.trim().toLowerCase() === user.email.toLowerCase()
+  const emailSelf = !useFriendTarget && !!user && form.targetEmail.trim().toLowerCase() === user.email.toLowerCase()
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -191,6 +214,31 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
                 />
               </FormField>
             </div>
+            {friendList.length > 0 && (
+              <FormField id="g-target-friend" label={t('newGroup.friends.targetLabel')} hint={t('newGroup.friends.targetHint')}>
+                <Select
+                  id="g-target-friend"
+                  aria-describedby="g-target-friend-hint"
+                  value={targetFriend}
+                  onChange={(e) => {
+                    const id = e.target.value
+                    setTargetFriend(id)
+                    setMemberIds((ids) => ids.filter((m) => m !== id))
+                    const picked = friendList.find((f) => f.id === id)
+                    if (picked && !form.target.trim()) setForm((f) => ({ ...f, target: picked.name.split(' ')[0] }))
+                    if (emailNotFound) mutation.reset()
+                  }}
+                >
+                  <option value="">{t('newGroup.friends.targetNone')}</option>
+                  {friendList.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            )}
+            {!useFriendTarget && (
             <FormField
               id="g-target-email"
               label={t('newGroup.targetEmail')}
@@ -217,6 +265,7 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
                 </p>
               )}
             </FormField>
+            )}
             <FormField id="g-event-date" label={t('newGroup.eventDate')} optional={t('newGroup.optional')} hint={t('newGroup.eventDateHint')}>
               <Input
                 id="g-event-date"
@@ -244,6 +293,12 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
             </FormField>
             </>
           )}
+          <FriendPicker
+            friends={friendList.filter((f) => multi || f.id !== targetFriend)}
+            loading={friends.isPending}
+            selected={memberIds}
+            onChange={setMemberIds}
+          />
           <FormField id="g-notes" label={t('newGroup.notes')} optional={t('newGroup.optional')}>
             <Textarea
               id="g-notes"
@@ -297,5 +352,63 @@ export function NewGroupDialog({ trigger }: { trigger: ReactNode }) {
         />
       </DialogContent>
     </Dialog>
+  )
+}
+
+// "Kimlerle?" — arkadaş çoklu seçici. Seçilenlere grup daveti gider; kabul edene kadar üye
+// sayılmazlar. Hedef kişi listede yer almaz.
+function FriendPicker({
+  friends,
+  loading,
+  selected,
+  onChange,
+}: {
+  friends: Friend[]
+  loading: boolean
+  selected: string[]
+  onChange: (ids: string[]) => void
+}) {
+  const { t } = useTranslation()
+  const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
+  return (
+    <fieldset className="flex flex-col gap-2" aria-describedby="g-friends-hint">
+      <legend className="mb-2 flex items-center gap-2 text-sm leading-none font-medium">
+        {t('newGroup.friends.label')}
+        <span className="font-normal text-muted">({t('newGroup.optional')})</span>
+      </legend>
+      {loading ? null : friends.length === 0 ? (
+        <p id="g-friends-hint" className="text-xs text-muted">
+          {t('newGroup.friends.none')}{' '}
+          <Link to="/friends" className="font-medium text-ink underline underline-offset-4">
+            {t('newGroup.friends.addFriends')}
+          </Link>
+        </p>
+      ) : (
+        <>
+          <div className="flex max-h-[168px] flex-wrap gap-2 overflow-y-auto">
+            {friends.map((f) => {
+              const on = selected.includes(f.id)
+              return (
+                <label
+                  key={f.id}
+                  className={cn(
+                    'inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border pr-3 pl-1.5 text-sm transition-colors focus-within:ring-2 focus-within:ring-accent/40',
+                    on ? 'border-primary bg-soft text-on-soft' : 'border-control bg-raised hover:bg-surface',
+                  )}
+                >
+                  <input type="checkbox" className="sr-only" checked={on} onChange={() => toggle(f.id)} />
+                  <Avatar name={f.name} seed={f.id} userId={f.id} version={f.avatar_version} size="sm" />
+                  <span className="max-w-[140px] truncate">{f.name}</span>
+                  {on && <Check className="size-4" aria-hidden />}
+                </label>
+              )
+            })}
+          </div>
+          <p id="g-friends-hint" className="text-xs text-muted">
+            {t('newGroup.friends.hint')}
+          </p>
+        </>
+      )}
+    </fieldset>
   )
 }

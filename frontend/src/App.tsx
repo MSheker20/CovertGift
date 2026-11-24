@@ -21,6 +21,8 @@ export const routes: RouteObject[] = [
           { index: true, lazy: () => import('@/pages/GroupsPage').then((m) => ({ Component: m.GroupsPage })) },
           { path: '/groups/:id', lazy: () => import('@/pages/GroupPage').then((m) => ({ Component: m.GroupPage })) },
           { path: '/invite/:token', lazy: () => import('@/pages/InvitePage').then((m) => ({ Component: m.InvitePage })) },
+          { path: '/friends', lazy: () => import('@/pages/FriendsPage').then((m) => ({ Component: m.FriendsPage })) },
+          { path: '/f/:code', lazy: () => import('@/pages/FriendLinkPage').then((m) => ({ Component: m.FriendLinkPage })) },
           { path: '/profile', lazy: () => import('@/pages/ProfilePage').then((m) => ({ Component: m.ProfilePage })) },
         ],
       },

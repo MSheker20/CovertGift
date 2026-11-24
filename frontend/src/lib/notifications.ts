@@ -69,13 +69,17 @@ export function notificationText(n: AppNotification): string {
         actor,
         recipient: recipient ?? i18n.t('notifications.someone'),
       })
+    case 'group_invite':
+      return i18n.t('notifications.groupInvite', { actor })
     default:
       return i18n.t('notifications.unknown')
   }
 }
 
 // Bildirime tıklayınca gidilecek adres: havuz olaylarında grup sayfası o havuz sekmesiyle açılır.
+// Grup davetinde henüz üye olunmadığı için ana sayfadaki davetlere gidilir.
 export function notificationPath(n: AppNotification): string {
+  if (n.type === 'group_invite') return '/#invites'
   return `/groups/${n.group_id}${n.pool_id ? `?pool=${encodeURIComponent(n.pool_id)}` : ''}`
 }
 
@@ -106,6 +110,7 @@ export function notificationTone(type: string): NotificationTone {
       return 'overdue'
     case 'added_to_group':
     case 'member_joined':
+    case 'group_invite':
       return 'member'
     default:
       return 'neutral'

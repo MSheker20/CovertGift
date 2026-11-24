@@ -1,8 +1,8 @@
-import { Bell, Gift, Lightbulb, type LucideIcon } from 'lucide-react'
+import { Bell, Gift, Lightbulb, Users, type LucideIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
-const ICONS: Record<'gift' | 'ideas' | 'bell', LucideIcon> = { gift: Gift, ideas: Lightbulb, bell: Bell }
+const ICONS: Record<'gift' | 'ideas' | 'bell' | 'friends', LucideIcon> = { gift: Gift, ideas: Lightbulb, bell: Bell, friends: Users }
 
 // Boş durumların küçük çizimi: açık kobalt daire, ortada ikon, çevresinde hardal ve kobalt
 // konfeti noktaları. Dekoratiftir; yanında her zaman açıklayan metin vardır.

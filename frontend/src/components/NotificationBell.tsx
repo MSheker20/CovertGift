@@ -10,6 +10,7 @@ import {
   CheckCheck,
   Gift,
   Lightbulb,
+  MailPlus,
   RotateCcw,
   Sparkles,
   Trophy,
@@ -56,6 +57,7 @@ const ICONS: Record<string, LucideIcon> = {
   winner_overdue: AlarmClockOff,
   pool_added: Gift,
   pool_manager_assigned: UserCog,
+  group_invite: MailPlus,
 }
 
 // İkon kutusunun rengi türden gelir (src/lib/notifications.ts). Renkler yalnızca token.

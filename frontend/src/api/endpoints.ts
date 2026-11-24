@@ -5,6 +5,10 @@ import type {
   CoverUploadResult,
   CreateGroupInput,
   CreateIdeaInput,
+  FriendLink,
+  FriendLinkPreview,
+  FriendList,
+  FriendRequestResult,
   Group,
   GroupListItem,
   GroupDetail,
@@ -16,8 +20,10 @@ import type {
   InviteStatus,
   LinkPreview,
   LoginResponse,
+  MyGroupInvite,
   NotificationList,
   OpenPool,
+  PendingGroupInvite,
   PoolDetail,
   PoolView,
   UpdateProfileResponse,
@@ -189,6 +195,34 @@ export const invitesApi = {
   accept: (token: string) => api<{ group_id: string }>(`/invites/${encodeURIComponent(token)}/accept`, { method: 'POST' }),
 }
 
+export const friendsApi = {
+  list: (signal?: AbortSignal) => api<FriendList>('/friends', { signal }),
+  // Tam e-posta gerekir; kullanıcı arama yoktur. Kayıtsız 404, zaten arkadaş/istek 409.
+  request: (email: string) => api<FriendRequestResult>('/friends/requests', { method: 'POST', body: { email } }),
+  accept: (friendshipId: string) => api<unknown>(`/friends/requests/${friendshipId}/accept`, { method: 'POST' }),
+  // Gelen isteği reddeder ya da giden isteği geri çeker.
+  removeRequest: (friendshipId: string) => api<unknown>(`/friends/requests/${friendshipId}`, { method: 'DELETE' }),
+  unfriend: (userId: string) => api<unknown>(`/friends/users/${userId}`, { method: 'DELETE' }),
+  link: (signal?: AbortSignal) => api<FriendLink>('/friends/link', { signal }),
+  resetLink: () => api<FriendLink>('/friends/link/reset', { method: 'POST' }),
+  previewLink: (code: string, signal?: AbortSignal) =>
+    api<FriendLinkPreview>(`/friend-links/${encodeURIComponent(code)}`, { signal }),
+  acceptLink: (code: string) => api<unknown>(`/friend-links/${encodeURIComponent(code)}/accept`, { method: 'POST' }),
+}
+
+export const groupInvitesApi = {
+  // Grubun bekleyen davetleri (tüm üyeler görür).
+  forGroup: (groupId: string, signal?: AbortSignal) =>
+    api<PendingGroupInvite[]>(`/groups/${groupId}/member-invites`, { signal }),
+  // Yalnızca yönetici; yalnızca arkadaşlar.
+  invite: (groupId: string, userIds: string[]) =>
+    api<{ invited: string[] }>(`/groups/${groupId}/member-invites`, { method: 'POST', body: { user_ids: userIds } }),
+  cancel: (groupId: string, userId: string) => api<unknown>(`/groups/${groupId}/member-invites/${userId}`, { method: 'DELETE' }),
+  mine: (signal?: AbortSignal) => api<MyGroupInvite[]>('/me/group-invites', { signal }),
+  accept: (inviteId: string) => api<{ group_id: string }>(`/me/group-invites/${inviteId}/accept`, { method: 'POST' }),
+  decline: (inviteId: string) => api<unknown>(`/me/group-invites/${inviteId}`, { method: 'DELETE' }),
+}
+
 export const queryKeys = {
   me: ['me'] as const,
   notifications: ['notifications'] as const,
@@ -196,6 +230,12 @@ export const queryKeys = {
   group: (id: string) => ['groups', id] as const,
   invite: (groupId: string) => ['groups', groupId, 'invite'] as const,
   invitePreview: (token: string) => ['invites', token] as const,
+  friends: ['friends'] as const,
+  friendLink: ['friends', 'link'] as const,
+  friendLinkPreview: (code: string) => ['friend-links', code] as const,
+  myGroupInvites: ['me', 'group-invites'] as const,
+  // ['groups', id] altında: grup SSE'si ve grup geçersiz kılmaları bunu da yeniler.
+  memberInvites: (groupId: string) => ['groups', groupId, 'member-invites'] as const,
   ideas: (groupId: string) => ['groups', groupId, 'ideas'] as const,
   // MULTI havuz sorguları da ['groups', id] altındadır: SSE ve grup geçersiz kılmaları onları da yeniler.
   pool: (groupId: string, poolId: string) => ['groups', groupId, 'pools', poolId] as const,
