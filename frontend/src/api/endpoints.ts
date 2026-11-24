@@ -12,11 +12,11 @@ import type {
   Group,
   GroupListItem,
   GroupDetail,
-  GroupMember,
   Idea,
   InviteCreated,
   InviteDays,
   InvitePreview,
+  InvitedMember,
   InviteStatus,
   LinkPreview,
   LoginResponse,
@@ -66,8 +66,9 @@ export const groupsApi = {
   list: (signal?: AbortSignal) => api<GroupListItem[]>('/groups', { signal }),
   detail: (id: string, signal?: AbortSignal) => api<GroupDetail>(`/groups/${id}`, { signal }),
   create: (input: CreateGroupInput) => api<Group>('/groups', { method: 'POST', body: input }),
+  // E-postayla davet: kişi kabul edince üye olur. Zaten üye ya da davetliyse 409.
   addMember: (id: string, email: string) =>
-    api<GroupMember>(`/groups/${id}/members`, { method: 'POST', body: { email } }),
+    api<InvitedMember>(`/groups/${id}/members`, { method: 'POST', body: { email } }),
   addInterest: (id: string, interest: string) =>
     api<{ interests: string[] }>(`/groups/${id}/interests`, { method: 'POST', body: { interest } }),
   removeInterest: (id: string, interest: string) =>

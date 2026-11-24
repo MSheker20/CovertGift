@@ -236,7 +236,7 @@ func TestTargetAccountSummaryOnlyForMembers(t *testing.T) {
 	}, http.StatusCreated)
 	gid := idOf(t, created)
 	g := "/groups/" + gid
-	api.mustOK(http.MethodPost, g+"/members", admin.token, map[string]string{"email": member.email}, http.StatusCreated)
+	api.addMember(g, admin.token, member)
 	if d, raw := readDetail(t, api, gid, member.token); d.TargetAccount != nil || strings.Contains(raw, "target_account") {
 		t.Fatalf("hedefsiz grupta target_account döndü: %s", raw)
 	}

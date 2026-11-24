@@ -204,3 +204,33 @@ describe('group invites on the home page', () => {
     expect(accepted).toBe(true)
   })
 })
+
+describe('add member by email', () => {
+  beforeEach(() => localStorage.setItem('covertgift.token', 'tok'))
+
+  it('sends an invite and shows the person as pending instead of a member', async () => {
+    authed()
+    let invited = false
+    server.use(
+      http.get(api(`/groups/${group.id}`), () => ok(groupDetail())),
+      http.get(api(`/groups/${group.id}/ideas`), () => ok([])),
+      http.get(api(`/groups/${group.id}/events`), () => eventStream()),
+      http.post(api(`/groups/${group.id}/members`), () => {
+        invited = true
+        return ok({ user_id: ayse.id, name: ayse.name, status: 'INVITED' }, 201)
+      }),
+      http.get(api(`/groups/${group.id}/member-invites`), () =>
+        ok(invited ? [{ user_id: ayse.id, name: ayse.name, inviter_name: me.name, created_at: '2026-11-24T09:00:00Z' }] : []),
+      ),
+    )
+    const user = userEvent.setup()
+    renderApp(`/groups/${group.id}`)
+
+    await user.type(await screen.findByLabelText('Üye ekle'), 'ayse@ornek.com')
+    await user.click(screen.getByRole('button', { name: 'Ekle' }))
+    expect(await screen.findByText('Ayşe Demir davet edildi; kabul edince gruba katılır.')).toBeInTheDocument()
+    const pending = await screen.findByRole('list', { name: 'Bekleyen davetler' })
+    expect(within(pending).getByText('Ayşe Demir')).toBeInTheDocument()
+    expect(within(pending).getByText('Bekliyor')).toBeInTheDocument()
+  })
+})

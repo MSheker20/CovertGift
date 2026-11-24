@@ -79,12 +79,13 @@ func TestNotificationRecipientsAndAntiSpoiler(t *testing.T) {
 	api := s.api
 	group := "/groups/" + s.groupID
 
-	// Kurulum: admin üyeyi ekledi, üye bir fikir ekledi.
-	if got := api.types(s.member); !sameTypes(got, models.NotificationAddedToGroup) {
+	// Kurulum: admin üyeyi davet etti, üye kabul edip bir fikir ekledi. Davet bildirimi kabulde
+	// silinir; admin kabulden "katıldı" bildirimini ve fikir bildirimini alır.
+	if got := api.types(s.member); len(got) != 0 {
 		t.Fatalf("üye: %v", got)
 	}
 	adminList := api.notifications(s.admin)
-	if len(adminList.Items) != 1 || adminList.UnreadCount != 1 {
+	if len(adminList.Items) != 2 || adminList.UnreadCount != 2 {
 		t.Fatalf("admin: %+v", adminList)
 	}
 	idea := adminList.Items[0]
@@ -93,18 +94,26 @@ func TestNotificationRecipientsAndAntiSpoiler(t *testing.T) {
 		t.Fatalf("fikir bildirimi yanlış: %+v", idea)
 	}
 
-	// Yeni üye: eklenen "gruba eklendin", diğer üye "yeni üye katıldı" alır; ekleyen almaz.
+	// Yeni üye e-postayla davet edilir: davetli "grup daveti" alır, henüz kimse "katıldı" almaz.
 	extra := api.newUser("Extra")
 	api.mustOK(http.MethodPost, group+"/members", s.admin.token, map[string]string{"email": extra.email}, http.StatusCreated)
-	if got := api.types(extra); !sameTypes(got, models.NotificationAddedToGroup) {
-		t.Fatalf("eklenen üye: %v", got)
+	if got := api.types(extra); !sameTypes(got, models.NotificationGroupInvite) {
+		t.Fatalf("davetli: %v", got)
+	}
+	if got := api.types(s.member); len(got) != 0 {
+		t.Fatalf("davet kabul edilmeden üyeye bildirim gitti: %v", got)
+	}
+	// Kabul: davet bildirimi silinir, diğer üyeler (davet eden admin dahil) "katıldı" alır.
+	api.mustOK(http.MethodPost, "/me/group-invites/"+api.myInvites(extra)[0].ID+"/accept", extra.token, nil, http.StatusOK)
+	if got := api.types(extra); len(got) != 0 {
+		t.Fatalf("kabulden sonra davetlinin bildirimleri: %v", got)
 	}
 	memberList := api.notifications(s.member)
 	if memberList.Items[0].Type != models.NotificationMemberJoined || memberList.Items[0].Params["member_name"] != "Extra" {
 		t.Fatalf("üye katıldı bildirimi yanlış: %+v", memberList.Items[0])
 	}
-	if got := api.types(s.admin); !sameTypes(got, models.NotificationIdeaAdded) {
-		t.Fatalf("işlemi yapan admin kendi işleminden bildirim aldı: %v", got)
+	if got := api.types(s.admin); !sameTypes(got, models.NotificationMemberJoined, models.NotificationIdeaAdded, models.NotificationMemberJoined) {
+		t.Fatalf("admin bildirimleri: %v", got)
 	}
 
 	// Bütçe: gerçek değişiklik bildirilir, aynı tutar bildirilmez.
@@ -137,13 +146,13 @@ func TestNotificationRecipientsAndAntiSpoiler(t *testing.T) {
 	want := []string{
 		models.NotificationGroupReopened, models.NotificationWinnerSelected,
 		models.NotificationEventDateChanged, models.NotificationEventDateChanged,
-		models.NotificationBudgetChanged, models.NotificationMemberJoined, models.NotificationAddedToGroup,
+		models.NotificationBudgetChanged, models.NotificationMemberJoined,
 	}
 	if got := api.types(s.member); !sameTypes(got, want...) {
 		t.Fatalf("üye bildirimleri:\n got %v\nwant %v", got, want)
 	}
-	// Sonradan eklenen üye kendi "katıldı" bildirimini almaz; sonraki her şeyi alır.
-	wantExtra := append(append([]string{}, want[:5]...), models.NotificationAddedToGroup)
+	// Sonradan katılan üye kendi "katıldı" bildirimini almaz (davet bildirimi kabulde silindi); sonraki her şeyi alır.
+	wantExtra := append([]string{}, want[:5]...)
 	if got := api.types(extra); !sameTypes(got, wantExtra...) {
 		t.Fatalf("sonradan eklenen üye:\n got %v\nwant %v", got, wantExtra)
 	}
@@ -186,9 +195,10 @@ func TestNotificationsHiddenWhenTargetLinkedLater(t *testing.T) {
 		}, http.StatusCreated))
 	}
 	surprise, other := newGroup("Sürpriz"), newGroup("Başka grup")
-	api.mustOK(http.MethodPost, "/groups/"+surprise+"/members", admin.token, map[string]string{"email": member.email}, http.StatusCreated)
+	api.addMember("/groups/"+surprise, admin.token, member)
 	// Hedef olacak kişi başka bir grubun sıradan üyesi; o grubun bildirimleri kalmalı.
-	api.mustOK(http.MethodPost, "/groups/"+other+"/members", admin.token, map[string]string{"email": future.email}, http.StatusCreated)
+	api.addMember("/groups/"+other, admin.token, future)
+	api.mustOK(http.MethodPatch, "/groups/"+other+"/budget", admin.token, map[string]string{"total_budget": "1500"}, http.StatusOK)
 
 	// Sürpriz grubuna ait, hedef olacak kişide duran eski bir satır (tabloya doğrudan yazılır).
 	insert := func() uuid.UUID {
@@ -262,6 +272,8 @@ func TestNotificationReadAndOwnership(t *testing.T) {
 	s := setupScenario(t)
 	api := s.api
 	api.mustOK(http.MethodPatch, "/groups/"+s.groupID+"/budget", s.admin.token, map[string]string{"total_budget": "5000"}, http.StatusOK)
+	api.mustOK(http.MethodPatch, "/groups/"+s.groupID+"/event-date", s.admin.token,
+		map[string]any{"event_date": time.Now().AddDate(0, 0, 20).Format(models.DateLayout)}, http.StatusOK)
 
 	list := api.notifications(s.member)
 	if len(list.Items) != 2 || list.UnreadCount != 2 {
@@ -337,7 +349,7 @@ func TestReminderScheduler(t *testing.T) {
 			body["target_email"] = target.email
 		}
 		id := idOf(t, api.mustOK(http.MethodPost, "/groups", admin.token, body, http.StatusCreated))
-		api.mustOK(http.MethodPost, "/groups/"+id+"/members", admin.token, map[string]string{"email": member.email}, http.StatusCreated)
+		api.addMember("/groups/"+id, admin.token, member)
 		return id
 	}
 

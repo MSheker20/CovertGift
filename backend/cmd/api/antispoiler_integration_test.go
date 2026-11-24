@@ -196,7 +196,7 @@ func setupScenario(t *testing.T) *scenario {
 		"target_interests": "Kamp", "total_budget": "3000",
 	}, http.StatusCreated)
 	s.groupID = idOf(t, group)
-	api.mustOK(http.MethodPost, "/groups/"+s.groupID+"/members", s.admin.token, map[string]string{"email": s.member.email}, http.StatusCreated)
+	api.addMember("/groups/"+s.groupID, s.admin.token, s.member)
 	idea := api.mustOK(http.MethodPost, "/groups/"+s.groupID+"/ideas", s.member.token, map[string]any{
 		"title": "Kamp sandalyesi", "estimated_price": "900", "search_query": "kamp sandalyesi",
 	}, http.StatusCreated)
@@ -325,7 +325,7 @@ func TestAntiSpoilerTargetLinkedLater(t *testing.T) {
 		"title": "Hedefsiz grup", "target_person_name": "Henüz kayıtsız", "total_budget": "500",
 	}, http.StatusCreated)
 	g := "/groups/" + idOf(t, group)
-	api.mustOK(http.MethodPost, g+"/members", admin.token, map[string]string{"email": member.email}, http.StatusCreated)
+	api.addMember(g, admin.token, member)
 
 	// Grubun üyesi hedef olarak bağlanamaz (sürprizi zaten görmüştür).
 	if code, _ := api.call(http.MethodPatch, g+"/target", admin.token, map[string]string{"email": member.email}); code != http.StatusConflict {

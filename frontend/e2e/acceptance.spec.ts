@@ -1,5 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
+import { acceptGroupInvite } from './invites'
+
 // Faz 7 kabul akışı (Gemini hariç): kayıt → grup kur → üye ekle → manuel fikir ekle → oyla.
 // Ayrıca Anti-Spoiler: hedef kişi arayüzden e-postayla seçilir veya sonradan bağlanır;
 // grup adresini açınca yalnızca sürpriz ekranını görür.
@@ -85,10 +87,13 @@ test.describe('acceptance flow', () => {
     const perPerson = page.locator('div:has(> dt:text-is("Kişi başı"))')
     await expect(perPerson).toContainText('₺3.000,00')
 
-    // Üye ekle → kişi başı tutar ikiye bölünür
+    // Üye ekle → davet gider ("Bekliyor"); kabul edince kişi başı tutar ikiye bölünür
     await page.getByLabel('Üye ekle').fill(friend.email)
     await page.getByRole('button', { name: 'Ekle', exact: true }).click()
-    await expect(page.getByText('Elif Kara gruba eklendi.')).toBeVisible()
+    await expect(page.getByText('Elif Kara davet edildi; kabul edince gruba katılır.')).toBeVisible()
+    await expect(page.getByText('Bekliyor')).toBeVisible()
+    await expect(perPerson).toContainText('₺3.000,00')
+    await acceptGroupInvite(request, API, friend.token!, page.url().split('/groups/')[1])
     await expect(perPerson).toContainText('₺1.500,00')
 
     // Manuel fikir ekle (link önizlemesi dış ağa çıktığı için form elle doldurulur)
