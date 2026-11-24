@@ -1008,3 +1008,11 @@
   - Yeni `friends.test.tsx` (6 test). Vitest 257/257, `tsc -b`, `oxlint` ve `vite build` temiz.
   - Geçici `test-db` ile tarayıcıda denendi: rozet, isteği kabul, Ahmet'i hedef seçip iki arkadaşı davet ederek grup kurma, ana sayfadan davete katılma; konsol hatası yok.
   - Playwright'a bu akış eklenmedi.
+
+### 2026-11-24 — Arkadaşlar popup'ı ve canlıya dağıtım
+
+- **Popup:** Kullanıcıyla artı/eksi tartışıldı, karma yapı seçildi. Üst bardaki Arkadaşlar düğmesi popup açar (Radix Popover; açılır menü form alanlarıyla iyi çalışmadığı için). Popup'ta gelen istekler (Kabul/Reddet), e-postayla ekleme, "Linkimi kopyala" ve arkadaş sayısı; "Tüm arkadaşlar ve istekler" `/friends` sayfasına gider (liste, giden istekler, çıkarma, linki sıfırlama). Ortak parçalar `components/FriendParts.tsx`.
+- **nginx:** `/f/<code>` ve `/api/v1/friend-links/<code>` erişim loguna yazılmaz; API rotasında yalnızca kritik hatalar loglanır (davet token'ı kuralı).
+- **Dağıtım:** API `0617a54`, arayüz `fadbc10` ([AZURE.md](AZURE.md)). İmajlar temiz bir `git archive` kopyasından derlendi.
+- **Doğrulama:** Vitest 258/258 (yeni popup testi), `tsc -b`, `oxlint`, `vite build`; yerelde popup tarayıcıda açıldı (demo verisine yazılmadı). Canlıda yalnızca salt-okunur kontroller.
+
