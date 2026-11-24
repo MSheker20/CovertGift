@@ -154,7 +154,12 @@ test('group cover: crop and upload, shown in header and home card, restrict and 
       expect(photoBox.width / photoBox.height).toBeCloseTo(16 / 9, 1)
       expect(photoBox.width).toBeGreaterThan(cardBox.width * 0.8)
       expect(photoBox.y).toBeLessThan((await card.getByText(title).boundingBox())!.y)
+      // Telefonda şerit kartın üstüne eklenir: kart uzar.
+      expect(cardBox.height).toBeGreaterThan(plainHeight)
     } else {
+      // Masaüstünde düz kart da en az 232px'tir (satır yüksekliğini o belirler); fotoğraf
+      // kartı büyütmez, en fazla aynı yükseklikte kalır ya da biraz uzar.
+      expect(cardBox.height).toBeGreaterThanOrEqual(plainHeight)
       expect(photoBox.width / photoBox.height).toBeCloseTo(4 / 3, 1)
       expect(photoBox.width / cardBox.width).toBeGreaterThan(0.33)
       expect(photoBox.width / cardBox.width).toBeLessThan(0.45)
@@ -162,7 +167,6 @@ test('group cover: crop and upload, shown in header and home card, restrict and 
       expect(cardBox.height).toBeGreaterThanOrEqual(220)
       expect(cardBox.height).toBeLessThanOrEqual(260)
     }
-    expect(cardBox.height).toBeGreaterThan(plainHeight)
     await expect(card.getByText(title)).toBeVisible()
     await expect(card.getByText('gün kaldı')).toBeVisible()
     await expectLoaded(page.getByRole('link', { name: new RegExp(`${title}.*1 üye`) }).locator('img'))

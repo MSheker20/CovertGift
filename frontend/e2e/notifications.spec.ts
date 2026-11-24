@@ -70,7 +70,8 @@ test('notifications: live bell, mark read on click and mark all read', async ({ 
     // Tümünü okundu yap: rozet kalkar, liste açık kalır.
     await one.click()
     await page.getByRole('menuitem', { name: 'Tümünü okundu yap' }).click()
-    await expect(page.getByRole('menu').getByText('Okunmamış')).toHaveCount(0)
+    // "Okunmamış" süzgeç seçeneğinde de yazar; işaret yalnızca bildirim satırlarında aranır.
+    await expect(page.getByRole('menu').getByRole('menuitem').getByText('Okunmamış')).toHaveCount(0)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: 'Bildirimler', exact: true })).toBeVisible()
   } finally {
