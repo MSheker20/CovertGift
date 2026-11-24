@@ -137,6 +137,13 @@ func (r *inviteRepository) Join(hash string, userID uuid.UUID, now time.Time) (*
 			return err
 		}
 		result = &InviteJoinResult{GroupID: invite.GroupID}
+		// Linkle katılan kişinin bekleyen e-posta/arkadaş daveti varsa artık gereksizdir.
+		if err := tx.Where("group_id = ? AND invitee_id = ?", invite.GroupID, userID).Delete(&models.GroupMemberInvite{}).Error; err != nil {
+			return err
+		}
+		if err := deleteInviteNotifications(tx, invite.GroupID, userID); err != nil {
+			return err
+		}
 		if memberCount > 0 {
 			return nil
 		}

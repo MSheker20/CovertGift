@@ -976,7 +976,7 @@ describe('MULTI copy', () => {
     multiHandlers()
     renderApp(G)
     await screen.findByRole('heading', { level: 2, name: 'Elif Kara için' })
-    expect(await screen.findByText(/Hediye alınacak kişileri üyeler katıldıktan sonra sen seçersin/)).toBeInTheDocument()
+    expect(await screen.findByText(/hediye alınacak kişileri sonra sen seçersin/)).toBeInTheDocument()
     expect(screen.getByText(/Hediye alınacak kişileri sonradan sen seçersin/)).toBeInTheDocument()
     expect(screen.queryByText(/Hediye alınacak kişi eklenemez/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Hediye alınacak kişi katılamaz/)).not.toBeInTheDocument()

@@ -50,7 +50,7 @@ func setupMulti(t *testing.T) *multiScenario {
 		"title": "Ofis Yılbaşı", "mode": "MULTI", "description": "Herkese ayrı havuz",
 	}, http.StatusCreated))
 	for _, u := range []user{s.alice, s.bob, s.carol} {
-		api.mustOK(http.MethodPost, s.g()+"/members", s.admin.token, map[string]string{"email": u.email}, http.StatusCreated)
+		api.addMember(s.g(), s.admin.token, u)
 	}
 	s.poolAlice = s.addRecipient(s.aliceID, nil)
 	s.poolAdmin = s.addRecipient(s.adminID, &s.bobID)
@@ -833,7 +833,7 @@ func TestPoolContributionsOnEveryJoinPath(t *testing.T) {
 
 	dave, erin := api.newUser("Dave"), api.newUser("Erin")
 	daveID, erinID := api.userID(dave), api.userID(erin)
-	api.mustOK(http.MethodPost, s.g()+"/members", s.admin.token, map[string]string{"email": dave.email}, http.StatusCreated)
+	api.addMember(s.g(), s.admin.token, dave)
 	invite := api.createInvite(s.admin, s.groupID, 7)
 	api.mustOK(http.MethodPost, "/invites/"+invite.Token+"/accept", erin.token, nil, http.StatusOK)
 
@@ -1148,7 +1148,7 @@ func TestRecipientManagementRules(t *testing.T) {
 	api.mustOK(http.MethodDelete, r+"/"+s.adminID.String()+"?confirm=true", s.admin.token, nil, http.StatusOK)
 
 	// Yönetici kendini alıcı yaparsa yanıt kilitli karttır.
-	api.mustOK(http.MethodPost, s.g()+"/members", s.admin.token, map[string]string{"email": outsider.email}, http.StatusCreated)
+	api.addMember(s.g(), s.admin.token, outsider)
 	if code, res := api.call(http.MethodPost, r, s.admin.token, map[string]any{"user_id": s.adminID}); code != http.StatusBadRequest || res.Error != services.ErrManagerRequired.Error() {
 		t.Fatalf("yöneticisiz kendi havuzu: HTTP %d %+v", code, res)
 	}
@@ -1221,7 +1221,7 @@ func TestConcurrentRecipientAndMemberJoin(t *testing.T) {
 	}
 	for i := 0; i < rounds; i++ {
 		member := api.newUser(fmt.Sprintf("Recipient%d", i))
-		api.mustOK(http.MethodPost, s.g()+"/members", s.admin.token, map[string]string{"email": member.email}, http.StatusCreated)
+		api.addMember(s.g(), s.admin.token, member)
 		memberID := api.userID(member)
 		joiner := api.newUser(fmt.Sprintf("Joiner%d", i))
 		wg.Add(2)
@@ -1309,7 +1309,7 @@ func TestPoolAIGenerationNotifiesWithoutReachingRecipient(t *testing.T) {
 	s.adminID, s.aliceID, s.bobID, s.carolID = api.userID(s.admin), api.userID(s.alice), api.userID(s.bob), api.userID(s.carol)
 	s.groupID = idOf(t, api.mustOK(http.MethodPost, "/groups", s.admin.token, map[string]any{"title": "AI grubu", "mode": "MULTI"}, http.StatusCreated))
 	for _, u := range []user{s.alice, s.bob, s.carol} {
-		api.mustOK(http.MethodPost, s.g()+"/members", s.admin.token, map[string]string{"email": u.email}, http.StatusCreated)
+		api.addMember(s.g(), s.admin.token, u)
 	}
 	s.poolAlice = s.addRecipient(s.aliceID, nil)
 	api.mustOK(http.MethodPost, s.pool(s.poolAlice)+"/interests", s.bob.token, map[string]string{"interest": "Bitki"}, http.StatusOK)

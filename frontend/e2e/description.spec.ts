@@ -1,5 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
+import { acceptGroupInvite } from './invites'
+
 // Grup açıklaması ve hedef hesap durumu: açıklama başlığın altında en çok 3 satır görünür,
 // "Devamını gör / Daha az" ile açılır; yönetici menüden düzenler. Kalkan durumu bağlı değilken
 // uyarı tonunda ve yöneticiye "Hesabı bağla" eylemiyle, bağlanınca hesabın adıyla görünür.
@@ -45,6 +47,7 @@ test('group description and target account status', async ({ page, request }, in
     const groupId = (await created.json()).data.id as string
     const add = await request.post(`${API}/groups/${groupId}/members`, { headers: admin.headers, data: { email: member.email } })
     expect(add.status()).toBe(201)
+    await acceptGroupInvite(request, API, member.headers.Authorization, groupId)
 
     await signIn(page, admin.email)
     await page.goto(`/groups/${groupId}`)

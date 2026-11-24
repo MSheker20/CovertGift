@@ -1016,3 +1016,13 @@
 - **Dağıtım:** API `0617a54`, arayüz `fadbc10` ([AZURE.md](AZURE.md)). İmajlar temiz bir `git archive` kopyasından derlendi.
 - **Doğrulama:** Vitest 258/258 (yeni popup testi), `tsc -b`, `oxlint`, `vite build`; yerelde popup tarayıcıda açıldı (demo verisine yazılmadı). Canlıda yalnızca salt-okunur kontroller.
 
+## 2026-11-24 — E-postayla ekleme artık davet
+
+- **Sorun:** Arkadaşlar davetle (onayla) gruba girerken, e-postasını bilen biri tanımadığı birini sormadan doğrudan üye yapabiliyordu.
+- **Değişiklik:** `POST /groups/:id/members` davet yazar (`group_member_invites`) ve davetliye `group_invite` bildirimi gönderir; kabul/ret arkadaş davetiyle aynı (`/me/group-invites`). Arkadaşlık şartı yok, her üye gönderebilir (eskisi gibi). Yanıt `{ user_id, name, status: "INVITED" }`; bekleyen davet 409. Davet linkiyle katılan kişinin bekleyen daveti ve bildirimi aynı transaction'da silinir. Seed doğrudan servis kullandığı için değişmedi.
+- **Bildirim:** Kabul eden işlemi kendisi yaptığı için davet eden yönetici de "katıldı" alır. Katılan ile işlemi yapan aynı kişiyse metin "{{member}} gruba katıldı" (`memberJoinedSelf`); davet linkiyle katılmadaki "X, X adlı kişiyi gruba ekledi" tuhaflığı da böylece düzeldi.
+- **Arayüz:** Form "X davet edildi; kabul edince gruba katılır" der, kişi üyeler panelinde "Bekliyor" görünür; ipucu metinleri güncellendi.
+- **Doğrulama:**
+  - Go: üyeliğe ihtiyaç duyan entegrasyon testleri `addMember` (davet + kabul) yardımcısına geçti; bildirim testleri yeni akışa göre güncellendi; yeni `TestEmailAddSendsInvite`. `go test ./...` temiz.
+  - Vitest 259/259 (yeni e-postayla davet testi). Playwright test-db'ye karşı 17/18: e2e'ler daveti API'den kabul ediyor. `notifications.spec`'teki "Okunmamış" kontrolü #43'teki süzgeç etiketiyle hep eşleştiği için düzeltildi. `cover.spec` masaüstünde kart yüksekliği karşılaştırmasında `main`'in arayüzüyle de düşüyor; bu değişiklikle ilgisiz, ayrıca bakılmalı.
+

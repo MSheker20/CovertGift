@@ -1,5 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
+import { acceptGroupInvite } from './invites'
+
 // MULTI grup (birden çok kişi için hediye): yönetici grubu kurar, iki üye ekler, birini ve kendini
 // hediye alınacak kişi yapar (kendi havuzunu diğer üye yönetir). Sorumlu yöneticinin havuzuna fikir ve
 // bütçe girer; yönetici hiçbirini görmez, ilk alıcı katkı anahtarını değiştirince kişi başı tutar değişir.
@@ -55,12 +57,14 @@ test('multi-recipient group: manager runs the admin’s pool, the admin sees not
     const groupUrl = page.url()
     groupId = groupUrl.split('/groups/')[1]
 
-    // 2. İki üye ekler.
+    // 2. İki kişiyi davet eder; ikisi de kabul eder.
     for (const a of [first, manager]) {
       await page.getByLabel('Üye ekle').fill(a.email)
       await page.getByRole('button', { name: 'Ekle', exact: true }).click()
-      await expect(page.getByText(`${a.name} gruba eklendi.`)).toBeVisible()
+      await expect(page.getByText(`${a.name} davet edildi; kabul edince gruba katılır.`)).toBeVisible()
+      await acceptGroupInvite(request, api, a.token!, groupId)
     }
+    await expect(page.getByRole('button', { name: `${manager.name} için işlemler` })).toBeVisible()
 
     // 3. İlk üyeyi hediye alınacak kişi yapar.
     await page.getByRole('button', { name: `${first.name} için işlemler` }).click()
@@ -110,12 +114,15 @@ test('multi-recipient group: manager runs the admin’s pool, the admin sees not
     await expect(page.getByRole('heading', { name: 'Senin için bir sürpriz hazırlanıyor' })).toBeVisible()
     await expect(page.getByText(IDEA)).toHaveCount(0)
     await expect(page.getByText(/₺300,00/)).toHaveCount(0)
-    // Zilde okunmamış yok: düğme adında sayı yok ve liste boş.
-    const bell = page.getByRole('button', { name: 'Bildirimler', exact: true })
-    await expect(bell).toBeVisible()
-    await expect(page.getByRole('button', { name: /okunmamış/ })).toHaveCount(0)
+    // Zilde yalnızca davet ettiği kişilerin "katıldı" bildirimleri var; kendi havuzuna dair hiçbir şey yok.
+    const bell = page.getByRole('button', { name: /^Bildirimler/ })
     await bell.click()
-    await expect(page.getByText('Henüz bildirimin yok.')).toBeVisible()
+    const menu = page.getByRole('menu')
+    for (const a of [first, manager]) {
+      await expect(menu.getByRole('menuitem', { name: new RegExp(`${a.name} gruba katıldı`) })).toBeVisible()
+    }
+    await expect(menu.getByText(IDEA)).toHaveCount(0)
+    await expect(menu.getByRole('menuitem', { name: /fikir|bütçe|kazanan/ })).toHaveCount(0)
     await page.keyboard.press('Escape')
     expect(poolRequests.filter((u) => u.includes(ownPoolId))).toEqual([])
 

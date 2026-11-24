@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/MSheker20/CovertGift/backend/internal/models"
@@ -150,6 +151,21 @@ type myInvite struct {
 	ID         string `json:"id"`
 	GroupID    string `json:"group_id"`
 	GroupTitle string `json:"group_title"`
+}
+
+// addMember: inviter, u'yu e-postayla gruba davet eder (groupPath "/groups/<id>"), u daveti kabul eder.
+// E-postayla ekleme artık doğrudan üyelik değil davettir; üyeliğe ihtiyaç duyan testler bunu kullanır.
+func (a *testAPI) addMember(groupPath, inviterToken string, u user) {
+	a.t.Helper()
+	a.mustOK(http.MethodPost, groupPath+"/members", inviterToken, map[string]string{"email": u.email}, http.StatusCreated)
+	groupID := strings.TrimPrefix(groupPath, "/groups/")
+	for _, inv := range a.myInvites(u) {
+		if inv.GroupID == groupID {
+			a.mustOK(http.MethodPost, "/me/group-invites/"+inv.ID+"/accept", u.token, nil, http.StatusOK)
+			return
+		}
+	}
+	a.t.Fatalf("%s için %s grubunda davet yok", u.email, groupID)
 }
 
 func (a *testAPI) myInvites(u user) []myInvite {
@@ -311,5 +327,45 @@ func TestTargetInviteRowIsIgnored(t *testing.T) {
 	}
 	if s.api.memberRows(s.groupID, targetID) != 0 {
 		t.Fatal("hedef üye oldu")
+	}
+}
+
+// E-postayla ekleme artık davettir: arkadaşlık şartı yok, her üye gönderebilir, kişi kabul edince üye olur.
+func TestEmailAddSendsInvite(t *testing.T) {
+	s := setupScenario(t)
+	g := "/groups/" + s.groupID
+	stranger := s.api.newUser("Stranger")
+	strangerID := s.api.userID(stranger)
+
+	res := s.api.mustOK(http.MethodPost, g+"/members", s.member.token, map[string]string{"email": stranger.email}, http.StatusCreated)
+	var out struct {
+		UserID string `json:"user_id"`
+		Status string `json:"status"`
+	}
+	_ = json.Unmarshal(res.Data, &out)
+	if out.Status != "INVITED" || out.UserID != strangerID.String() {
+		t.Fatalf("yanıt: %s", res.Data)
+	}
+	if s.api.memberRows(s.groupID, strangerID) != 0 {
+		t.Fatal("e-postayla eklenen kişi onay vermeden üye oldu")
+	}
+	if code, _ := s.api.call(http.MethodGet, g, stranger.token, nil); code != http.StatusForbidden {
+		t.Fatalf("davetli grubu gördü: HTTP %d", code)
+	}
+	if code, _ := s.api.call(http.MethodPost, g+"/members", s.admin.token, map[string]string{"email": stranger.email}); code != http.StatusConflict {
+		t.Fatalf("ikinci davet: HTTP %d", code)
+	}
+	if code, _ := s.api.call(http.MethodPost, g+"/members", s.admin.token, map[string]string{"email": s.member.email}); code != http.StatusConflict {
+		t.Fatalf("mevcut üyeye davet: HTTP %d", code)
+	}
+
+	// Davet linkiyle katılırsa bekleyen e-posta daveti ve bildirimi temizlenir.
+	link := s.api.createInvite(s.admin, s.groupID, 7)
+	s.api.mustOK(http.MethodPost, "/invites/"+link.Token+"/accept", stranger.token, nil, http.StatusOK)
+	if rows := s.api.myInvites(stranger); len(rows) != 0 {
+		t.Fatalf("linkle katıldıktan sonra davet kaldı: %+v", rows)
+	}
+	if types := s.api.notificationTypes(stranger, s.groupID); len(types) != 0 {
+		t.Fatalf("linkle katıldıktan sonra davet bildirimi kaldı: %v", types)
 	}
 }

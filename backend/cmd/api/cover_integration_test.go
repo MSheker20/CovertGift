@@ -617,7 +617,7 @@ func TestCoverIsDeletedWithGroupAndCreator(t *testing.T) {
 	groupID := idOf(t, s.api.mustOK(http.MethodPost, "/groups", s.admin.token, map[string]any{
 		"title": "İkinci grup", "target_person_name": "Hedef", "total_budget": "100",
 	}, http.StatusCreated))
-	s.api.mustOK(http.MethodPost, "/groups/"+groupID+"/members", s.admin.token, map[string]string{"email": s.member.email}, http.StatusCreated)
+	s.api.addMember("/groups/"+groupID, s.admin.token, s.member)
 	s.api.mustUploadCover(groupID, s.member.token, testJPEG(t, 800, 600, 2))
 	s.api.mustOK(http.MethodDelete, "/me", s.member.token, nil, http.StatusOK)
 	var updatedBy *string

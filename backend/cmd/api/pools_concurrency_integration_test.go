@@ -127,13 +127,13 @@ func TestConcurrentGroupDeleteVsPoolWrites(t *testing.T) {
 		s.adminID, s.aliceID, s.bobID, s.carolID = api.userID(s.admin), api.userID(s.alice), api.userID(s.bob), api.userID(s.carol)
 		s.groupID = idOf(t, api.mustOK(http.MethodPost, "/groups", s.admin.token, map[string]any{"title": "Silinecek", "mode": "MULTI"}, http.StatusCreated))
 		for _, u := range []user{s.alice, s.bob, s.carol} {
-			api.mustOK(http.MethodPost, s.g()+"/members", s.admin.token, map[string]string{"email": u.email}, http.StatusCreated)
+			api.addMember(s.g(), s.admin.token, u)
 		}
 		s.poolAlice = s.addRecipient(s.aliceID, nil)
 		ideas := []string{s.addIdea(s.bob, s.poolAlice, "Fikir A"), s.addIdea(s.carol, s.poolAlice, "Fikir B")}
 		// SINGLE grup da aynı yarışla denenir (grup satırı FOR SHARE ↔ FOR UPDATE).
 		single := idOf(t, api.mustOK(http.MethodPost, "/groups", s.admin.token, map[string]any{"title": "Tekli", "target_person_name": "Ali"}, http.StatusCreated))
-		api.mustOK(http.MethodPost, "/groups/"+single+"/members", s.admin.token, map[string]string{"email": s.bob.email}, http.StatusCreated)
+		api.addMember("/groups/"+single, s.admin.token, s.bob)
 		singleIdea := idOf(t, api.mustOK(http.MethodPost, "/groups/"+single+"/ideas", s.bob.token, map[string]any{"title": "Tekli fikir"}, http.StatusCreated))
 
 		var wg sync.WaitGroup
@@ -205,7 +205,7 @@ func TestConcurrentAccountDeleteVsPoolWrites(t *testing.T) {
 		s.adminID, s.aliceID, s.bobID, s.carolID = api.userID(s.admin), api.userID(s.alice), api.userID(s.bob), api.userID(s.carol)
 		s.groupID = idOf(t, api.mustOK(http.MethodPost, "/groups", s.admin.token, map[string]any{"title": "Hesap silme", "mode": "MULTI"}, http.StatusCreated))
 		for _, u := range []user{s.alice, s.bob, s.carol} {
-			api.mustOK(http.MethodPost, s.g()+"/members", s.admin.token, map[string]string{"email": u.email}, http.StatusCreated)
+			api.addMember(s.g(), s.admin.token, u)
 		}
 		s.poolAlice = s.addRecipient(s.aliceID, nil)
 		poolAdmin := s.addRecipient(s.adminID, &s.bobID) // Bob yöneticinin havuzunun sorumlusu

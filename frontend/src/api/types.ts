@@ -310,3 +310,6 @@ export type PendingGroupInvite = {
   inviter_name: string
   created_at: string
 }
+
+// POST /groups/:id/members yanıtı: e-postayla gönderilen davet.
+export type InvitedMember = { user_id: string; name: string; status: 'INVITED' }

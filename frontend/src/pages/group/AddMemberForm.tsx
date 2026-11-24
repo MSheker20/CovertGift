@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { errorMessage } from '@/lib/errors'
 
-// Her üye e-postayla üye ekleyebilir; hedef kişi ve mevcut üyeler backend'de reddedilir.
+// Her üye e-postayla davet gönderebilir; kişi kabul edince üye olur. Hedef kişi, mevcut üyeler ve
+// bekleyen davetler backend'de reddedilir.
 export function AddMemberForm({ groupId, multi = false }: { groupId: string; multi?: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -17,11 +18,11 @@ export function AddMemberForm({ groupId, multi = false }: { groupId: string; mul
 
   const add = useMutation({
     mutationFn: () => groupsApi.addMember(groupId, email.trim()),
-    onSuccess: (member) => {
+    onSuccess: (invited) => {
       setEmail('')
-      toast.success(t('members.added', { name: member.user?.name ?? email.trim() }))
-      // Üye sayısı kişi başı bütçeyi ve çoğunluk vetosu eşiğini değiştirir.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.group(groupId) })
+      toast.success(t('members.invited', { name: invited.name }))
+      // Bekleyen davetler üyeler panelinde "Bekliyor" olarak görünür.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.memberInvites(groupId) })
     },
   })
 

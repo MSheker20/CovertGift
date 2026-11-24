@@ -272,26 +272,33 @@ func (ctl *GroupController) GetGroupDetail(c *gin.Context) {
 	RespondOK(c, detail)
 }
 
-// AddMember gruba e-posta ile üye ekler
-// @Summary      Gruba E-posta ile Üye Ekle
-// @Description  Gruptaki mevcut bir üye tarafından sisteme kayıtlı başka bir kullanıcıyı e-posta adresiyle gruba ekler. Hedef kişi üye olarak eklenemez.
+// InvitedMember e-postayla gönderilen davetin yanıtıdır.
+type InvitedMember struct {
+	UserID uuid.UUID `json:"user_id" format:"uuid"`
+	Name   string    `json:"name" example:"Zeynep Kaya"`
+	// Status her zaman INVITED: kişi kabul edince üye olur.
+	Status string `json:"status" example:"INVITED"`
+}
+
+// AddMember gruba e-posta ile davet gönderir
+// @Summary      Gruba E-posta ile Davet Gönder
+// @Description  Gruptaki herhangi bir üye, sisteme kayıtlı bir kullanıcıyı e-postasıyla davet eder (arkadaş olma şartı yok). Kişi doğrudan üye olmaz: "grup daveti" bildirimi alır ve kabul edince üye olur (`POST /me/group-invites/:inviteId/accept`). Hedef kişi davet edilemez (400); zaten üye 409, bekleyen davet 409.
 // @Tags         Hediye Grupları (Groups)
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id path string true "Grup UUID" Format(uuid)
-// @Param        request body AddMemberRequest true "Eklenecek Üyenin E-postası"
-// @Success      201 {object} Response{data=models.GroupMember} "Üye başarıyla eklendi"
-// @Failure      400 {object} Response "Hedef kişi gruba üye eklenemez veya geçersiz istek"
+// @Param        request body AddMemberRequest true "Davet edilecek kişinin e-postası"
+// @Success      201 {object} Response{data=InvitedMember} "Davet gönderildi"
+// @Failure      400 {object} Response "Hedef kişi davet edilemez veya geçersiz istek"
 // @Failure      401 {object} Response "Oturum açılmamış"
-// @Failure      403 {object} Response "Bu gruba üye ekleme yetkiniz yok"
+// @Failure      403 {object} Response "Grubun üyesi değilsiniz"
 // @Failure      404 {object} Response "Kullanıcı veya grup bulunamadı"
-// @Failure      409 {object} Response "Kullanıcı zaten grubun üyesi"
+// @Failure      409 {object} Response "Kullanıcı zaten üye ya da davetli"
 // @Failure      500 {object} Response "Sunucu hatası"
 // @Router       /api/v1/groups/{id}/members [post]
 func (ctl *GroupController) AddMember(c *gin.Context) {
-	groupIDStr := c.Param("id")
-	groupID, err := uuid.Parse(groupIDStr)
+	groupID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		RespondErr(c, http.StatusBadRequest, "Geçersiz grup kimliği")
 		return
@@ -308,40 +315,33 @@ func (ctl *GroupController) AddMember(c *gin.Context) {
 		RespondErr(c, http.StatusUnauthorized, "Oturum açmanız gerekiyor")
 		return
 	}
-
-	member, err := ctl.groupService.AddMemberByEmail(groupID, currentUserID, req.Email)
-	if err != nil {
-		if errors.Is(err, services.ErrUserNotFound) {
-			RespondErr(c, http.StatusNotFound, "Eklenmek istenen e-posta sistemde kayıtlı değil")
-			return
-		}
-		if errors.Is(err, services.ErrCannotAddTargetAsMember) {
-			RespondErr(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		if errors.Is(err, services.ErrAlreadyGroupMember) {
-			RespondErr(c, http.StatusConflict, err.Error())
-			return
-		}
-		if errors.Is(err, services.ErrNotGroupMember) {
-			RespondErr(c, http.StatusForbidden, err.Error())
-			return
-		}
-		if errors.Is(err, services.ErrGroupNotFound) {
-			RespondErr(c, http.StatusNotFound, err.Error())
-			return
-		}
-		RespondInternal(c, "Üye eklenirken bir hata oluştu", err)
+	if ctl.Friends == nil {
+		RespondInternal(c, "Davet gönderilirken bir hata oluştu", errors.New("friend service not configured"))
 		return
 	}
 
-	// Eklenen kişiye "gruba eklendin", diğer üyelere "yeni üye katıldı".
-	RecordNotification(c, services.NotificationEvent{GroupID: groupID, Type: models.NotificationAddedToGroup, Only: []uuid.UUID{member.UserID}})
-	RecordNotification(c, services.NotificationEvent{
-		GroupID: groupID, Type: models.NotificationMemberJoined, Exclude: []uuid.UUID{member.UserID},
-		Params: models.NotificationParams{"member_name": member.User.Name},
-	})
-	RespondCreated(c, member)
+	invitee, err := ctl.Friends.InviteByEmail(groupID, currentUserID, req.Email)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrUserNotFound):
+			RespondErr(c, http.StatusNotFound, "Eklenmek istenen e-posta sistemde kayıtlı değil")
+		case errors.Is(err, services.ErrCannotAddTargetAsMember):
+			RespondErr(c, http.StatusBadRequest, err.Error())
+		case errors.Is(err, services.ErrAlreadyGroupMember), errors.Is(err, services.ErrAlreadyInvited):
+			RespondErr(c, http.StatusConflict, err.Error())
+		case errors.Is(err, services.ErrNotGroupMember):
+			RespondErr(c, http.StatusForbidden, err.Error())
+		case errors.Is(err, services.ErrGroupNotFound):
+			RespondErr(c, http.StatusNotFound, err.Error())
+		default:
+			RespondInternal(c, "Davet gönderilirken bir hata oluştu", err)
+		}
+		return
+	}
+
+	// Davetliye "grup daveti"; kabul edince diğer üyelere "yeni üye katıldı" gider.
+	RecordInviteNotifications(c, groupID, []uuid.UUID{invitee.ID})
+	RespondCreated(c, InvitedMember{UserID: invitee.ID, Name: invitee.Name, Status: "INVITED"})
 }
 
 // AddInterest adds one interest without replacing other members' contributions.

@@ -25,6 +25,7 @@ var (
 	ErrInviteeIsTarget          = errors.New("hediye alınacak kişi gruba davet edilemez")
 	ErrUnauthorizedMemberInvite = errors.New("davetleri sadece grup yöneticisi (admin) yönetebilir")
 	ErrMemberInviteNotFound     = errors.New("davet bulunamadı")
+	ErrAlreadyInvited           = errors.New("bu kişi zaten davet edildi; kabul etmesi bekleniyor")
 	friendCodePattern           = regexp.MustCompile(`^[A-Za-z0-9_-]{22}$`)
 )
 
@@ -102,6 +103,10 @@ type FriendService interface {
 	InviteToGroup(groupID, userID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error)
 	// InviteCreatedGroup grubu yeni kuran admin için doğrulanmış davetleri yazar.
 	InviteCreatedGroup(groupID, userID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error)
+	// InviteByEmail gruba e-postayla davet gönderir (arkadaşlık şartı yok, her üye gönderebilir).
+	// Davetli kabul edince üye olur. Hedef kişi ErrCannotAddTargetAsMember, üye ErrAlreadyGroupMember,
+	// bekleyen davet ErrAlreadyInvited.
+	InviteByEmail(groupID, userID uuid.UUID, email string) (*models.User, error)
 	ListGroupInvites(groupID, userID uuid.UUID) ([]repository.PendingInviteRow, error)
 	CancelGroupInvite(groupID, userID, inviteeID uuid.UUID) error
 	MyInvites(userID uuid.UUID) ([]repository.MyInviteRow, error)
@@ -364,6 +369,52 @@ func (s *friendService) writeInvites(group *models.Group, userID uuid.UUID, ids 
 		return nil, err
 	}
 	return invited, nil
+}
+
+func (s *friendService) InviteByEmail(groupID, userID uuid.UUID, email string) (*models.User, error) {
+	group, err := s.groupRepo.GetGroupByID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	if group == nil {
+		return nil, ErrGroupNotFound
+	}
+	member, err := s.groupRepo.GetMember(groupID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if member == nil {
+		return nil, ErrNotGroupMember
+	}
+	invitee, err := s.userRepo.FindByEmail(strings.TrimSpace(email))
+	if err != nil {
+		return nil, err
+	}
+	if invitee == nil {
+		return nil, ErrUserNotFound
+	}
+	if group.TargetUserID != nil && *group.TargetUserID == invitee.ID {
+		return nil, ErrCannotAddTargetAsMember
+	}
+	existing, err := s.groupRepo.GetMember(groupID, invitee.ID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return nil, ErrAlreadyGroupMember
+	}
+	invited, err := s.invites.Invite(groupID, userID, []uuid.UUID{invitee.ID})
+	if err != nil {
+		if errors.Is(err, repository.ErrMemberIsGroupTarget) {
+			return nil, ErrCannotAddTargetAsMember
+		}
+		return nil, err
+	}
+	if len(invited) == 0 {
+		// Zaten davetli (ya da bu arada üye oldu).
+		return nil, ErrAlreadyInvited
+	}
+	return invitee, nil
 }
 
 func (s *friendService) ListGroupInvites(groupID, userID uuid.UUID) ([]repository.PendingInviteRow, error) {
