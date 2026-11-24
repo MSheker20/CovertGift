@@ -32,11 +32,11 @@ describe('friends page', () => {
     const user = userEvent.setup()
     renderApp('/friends')
 
-    expect(await screen.findByRole('link', { name: 'Arkadaşlar, 1 yeni istek' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Arkadaşlar, 1 yeni istek' })).toBeInTheDocument()
     expect(screen.getByDisplayValue(`${window.location.origin}/f/${'A'.repeat(22)}`)).toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: 'Kabul et' }))
 
-    await waitFor(() => expect(screen.getByRole('link', { name: 'Arkadaşlar' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Arkadaşlar' })).toBeInTheDocument())
     const mine = screen.getByRole('heading', { name: /Arkadaşlarım/ }).closest('section') as HTMLElement
     expect(within(mine).getByText('Ayşe Demir')).toBeInTheDocument()
   })
@@ -66,6 +66,35 @@ describe('friends page', () => {
     await user.click(screen.getByRole('button', { name: 'İstek gönder' }))
     await waitFor(() => expect(sent).toBe('ayse@ornek.com'))
     expect(input).toHaveValue('')
+  })
+})
+
+describe('friends popover', () => {
+  beforeEach(() => localStorage.setItem('covertgift.token', 'tok'))
+
+  it('accepts a request without leaving the page and links to the full list', async () => {
+    authed()
+    let accepted = false
+    server.use(
+      http.get(api('/friends'), () => ok(accepted ? list({ friends: [ayse] }) : list({ friends: [can], incoming: [ayse] }))),
+      http.post(api('/friends/requests/fs-u-ayse/accept'), () => {
+        accepted = true
+        return ok({ message: 'ok' })
+      }),
+    )
+    const user = userEvent.setup()
+    const { router } = renderApp('/')
+
+    await user.click(await screen.findByRole('button', { name: 'Arkadaşlar, 1 yeni istek' }))
+    const popup = await screen.findByRole('dialog', { name: 'Arkadaşlar' })
+    expect(within(popup).getByText('1 arkadaş')).toBeInTheDocument()
+    await user.click(within(popup).getByRole('button', { name: 'Kabul et' }))
+
+    await waitFor(() => expect(accepted).toBe(true))
+    expect(router.state.location.pathname).toBe('/')
+    await waitFor(() => expect(within(popup).queryByText('Gelen istekler')).not.toBeInTheDocument())
+    await user.click(within(popup).getByRole('link', { name: 'Tüm arkadaşlar ve istekler' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/friends'))
   })
 })
 

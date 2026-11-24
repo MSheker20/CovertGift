@@ -3,12 +3,13 @@ import { Link, Outlet, useMatch, useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Check, ChevronDown, LayoutGrid, LogOut, UserRound, Users } from 'lucide-react'
 
-import { friendsApi, groupsApi, queryKeys } from '@/api/endpoints'
+import { groupsApi, queryKeys } from '@/api/endpoints'
 import { useAuth } from '@/auth/AuthProvider'
 import { Avatar } from '@/components/Avatar'
 import { GroupThumb } from '@/components/GroupCover'
 import { LanguageSwitch } from '@/components/LanguageSwitch'
 import { Logo, LogoMark } from '@/components/Logo'
+import { FriendsPopover } from '@/components/FriendsPopover'
 import { NotificationBell } from '@/components/NotificationBell'
 import {
   DropdownMenu,
@@ -36,7 +37,7 @@ export function AppShell() {
           <GroupSwitcher />
           <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
             <LanguageSwitch className="hidden md:inline-flex" />
-            <FriendsButton />
+            <FriendsPopover />
             <NotificationBell />
             <AccountMenu />
           </div>
@@ -46,34 +47,6 @@ export function AppShell() {
         <Outlet />
       </main>
     </div>
-  )
-}
-
-// Arkadaşlar bağlantısı. Arkadaşlık istekleri zile düşmez; gelen istek sayısı burada ayrı bir
-// rozetle görünür. Liste bildirim akışının sinyaliyle yenilenir (useNotificationEvents).
-function FriendsButton() {
-  const { t } = useTranslation()
-  const active = useMatch('/friends')
-  const friends = useQuery({
-    queryKey: queryKeys.friends,
-    queryFn: ({ signal }) => friendsApi.list(signal),
-    refetchInterval: 60_000,
-  })
-  const incoming = friends.data?.incoming.length ?? 0
-  return (
-    <Link
-      to="/friends"
-      aria-label={incoming > 0 ? t('nav.friendsWithRequests', { count: incoming }) : t('nav.friends')}
-      aria-current={active ? 'page' : undefined}
-      className="relative inline-flex size-10 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-surface aria-[current=page]:bg-surface md:size-11"
-    >
-      <Users className="size-5" />
-      {incoming > 0 && (
-        <span className="num absolute top-0.5 right-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] leading-none font-semibold text-on-primary ring-2 ring-raised md:top-1 md:right-1">
-          {incoming > 9 ? '9+' : incoming}
-        </span>
-      )}
-    </Link>
   )
 }
 

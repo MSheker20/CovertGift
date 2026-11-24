@@ -573,6 +573,12 @@ const en: Messages = {
     unknown: 'Something changed in the group',
   },
   friends: {
+    popover: {
+      count_one: '{{count}} friend',
+      count_other: '{{count}} friends',
+      manage: 'All friends and requests',
+      copyLink: 'Copy my link',
+    },
     title: 'Friends',
     lead: 'Add your friends and set up a new surprise group in a few clicks.',
     quickGroup: 'Start a group with friends',

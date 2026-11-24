@@ -571,6 +571,12 @@ const tr = {
     unknown: 'Grupta bir değişiklik oldu',
   },
   friends: {
+    popover: {
+      count_one: '{{count}} arkadaş',
+      count_other: '{{count}} arkadaş',
+      manage: 'Tüm arkadaşlar ve istekler',
+      copyLink: 'Linkimi kopyala',
+    },
     title: 'Arkadaşlar',
     lead: 'Arkadaşlarını ekle, yeni bir sürpriz grubunu birkaç tıkla kur.',
     quickGroup: 'Arkadaşlarla grup kur',
