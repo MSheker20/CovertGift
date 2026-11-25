@@ -1025,4 +1025,11 @@
 - **Doğrulama:**
   - Go: üyeliğe ihtiyaç duyan entegrasyon testleri `addMember` (davet + kabul) yardımcısına geçti; bildirim testleri yeni akışa göre güncellendi; yeni `TestEmailAddSendsInvite`. `go test ./...` temiz.
   - Vitest 259/259 (yeni e-postayla davet testi). Playwright test-db'ye karşı 17/18: e2e'ler daveti API'den kabul ediyor. `notifications.spec`'teki "Okunmamış" kontrolü #43'teki süzgeç etiketiyle hep eşleştiği için düzeltildi. `cover.spec` masaüstünde kart yüksekliği karşılaştırmasında `main`'in arayüzüyle de düşüyor; bu değişiklikle ilgisiz, ayrıca bakılmalı.
+- **Dağıtım (2026-11-24):** #49 ve #50 merge edildi (#50, #49 ile `notifications.spec.ts`'te çakıştı; iki kontrol de korundu). API ve arayüz `8e4ac41` ile canlıda ([AZURE.md](AZURE.md)); yalnızca salt-okunur kontroller yapıldı, birleşik e2e yeniden koşulmadı.
+
+## 2026-11-24 — Sayfa geçişinde kaydırma konumu
+
+- **Sorun:** Ana sayfa aşağı kaydırılmışken bir gruba tıklanınca grup sayfası aynı konumda (aşağıda) açılıyordu; uygulamada `ScrollRestoration` yoktu.
+- **Düzeltme:** `AppShell` React Router'ın `ScrollRestoration` bileşenini çizer: yeni sayfa en üstten açılır, geri/ileri dönüşte önceki konum geri gelir (#52).
+- **Doğrulama:** Yeni `scroll.test.tsx` (düzeltme olmadan düşer); Vitest 260/260, `tsc -b`, `oxlint`, `vite build`. Yerelde: ana sayfa 439 px → grup sayfası 0 → geri 439 px. Canlıya `covertgift-web:d6212bb` ile dağıtıldı.
 
